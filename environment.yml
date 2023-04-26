@@ -23,7 +23,6 @@ dependencies:
   - cryptography=40.0.2=py310hdd0c95c_0
   - cycler=0.11.0=pyhd8ed1ab_0
   - docopt=0.6.2=py_1
-  - etelemetry=0.3.0=pyhd8ed1ab_0
   - expat=2.5.0=hf0c8a7f_1
   - filelock=3.12.0=pyhd8ed1ab_0
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
@@ -149,9 +148,30 @@ dependencies:
   - zlib=1.2.13=hfd90126_4
   - zstd=1.5.2=hbc0c0cd_6
   - pip:
+    - attrs==23.1.0
+    - etelemetry==0.3.0
     - exceptiongroup==1.1.1
+    - h5py==3.8.0
+    - imageio==2.28.0
     - iniconfig==2.0.0
+    - jinja2==3.1.2
+    - joblib==1.2.0
+    - lazy-loader==0.2
+    - markupsafe==2.1.2
+    - nilearn==0.10.0
+    - nitransforms==22.0.0
+    - niworkflows==1.7.9
     - pluggy==1.0.0
     - pytest==7.3.1
+    - pywavelets==1.4.1
+    - pyyaml==6.0
+    - scikit-image==0.20.0
+    - scikit-learn==1.2.2
+    - svgutils==0.3.4
+    - templateflow==23.0.0
+    - threadpoolctl==3.1.0
+    - tifffile==2023.4.12
     - tomli==2.0.1
+    - tqdm==4.65.0
+    - transforms3d==0.4.1
 prefix: /Users/martinnorgaard/opt/anaconda3/envs/nipreps_petprep
