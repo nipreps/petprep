@@ -148,4 +148,10 @@ dependencies:
   - zipp=3.15.0=pyhd8ed1ab_0
   - zlib=1.2.13=hfd90126_4
   - zstd=1.5.2=hbc0c0cd_6
+  - pip:
+    - exceptiongroup==1.1.1
+    - iniconfig==2.0.0
+    - pluggy==1.0.0
+    - pytest==7.3.1
+    - tomli==2.0.1
 prefix: /Users/martinnorgaard/opt/anaconda3/envs/nipreps_petprep
