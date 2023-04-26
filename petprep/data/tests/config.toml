@@ -6,7 +6,7 @@ overcommit_policy = "heuristic"
 overcommit_limit = "50%"
 nipype_version = "1.5.0"
 templateflow_version = "0.4.2"
-version = "20.0.1"
+version = "0.0.1"
 
 [execution]
 bids_dir = "ds000005/"
@@ -30,16 +30,11 @@ write_graph = false
 
 [workflow]
 anat_only = false
-aroma_err_on_warn = false
-aroma_melodic_dim = -200
-bold2t1w_dof = 6
-fmap_bspline = false
-force_syn = false
+pet2t1w_dof = 6
 hires = true
 ignore = []
 longitudinal = false
 medial_surface_nan = false
-regressors_all_comps = false
 regressors_dvars_th = 1.5
 regressors_fd_th = 0.5
 run_reconall = true
