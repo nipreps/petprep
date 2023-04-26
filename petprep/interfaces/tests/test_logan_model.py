@@ -3,12 +3,21 @@ from nipype.pipeline import Node, Workflow
 from petprep.interfaces.kinmod import LoganModel
 
 def test_logan_model():
-    frame_times = np.array([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300])
-    reference_tac = np.array([0, 10, 20, 25, 28, 30, 31, 31.5, 32, 32.2, 32.3])
-    target_tac = np.array([0, 5, 12, 17, 20, 21, 22, 22.5, 23, 23.2, 23.3])
+    frame_times = np.array([10, 30, 50, 90, 150, 210, 300, 420, 540, 750, 1050, 1500, 
+                        2100, 2700, 3300, 3900, 4500, 5100, 5700, 6300, 6900])
+    reference_tac = np.array([-1.3000e+01,  1.3400e+02,  8.7000e+02,  3.0640e+03,  5.4180e+03,
+        6.8900e+03,  9.7530e+03,  1.3040e+04,  1.5895e+04,  1.9864e+04,
+        2.4001e+04,  2.6133e+04,  2.5346e+04,  2.2518e+04,  2.0362e+04,
+        1.7967e+04,  1.5955e+04,  1.4412e+04,  1.3068e+04,  1.1734e+04,
+        1.0224e+04])
+    target_tac = np.array([-4.0000e+00, -5.0000e+00,  1.2040e+03,  3.9040e+03,  6.4980e+03,
+        8.5220e+03,  1.1925e+04,  1.7069e+04,  2.1018e+04,  2.6893e+04,
+        3.3922e+04,  4.0015e+04,  4.3574e+04,  4.3859e+04,  4.2365e+04,
+        4.0321e+04,  3.7689e+04,  3.5427e+04,  3.1781e+04,  2.9542e+04,
+        2.7551e+04])
     tstar = 90
-    k2ref = 0.05
-    weights = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+    k2ref = 0.0619
+    frame_weight = np.ones(len(target_tac))
 
     logan_node = Node(LoganModel(), name="logan_model")
     logan_node.inputs.reference_tac = reference_tac
@@ -16,7 +25,7 @@ def test_logan_model():
     logan_node.inputs.frame_times = frame_times
     logan_node.inputs.tstar = tstar
     logan_node.inputs.k2ref = k2ref
-    logan_node.inputs.weights = weights
+    logan_node.inputs.frame_weight = frame_weight
 
     wf = Workflow(name="logan_wf")
     wf.add_nodes([logan_node])
