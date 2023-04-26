@@ -271,7 +271,7 @@ class environment(_Config):
     templateflow_version = _tf_ver
     """The TemplateFlow client version installed."""
     version = __version__
-    """*fMRIPrep*'s version."""
+    """*PETPrep*'s version."""
 
 
 class nipype(_Config):
@@ -366,16 +366,14 @@ class execution(_Config):
     """Run in sloppy mode (meaning, suboptimal parameters that minimize run-time)."""
     debug = []
     """Debug mode(s)."""
-    echo_idx = None
-    """Select a particular echo for multi-echo EPI datasets."""
-    fmriprep_dir = None
-    """Root of fMRIPrep BIDS Derivatives dataset. Depends on output_layout."""
+    petprep_dir = None
+    """Root of PETPrep BIDS Derivatives dataset. Depends on output_layout."""
     fs_license_file = _fs_license
     """An existing file containing a FreeSurfer license."""
     fs_subjects_dir = None
     """FreeSurfer's subjects directory."""
     layout = None
-    """A :py:class:`~bids.layout.BIDSLayout` object, see :py:func:`init`."""
+    """A :py:class:`~bids.layout.BIDSLayout` object, see :py:pet:`init`."""
     log_dir = None
     """The path to a directory that contains execution logs."""
     log_level = 25
@@ -385,15 +383,13 @@ class execution(_Config):
     md_only_boilerplate = False
     """Do not convert boilerplate from MarkDown to LaTex and HTML."""
     notrack = False
-    """Do not collect telemetry information for *fMRIPrep*."""
+    """Do not collect telemetry information for *PETPrep*."""
     track_carbon = False
     """Tracks power draws using CodeCarbon package."""
     country_code = "CAN"
     """Country ISO code used by carbon trackers."""
     output_dir = None
     """Folder where derivatives will be stored."""
-    me_output_echos = False
-    """Output individual echo time series with slice, motion and susceptibility correction"""
     output_layout = None
     """Layout of derivatives within output_dir."""
     output_spaces = None
@@ -420,7 +416,7 @@ class execution(_Config):
         "anat_derivatives",
         "bids_dir",
         "bids_database_dir",
-        "fmriprep_dir",
+        "petprep_dir",
         "fs_license_file",
         "fs_subjects_dir",
         "layout",
@@ -497,38 +493,25 @@ class workflow(_Config):
 
     anat_only = False
     """Execute the anatomical preprocessing only."""
-    aroma_err_on_warn = None
-    """Cast AROMA warnings to errors."""
-    aroma_melodic_dim = None
-    """Number of ICA components to be estimated by MELODIC
-    (positive = exact, negative = maximum)."""
-    bold2t1w_dof = None
-    """Degrees of freedom of the BOLD-to-T1w registration steps."""
-    bold2t1w_init = "register"
+    pet2t1w_dof = None
+    """Degrees of freedom of the PET-to-T1w registration steps."""
+    pet2t1w_init = "register"
     """Whether to use standard coregistration ('register') or to initialize coregistration from the
-    BOLD image-header ('header')."""
+    PET image-header ('header')."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     dummy_scans = None
     """Set a number of initial scans to be considered nonsteady states."""
-    fmap_bspline = None
-    """Regularize fieldmaps with a field of B-Spline basis."""
-    fmap_demean = None
-    """Remove the mean from fieldmaps."""
-    force_syn = None
-    """Run *fieldmap-less* susceptibility-derived distortions estimation."""
     hires = None
     """Run FreeSurfer ``recon-all`` with the ``-hires`` flag."""
     ignore = None
-    """Ignore particular steps for *fMRIPrep*."""
+    """Ignore particular steps for *PETPrep*."""
     longitudinal = False
     """Run FreeSurfer ``recon-all`` with the ``-logitudinal`` flag."""
     medial_surface_nan = None
     """Fill medial surface with :abbr:`NaNs (not-a-number)` when sampling."""
     project_goodvoxels = False
     """Exclude voxels with locally high coefficient of variation from sampling."""
-    regressors_all_comps = None
-    """Return all CompCor components."""
     regressors_dvars_th = None
     """Threshold for DVARS."""
     regressors_fd_th = None
@@ -541,22 +524,12 @@ class workflow(_Config):
     """Change default brain extraction template."""
     skull_strip_t1w = "force"
     """Skip brain extraction of the T1w image (default is ``force``, meaning that
-    *fMRIPrep* will run brain extraction of the T1w)."""
-    slice_time_ref = 0.5
-    """The time of the reference slice to correct BOLD values to, as a fraction
-    acquisition time. 0 indicates the start, 0.5 the midpoint, and 1 the end
-    of acquisition. The alias `start` corresponds to 0, and `middle` to 0.5.
-    The default value is 0.5."""
+    *PETPrep* will run brain extraction of the T1w)."""
     spaces = None
     """Keeps the :py:class:`~niworkflows.utils.spaces.SpatialReferences`
     instance keeping standard and nonstandard spaces."""
-    use_aroma = None
-    """Run ICA-:abbr:`AROMA (automatic removal of motion artifacts)`."""
     use_bbr = None
-    """Run boundary-based registration for BOLD-to-T1w registration."""
-    use_syn_sdc = None
-    """Run *fieldmap-less* susceptibility-derived distortions estimation
-    in the absence of any alternatives."""
+    """Run boundary-based registration for PET-to-T1w registration."""
 
 
 class loggers:
@@ -752,18 +725,3 @@ def init_spaces(checkpoint=True):
 
     # Make the SpatialReferences object available
     workflow.spaces = spaces
-Footer
-© 2023 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-fmriprep/config.py at master · nipreps/fmriprep
