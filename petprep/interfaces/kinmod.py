@@ -134,3 +134,89 @@ class MRTM2(BaseInterface):
         outputs["LogLike"] = self._LogLike
         outputs["AIC"] = self._AIC
         return outputs
+
+class SRTMInputSpec(BaseInterfaceInputSpec):
+    frame_times = traits.Array(desc="Mid-time for each frame (in minutes)", mandatory=True)
+    frame_weight = traits.Array(desc="Weight of frame when fitting", mandatory=True)
+    reference_tac = traits.Array(desc="Reference tissue TAC", mandatory=True)
+    target_tac = traits.Array(desc="ROI tissue TAC", mandatory=True)
+    iterations = traits.Int(default=10, desc="Number of SRTM iterations")
+
+class SRTMOutputSpec(TraitedSpec):
+    R1 = traits.Float(desc="R1 value")
+    k2 = traits.Float(desc="k2 value")
+    BPnd = traits.Float(desc="BPnd value")
+    MSE = traits.Float(desc="Mean Squared Error")
+    FPE = traits.Float(desc="Final Prediction Error")
+    SigmaSqr = traits.Float(desc="Squared Standard Deviation of Prediction Error")
+    LogLike = traits.Float(desc="Log-likelihood")
+    AIC = traits.Float(desc="Akaike Information Criterion")
+
+class SRTM(BaseInterface):
+    input_spec = SRTMInputSpec
+    output_spec = SRTMOutputSpec
+
+    def _run_interface(self, runtime):
+        frame_times = self.inputs.frame_times
+        reference_tac = self.inputs.reference_tac
+        target_tac = self.inputs.target_tac
+        frame_weight = self.inputs.frame_weight
+        iterations = self.inputs.iterations
+
+        R1, k2, BPnd, MSE, FPE, SigmaSqr, LogLike, AIC = EstmSRTM(frame_times, reference_tac, target_tac, frame_weight, iterations)
+
+        self._R1 = R1
+        self._k2 = k2
+        self._BPnd = BPnd
+        self._MSE = MSE
+        self._FPE = FPE
+        self._SigmaSqr = SigmaSqr
+        self._LogLike = LogLike
+        self._AIC = AIC
+
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        outputs["R1"] = self._R1
+        outputs["k2"] = self._k2
+        outputs["BPnd"] = self._BPnd
+        outputs["MSE"] = self._MSE
+        outputs["FPE"] = self._FPE
+        outputs["SigmaSqr"] = self._SigmaSqr
+        outputs["LogLike"] = self._LogLike
+        outputs["AIC"] = self._AIC
+        return outputs
+    
+def EstmSRTM(frame_times, reference_tac, target_tac, frame_weight, iterations):
+    def SRTM(t, R1, k2, BPnd):
+        k2a = k2 / (BPnd + 1)
+        Ct = R1 * t[:, 1] + (k2 - R1 * k2a) * np.exp(-k2a * t[:, 0]) * integrate.cumtrapz(t[:, 1] * np.exp(k2a * t[:, 0]), t[:, 0], initial=0)
+        return Ct
+
+    Err_n = []
+    Par_n = []
+
+    xdata = np.column_stack((frame_times, reference_tac, frame_weight))
+    ydata = target_tac
+
+    for k in range(iterations):
+        Par0 = (1 + 0.1 * np.random.randn(3)) * np.array([1.0, 0.1, 2])  # R1, k2, BP0
+        popt, pcov = curve_fit(SRTM, xdata[:, :2], ydata, p0=Par0, maxfev=1000, sigma=xdata[:, 2], absolute_sigma=True)
+        yest = SRTM(xdata[:, :2], *popt)
+        err = np.sum((yest - ydata)**2)
+        Err_n.append(err)
+        Par_n.append(popt)
+
+    minv = min(Err_n)
+    ind = Err_n.index(minv)
+    Par = Par_n[ind]
+    R1 = Par[0]
+    k2 = Par[1]
+    BPnd = Par[2]
+    yest = SRTM(xdata[:, :2], *Par)
+    MSE = np.sum((yest - ydata)**2) / (len(ydata) - 4)  # 3 par + std err
+    FPE = np.sum((yest - ydata)**2) * (len(ydata) + 4) / (len(ydata) - 4)  # 3 par + std err
+    SigmaSqr = np.std(yest - ydata)**2
+    LogLike = -0.5 * len(ydata) * np.log(2 * np.pi * SigmaSqr) - 0.5 * np.sum((yest - ydata)**2) / SigmaSqr
+    AIC = -2 * LogLike + 2 * 4  # From Klaus Holst. 4 parameters is 3 model parameters and noise variance
+
+    return R1, k2, BPnd, MSE, FPE, SigmaSqr, LogLike, AIC
