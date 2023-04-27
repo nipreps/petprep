@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: Check out repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
@@ -43,12 +43,12 @@ jobs:
       shell: bash -l {0}
         
     - name: Upload coverage report
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-pages-artifact@v2
       with:
         name: htmlcov
         path: htmlcov
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
