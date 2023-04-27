@@ -22,7 +22,6 @@ jobs:
         activate-environment: petprep
         environment-file: environment.yml
         auto-activate-base: false
-        installer-verbosity: verbose
         
     - name: Install dependencies
       run: |
