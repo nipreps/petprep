@@ -169,6 +169,8 @@ dependencies:
   - zlib=1.2.13=hfd90126_4
   - zstd=1.5.2=hbc0c0cd_6
   - pip:
+    - flask
+    - pytest-cov
     - coverage==7.2.3
     - pytest==7.3.1
     - attrs==23.1.0
