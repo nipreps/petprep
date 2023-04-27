@@ -24,6 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda env create -f environment.yml
+        conda activate petprep
         pip install -e .
 
     - name: Run tests with coverage
