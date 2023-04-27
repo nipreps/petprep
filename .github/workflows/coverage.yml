@@ -19,13 +19,11 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2
       with:
         miniconda-version: "latest"
-        activate-environment: petprep
-        environment-file: environment.yml
-        auto-activate-base: false
+        auto-activate-base: true
         
     - name: Install dependencies
       run: |
-        conda install -y -c conda-forge coverage pytest
+        conda create --name petprep --file environment.yml
         pip install -e .
 
     - name: Run tests with coverage
