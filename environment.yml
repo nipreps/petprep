@@ -6,7 +6,6 @@ channels:
 dependencies:
   - coverage
   - pytest
-  - python=3.9.16
   - appnope=0.1.3=pyhd8ed1ab_0
   - astor=0.8.1=pyh9f0ad1d_0
   - asttokens=2.2.1=pyhd8ed1ab_0

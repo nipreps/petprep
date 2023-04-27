@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: Check out repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
@@ -33,7 +33,7 @@ jobs:
         coverage html
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: htmlcov
         path: htmlcov
