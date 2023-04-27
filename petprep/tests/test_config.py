@@ -78,7 +78,6 @@ def test_config_spaces():
         if s.standard and s.dim == 3
     ]
 
-    config.workflow.use_aroma = True
     config.init_spaces()
     spaces = config.workflow.spaces
 
