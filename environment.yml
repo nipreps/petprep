@@ -196,4 +196,3 @@ dependencies:
     - tomli==2.0.1
     - tqdm==4.65.0
     - transforms3d==0.4.1
-prefix: /Users/martinnorgaard/opt/anaconda3/envs/nipreps_petprep
