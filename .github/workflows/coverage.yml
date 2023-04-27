@@ -43,7 +43,7 @@ jobs:
       shell: bash -l {0}
         
     - name: Upload coverage report
-      uses: actions/upload-pages-artifact@v2
+      uses: actions/upload-pages-artifact@v1
       with:
         name: htmlcov
         path: htmlcov
