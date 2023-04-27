@@ -4,8 +4,13 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - appnope=0.1.3=pyhd8ed1ab_0
   - astor=0.8.1=pyh9f0ad1d_0
+  - asttokens=2.2.1=pyhd8ed1ab_0
   - atk-1.0=2.38.0=h1d18e73_1
+  - backcall=0.2.0=pyh9f0ad1d_0
+  - backports=1.0=pyhd8ed1ab_3
+  - backports.functools_lru_cache=1.6.4=pyhd8ed1ab_0
   - bids-validator=1.11.0=pyhd8ed1ab_0
   - brotli=1.0.9=hb7f2c08_8
   - brotli-bin=1.0.9=hb7f2c08_8
@@ -22,7 +27,9 @@ dependencies:
   - contourpy=1.0.7=py310ha23aa8a_0
   - cryptography=40.0.2=py310hdd0c95c_0
   - cycler=0.11.0=pyhd8ed1ab_0
+  - decorator=5.1.1=pyhd8ed1ab_0
   - docopt=0.6.2=py_1
+  - executing=1.2.0=pyhd8ed1ab_0
   - expat=2.5.0=hf0c8a7f_1
   - filelock=3.12.0=pyhd8ed1ab_0
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
@@ -49,7 +56,9 @@ dependencies:
   - idna=3.4=pyhd8ed1ab_0
   - importlib-metadata=6.6.0=pyha770c72_0
   - interface_meta=1.3.0=pyhd8ed1ab_0
+  - ipython=8.12.0=pyhd1c38e8_0
   - isodate=0.6.1=pyhd8ed1ab_0
+  - jedi=0.18.2=pyhd8ed1ab_0
   - kiwisolver=1.4.4=py310ha23aa8a_1
   - lcms2=2.15=h2dcdeff_1
   - lerc=4.0.0=hb486fe8_0
@@ -86,6 +95,7 @@ dependencies:
   - lxml=4.9.2=py310h0b20c97_0
   - matplotlib=3.7.1=py310h2ec42d9_0
   - matplotlib-base=3.7.1=py310he725631_0
+  - matplotlib-inline=0.1.6=pyhd8ed1ab_0
   - munkres=1.1.4=pyh9f0ad1d_0
   - ncurses=6.3=h96cf925_1
   - networkx=3.1=pyhd8ed1ab_0
@@ -98,19 +108,27 @@ dependencies:
   - packaging=23.1=pyhd8ed1ab_0
   - pandas=2.0.1=py310h5e4fcda_0
   - pango=1.50.14=hbce5e75_1
+  - parso=0.8.3=pyhd8ed1ab_0
   - patsy=0.5.3=pyhd8ed1ab_0
   - pcre2=10.40=h1c4e4bc_0
+  - pexpect=4.8.0=pyh1a96a4e_2
+  - pickleshare=0.7.5=py_1003
   - pillow=9.5.0=py310h6b2f720_0
   - pip=23.1.1=pyhd8ed1ab_0
   - pixman=0.40.0=hbcb3906_0
   - platformdirs=3.3.0=pyhd8ed1ab_0
   - pooch=1.7.0=pyha770c72_3
+  - prompt-toolkit=3.0.38=pyha770c72_0
+  - prompt_toolkit=3.0.38=hd8ed1ab_0
   - prov=2.0.0=pyhd3deb0d_0
   - psutil=5.9.5=py310h90acd4f_0
   - pthread-stubs=0.4=hc929b4f_1001
+  - ptyprocess=0.7.0=pyhd3deb0d_0
+  - pure_eval=0.2.2=pyhd8ed1ab_0
   - pybids=0.15.6=pyhd8ed1ab_0
   - pycparser=2.21=pyhd8ed1ab_0
   - pydot=1.4.2=py310h2ec42d9_3
+  - pygments=2.15.1=pyhd8ed1ab_0
   - pyopenssl=23.1.1=pyhd8ed1ab_0
   - pyparsing=3.0.9=pyhd8ed1ab_0
   - pysocks=1.7.1=pyha2e5f31_6
@@ -129,15 +147,18 @@ dependencies:
   - simplejson=3.19.1=py310h90acd4f_0
   - six=1.16.0=pyh6c4a22f_0
   - sqlalchemy=1.3.24=py310h1961e1f_1
+  - stack_data=0.6.2=pyhd8ed1ab_0
   - statsmodels=0.13.5=py310h936d966_2
   - tk=8.6.12=h5dbffcc_0
   - tornado=6.3=py310h90acd4f_0
+  - traitlets=5.9.0=pyhd8ed1ab_0
   - traits=6.3.2=py310h1961e1f_1
   - typing-extensions=4.5.0=hd8ed1ab_0
   - typing_extensions=4.5.0=pyha770c72_0
   - tzdata=2023c=h71feb2d_0
   - unicodedata2=15.0.0=py310h90acd4f_0
   - urllib3=1.26.15=pyhd8ed1ab_0
+  - wcwidth=0.2.6=pyhd8ed1ab_0
   - wheel=0.40.0=pyhd8ed1ab_0
   - wrapt=1.15.0=py310h90acd4f_0
   - xorg-libxau=1.0.9=h35c211d_0
@@ -149,6 +170,7 @@ dependencies:
   - zstd=1.5.2=hbc0c0cd_6
   - pip:
     - attrs==23.1.0
+    - coverage==7.2.3
     - etelemetry==0.3.0
     - exceptiongroup==1.1.1
     - h5py==3.8.0
