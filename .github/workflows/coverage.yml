@@ -18,7 +18,6 @@ jobs:
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
       with:
-        python-version: 3.9.16
         miniconda-version: "latest"
         activate-environment: petprep
         environment-file: environment.yml
