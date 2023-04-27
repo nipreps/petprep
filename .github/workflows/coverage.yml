@@ -25,29 +25,30 @@ jobs:
         
     - name: Install dependencies
       run: |
-        conda init bash
-        source $(conda info --base)/etc/profile.d/conda.sh # Source conda.sh to activate the environment
         conda activate petprep
         pip install -e .
+      shell: bash -l {0}
         
     - name: Install coverage and pytest
       run: |
         conda activate petprep
         conda install -c conda-forge pytest coverage
+      shell: bash -l {0}
         
     - name: Run tests with coverage
       run: |
         conda activate petprep
         coverage run -m pytest
         coverage html
+      shell: bash -l {0}
         
     - name: Upload coverage report
-      uses: actions/upload-artifact@v2 # Use v2 instead of v3 (v3 is not available yet)
+      uses: actions/upload-artifact@v2
       with:
         name: htmlcov
         path: htmlcov
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v2 # Use v2 instead of v3 (v3 is not available yet)
+      uses: codecov/codecov-action@v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
