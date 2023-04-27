@@ -16,10 +16,13 @@ jobs:
       uses: actions/checkout@v2
       
     - name: Set up Conda
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        miniconda-version: "latest"
-        auto-activate-base: true
+      run: |
+        echo "Downloading Conda installer"
+        wget https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh -O anaconda.sh
+        echo "Installing Conda"
+        bash anaconda.sh -b -p $HOME/anaconda
+        echo "Adding Conda to PATH"
+        echo "$HOME/anaconda/bin" >> $GITHUB_PATH
         
     - name: Install dependencies
       run: |
