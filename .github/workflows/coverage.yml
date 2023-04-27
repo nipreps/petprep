@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
     - name: Check out repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v2
       
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
@@ -25,21 +25,30 @@ jobs:
         
     - name: Install dependencies
       run: |
+        conda activate petprep
         pip install -e .
-        pip install coverage pytest
-
+      shell: bash -l {0}
+        
+    - name: Install coverage and pytest
+      run: |
+        conda activate petprep
+        conda install -c conda-forge pytest coverage
+      shell: bash -l {0}
+        
     - name: Run tests with coverage
       run: |
+        conda activate petprep
         coverage run -m pytest
         coverage html
-
+      shell: bash -l {0}
+        
     - name: Upload coverage report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: htmlcov
         path: htmlcov
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v2
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
