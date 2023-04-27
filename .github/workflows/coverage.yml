@@ -25,6 +25,7 @@ jobs:
         
     - name: Install dependencies
       run: |
+        conda init bash
         conda activate petprep
         pip install -e .
 
