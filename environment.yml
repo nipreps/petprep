@@ -1,4 +1,4 @@
-name: nipreps_petprep
+name: petprep
 channels:
   - apple
   - conda-forge
