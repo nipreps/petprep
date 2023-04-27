@@ -18,7 +18,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: 3.9
 
     - name: Install dependencies
       run: |
@@ -36,8 +36,7 @@ jobs:
         name: htmlcov
         path: htmlcov
 
-    - name: Upload coverage to Codecov
-      run: |
-        codecov
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
