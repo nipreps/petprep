@@ -18,6 +18,7 @@ jobs:
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
       with:
+        python-version: 3.9
         miniconda-version: "latest"
         activate-environment: petprep
         environment-file: environment.yml
@@ -27,13 +28,9 @@ jobs:
       run: |
         pip install -e .
 
-    - name: Install coverage
-      run: |
-        pip install coverage
-
     - name: Run tests with coverage
       run: |
-        coverage run --source=petprep -m pytest
+        coverage run -m pytest
         coverage html
 
     - name: Upload coverage report
