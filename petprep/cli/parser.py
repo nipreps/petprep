@@ -317,17 +317,6 @@ https://fmriprep.readthedocs.io/en/%s/spaces.html"""
         help="Do not use boundary-based registration (no goodness-of-fit checks)",
     )
     g_conf.add_argument(
-        "--slice-time-ref",
-        required=False,
-        action="store",
-        default=None,
-        type=SliceTimeRef,
-        help="The time of the reference slice to correct BOLD values to, as a fraction "
-        "acquisition time. 0 indicates the start, 0.5 the midpoint, and 1 the end "
-        "of acquisition. The alias `start` corresponds to 0, and `middle` to 0.5. "
-        "The default value is 0.5.",
-    )
-    g_conf.add_argument(
         "--dummy-scans",
         required=False,
         action="store",
@@ -613,13 +602,6 @@ https://fmriprep.readthedocs.io/en/%s/spaces.html"""
         "the FMRIPREP developers. This information helps to "
         "improve FMRIPREP and provides an indicator of real "
         "world usage crucial for obtaining funding.",
-    )
-    g_other.add_argument(
-        "--debug",
-        action="store",
-        nargs="+",
-        choices=config.DEBUG_MODES + ("all",),
-        help="Debug mode(s) to enable. 'all' is alias for all available modes.",
     )
 
     latest = check_latest()
