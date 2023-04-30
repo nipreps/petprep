@@ -40,7 +40,7 @@ def check_latest():
     latest = None
     date = None
     outdated = None
-    cachefile = Path.home() / ".cache" / "fmriprep" / "latest"
+    cachefile = Path.home() / ".cache" / "petprep" / "latest"
     try:
         cachefile.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
