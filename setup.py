@@ -1,6 +1,11 @@
-from setuptools import find_packages, setup 
+from setuptools import find_packages, setup
 
 setup(
-    name='petprep', 
+    entry_points={
+        'console_scripts': [
+            'petprep = petprep.__main__:main'
+        ]
+    },
+    name='petprep',
     packages=find_packages(),
 )
