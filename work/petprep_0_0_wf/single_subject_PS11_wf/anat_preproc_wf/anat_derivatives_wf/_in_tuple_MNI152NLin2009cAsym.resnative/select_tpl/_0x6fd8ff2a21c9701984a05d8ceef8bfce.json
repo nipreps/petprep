@@ -1,0 +1,32 @@
+[
+    [
+        "resolution",
+        [
+            1
+        ]
+    ],
+    [
+        "template",
+        "MNI152NLin2009cAsym"
+    ],
+    [
+        "template_spec",
+        [
+            [
+                "atlas",
+                null
+            ],
+            [
+                "cohort",
+                null
+            ]
+        ]
+    ],
+    [
+        "needed_outputs",
+        [
+            "brain_mask",
+            "t1w_file"
+        ]
+    ]
+]

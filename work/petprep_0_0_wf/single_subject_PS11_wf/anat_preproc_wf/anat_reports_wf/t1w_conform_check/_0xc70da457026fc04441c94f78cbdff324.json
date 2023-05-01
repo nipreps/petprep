@@ -1,0 +1,19 @@
+[
+    [
+        "function_str",
+        "def _empty_report(in_file=None):\n    from pathlib import Path\n    from nipype.interfaces.base import isdefined\n\n    if in_file is not None and isdefined(in_file):\n        return in_file\n\n    out_file = Path(\"tmp-report.html\").absolute()\n    out_file.write_text(\n        \"\"\"\\\n                <h4 class=\"elem-title\">A previously computed T1w template was provided.</h4>\n\"\"\"\n    )\n    return str(out_file)\n"
+    ],
+    [
+        "in_file",
+        [
+            "/Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/anat_template_wf/anat_ref_dimensions/report.html",
+            "997791fc04c0b117d66d52e28dbc2a65"
+        ]
+    ],
+    [
+        "needed_outputs",
+        [
+            "out"
+        ]
+    ]
+]

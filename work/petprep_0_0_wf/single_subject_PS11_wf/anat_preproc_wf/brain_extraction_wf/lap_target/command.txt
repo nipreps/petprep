@@ -1,0 +1,1 @@
+ImageMath 3 sub-PS11_ses-baselinebrain_T1w_ras_valid_maths_corrected_maths.nii.gz Laplacian /Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/brain_extraction_wf/inu_n4/mapflow/_inu_n40/sub-PS11_ses-baselinebrain_T1w_ras_valid_maths_corrected.nii.gz 1.5 1

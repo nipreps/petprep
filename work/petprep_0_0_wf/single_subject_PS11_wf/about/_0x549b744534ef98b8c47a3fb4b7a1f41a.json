@@ -1,0 +1,16 @@
+[
+    [
+        "command",
+        "/Users/martinnorgaard/opt/anaconda3/envs/petprep/bin/petprep /Users/martinnorgaard/Documents/dev_dir2/nimh_cox_test /Users/martinnorgaard/Documents/dev_dir2/nimh_cox_test/derivatives participant"
+    ],
+    [
+        "version",
+        "0+unknown"
+    ],
+    [
+        "needed_outputs",
+        [
+            "out_report"
+        ]
+    ]
+]

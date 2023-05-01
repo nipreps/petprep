@@ -1,0 +1,13 @@
+[
+    [
+        "template",
+        "MNI152NLin2009cAsym"
+    ],
+    [
+        "needed_outputs",
+        [
+            "name",
+            "spec"
+        ]
+    ]
+]

@@ -1,0 +1,21 @@
+[
+    [
+        "nstd_spaces",
+        []
+    ],
+    [
+        "std_spaces",
+        [
+            "MNI152NLin2009cAsym"
+        ]
+    ],
+    [
+        "t1w",
+        [
+            [
+                "/Users/martinnorgaard/Documents/dev_dir2/nimh_cox_test/sub-PS11/ses-baselinebrain/anat/sub-PS11_ses-baselinebrain_T1w.nii.gz",
+                "b2c86e5a7b1b173f04ea17aa93b50e75"
+            ]
+        ]
+    ]
+]

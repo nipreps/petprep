@@ -1,0 +1,34 @@
+[
+    [
+        "axis",
+        "vstack"
+    ],
+    [
+        "in1",
+        [
+            "/Users/martinnorgaard/.cache/templateflow/tpl-OASIS30ANTs/tpl-OASIS30ANTs_res-01_T1w.nii.gz",
+            "ae9499394e2e38f43c69262fd0e473f9"
+        ]
+    ],
+    [
+        "in2",
+        [
+            "/Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/brain_extraction_wf/lap_tmpl/tpl-OASIS30ANTs_res-01_T1w_maths.nii.gz",
+            "d0556e6c8c91a61d53cb68de154ab943"
+        ]
+    ],
+    [
+        "no_flatten",
+        false
+    ],
+    [
+        "ravel_inputs",
+        false
+    ],
+    [
+        "needed_outputs",
+        [
+            "out"
+        ]
+    ]
+]

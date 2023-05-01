@@ -1,0 +1,33 @@
+[
+    [
+        "copy_header",
+        true
+    ],
+    [
+        "dimension",
+        3
+    ],
+    [
+        "op1",
+        [
+            [
+                "/Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/anat_validate/sub-PS11_ses-baselinebrain_T1w_ras_valid.nii.gz",
+                "f471c581a103bd4d7b8f8dfa9f07882e"
+            ]
+        ]
+    ],
+    [
+        "op2",
+        "0.01 0.999 256"
+    ],
+    [
+        "operation",
+        "TruncateImageIntensity"
+    ],
+    [
+        "needed_outputs",
+        [
+            "output_image"
+        ]
+    ]
+]

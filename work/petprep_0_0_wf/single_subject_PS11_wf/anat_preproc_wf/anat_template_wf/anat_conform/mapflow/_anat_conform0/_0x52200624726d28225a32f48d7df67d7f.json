@@ -1,0 +1,31 @@
+[
+    [
+        "in_file",
+        [
+            "/Users/martinnorgaard/Documents/dev_dir2/nimh_cox_test/sub-PS11/ses-baselinebrain/anat/sub-PS11_ses-baselinebrain_T1w.nii.gz",
+            "b2c86e5a7b1b173f04ea17aa93b50e75"
+        ]
+    ],
+    [
+        "target_shape",
+        [
+            181,
+            256,
+            256
+        ]
+    ],
+    [
+        "target_zooms",
+        [
+            "0.9999971390",
+            "0.9374999404",
+            "0.9375000000"
+        ]
+    ],
+    [
+        "needed_outputs",
+        [
+            "out_file"
+        ]
+    ]
+]
