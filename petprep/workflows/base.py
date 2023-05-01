@@ -144,7 +144,8 @@ def init_single_subject_wf(subject_id: str):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.bids import BIDSDataGrabber, BIDSInfo
+    from ..utils.bids import BIDSDataGrabber
+    from niworkflows.interfaces.bids import BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from ..utils.bids import collect_data
     from niworkflows.utils.misc import fix_multi_T1w_source_name
@@ -319,16 +320,16 @@ It is released under the [CC0]\
     # fmt:off
     workflow.connect([
         (inputnode, anat_preproc_wf, [('subjects_dir', 'inputnode.subjects_dir')]),
-        (inputnode, summary, [('subjects_dir', 'subjects_dir')]),
-        (bidssrc, summary, [('bold', 'bold')]),
-        (bids_info, summary, [('subject', 'subject_id')]),
+        #(inputnode, summary, [('subjects_dir', 'subjects_dir')]),
+        #(bidssrc, summary, [('bold', 'pet')]),
+        #(bids_info, summary, [('subject', 'subject_id')]),
         (bids_info, anat_preproc_wf, [(('subject', _prefix), 'inputnode.subject_id')]),
         (bidssrc, anat_preproc_wf, [('t1w', 'inputnode.t1w'),
                                     ('t2w', 'inputnode.t2w'),
                                     ('roi', 'inputnode.roi'),
                                     ('flair', 'inputnode.flair')]),
-        (summary, ds_report_summary, [('out_report', 'in_file')]),
-        (about, ds_report_about, [('out_report', 'in_file')]),
+        #(summary, ds_report_summary, [('out_report', 'in_file')]),
+        #(about, ds_report_about, [('out_report', 'in_file')]),
     ])
 
     if not anat_derivatives:
@@ -341,7 +342,7 @@ It is released under the [CC0]\
         ])
     else:
         workflow.connect([
-            (bidssrc, bids_info, [(('bold', fix_multi_T1w_source_name), 'in_file')]),
+           #(bidssrc, bids_info, [(('pet', fix_multi_T1w_source_name), 'in_file')]),
             (anat_preproc_wf, summary, [('outputnode.t1w_preproc', 't1w')]),
             (anat_preproc_wf, ds_report_summary, [('outputnode.t1w_preproc', 'source_file')]),
             (anat_preproc_wf, ds_report_about, [('outputnode.t1w_preproc', 'source_file')]),
