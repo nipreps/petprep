@@ -199,3 +199,4 @@ dependencies:
     - toml==0.10.2
     - tqdm==4.65.0
     - transforms3d==0.4.1
+    - smriprep==0.11.0
