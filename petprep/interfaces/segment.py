@@ -11,20 +11,20 @@ from nipype.interfaces.base import (
 
 class SegmentBSInputSpec(BaseInterfaceInputSpec):
     subjects_dir = Directory(
-        desc="FreeSurfer subjects directory", exists=True, mandatory=True
+        desc="FreeSurfer subjects directory (bids_dir/derivatives/freesurfer)", exists=True, mandatory=True
     )
     subject_id = traits.Str(
-        desc="Subject ID", mandatory=True
+        desc="Subject ID (i.e. sub-XX)", mandatory=True
     )
 
 class SegmentBSOutputSpec(TraitedSpec):
-    fs_voxel_space_file = File(
+    bs_labels_voxel = File(
         desc="Output file brainstemSsLabels.v13.FSvoxelSpace.mgz"
     )
-    mgz_file = File(
+    bs_labels = File(
         desc="Output file brainstemSsLabels.v13.mgz"
     )
-    volumes_txt = File(
+    bs_volumes_txt = File(
         desc="Output file brainstemSsVolumes.v13.txt"
     )
 
@@ -50,13 +50,13 @@ class SegmentBS(BaseInterface):
             self.inputs.subjects_dir, self.inputs.subject_id, "mri"
         )
         outputs = self._outputs().get()
-        outputs["fs_voxel_space_file"] = os.path.join(
+        outputs["bs_labels_voxel"] = os.path.join(
             fs_path, "brainstemSsLabels.v13.FSvoxelSpace.mgz"
         )
-        outputs["mgz_file"] = os.path.join(
+        outputs["bs_labels"] = os.path.join(
             fs_path, "brainstemSsLabels.v13.mgz"
         )
-        outputs["volumes_txt"] = os.path.join(
+        outputs["bs_volumes_txt"] = os.path.join(
             fs_path, "brainstemSsVolumes.v13.txt"
         )
         return outputs
