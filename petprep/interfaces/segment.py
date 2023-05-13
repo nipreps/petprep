@@ -145,3 +145,27 @@ class SegmentHA_T1(FSCommand):
         if name == 'subjects_dir':
             return os.path.abspath(self.inputs.subject_id)
         return None
+    
+class SegmentThalamicNucleiInputSpec(FSTraitedSpec):
+    subject_id = traits.Str(mandatory=True, desc="Subject ID")
+    subjects_dir = Directory(exists=True, mandatory=True, desc="Path to FreeSurfer subjects directory")
+    additional_vol = traits.Str(desc="Additional volume to be used")
+    analysis_id = traits.Str(desc="Unique analysis ID")
+    bbregister_mode = traits.Str(desc="Registration mode for bbregister")
+
+class SegmentThalamicNucleiOutputSpec(TraitedSpec):
+    thalamicnuc = File(exists=True, desc="Thalamic nuclei segmentation")
+    thalamicnuc_volumes = File(exists=True, desc="Volume measurements of thalamic nuclei")
+
+class SegmentThalamicNuclei(FSCommand):
+    _cmd = 'segmentThalamicNuclei.sh'
+    input_spec = SegmentThalamicNucleiInputSpec
+    output_spec = SegmentThalamicNucleiOutputSpec
+
+    def _list_outputs(self):
+        outputs = self.output_spec().get()
+        subj_dir = os.path.abspath(self.inputs.subject_id + '/mri/')
+
+        outputs['thalamicnuc'] = os.path.join(subj_dir, 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz')
+        outputs['thalamicnuc_volumes'] = os.path.join(subj_dir, 'ThalamicNuclei.v13.T1.volumes.txt')
+        return outputs
