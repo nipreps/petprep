@@ -164,7 +164,7 @@ class SegmentThalamicNuclei(FSCommand):
 
     def _list_outputs(self):
         outputs = self.output_spec().get()
-        subj_dir = os.path.abspath(self.inputs.subject_id + '/mri/')
+        subj_dir = os.path.abspath(self.inputs.subjects_dir + '/mri/')
 
         outputs['thalamicnuc'] = os.path.join(subj_dir, 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz')
         outputs['thalamicnuc_volumes'] = os.path.join(subj_dir, 'ThalamicNuclei.v13.T1.volumes.txt')
