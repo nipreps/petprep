@@ -129,7 +129,7 @@ class SegmentHA_T1(FSCommand):
 
     def _list_outputs(self):
         outputs = self.output_spec().get()
-        subj_dir = os.path.abspath(self.inputs.subject_id + '/mri/')
+        subj_dir = os.path.abspath(self.inputs.subjects_dir + '/mri/')
 
         outputs['lh_hippoAmygLabels'] = os.path.join(subj_dir, 'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz')
         outputs['rh_hippoAmygLabels'] = os.path.join(subj_dir, 'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz')
