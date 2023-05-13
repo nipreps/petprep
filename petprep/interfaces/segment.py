@@ -10,6 +10,7 @@ from nipype.interfaces.base import (
     traits,
     InputMultiObject
 )
+from nipype.interfaces.freesurfer.base import FSCommand, FSTraitedSpec
 
 class SegmentBSInputSpec(BaseInterfaceInputSpec):
     subjects_dir = Directory(
@@ -107,3 +108,40 @@ class MRISclimbicSeg(CommandLine):
         outputs["out_file"] = os.path.abspath(self.inputs.out_file)
         outputs["out_stats"] = os.path.abspath(self.inputs.out_file).replace('.nii.gz', '.stats')
         return outputs
+    
+class SegmentHA_T1InputSpec(FSTraitedSpec):
+    subject_id = traits.Str(desc='FreeSurfer subject ID', mandatory=True, position=1, argstr='%s')
+    subjects_dir = Directory(exists=True, mandatory=True, desc="Path to FreeSurfer subjects directory", argstr='%s')
+
+class SegmentHA_T1OutputSpec(TraitedSpec):
+    lh_hippoAmygLabels = File(exists=True, desc='Left hemisphere hippocampus and amygdala labels')
+    rh_hippoAmygLabels = File(exists=True, desc='Right hemisphere hippocampus and amygdala labels')
+    lh_hippoSfVolumes = File(exists=True, desc='Left hemisphere hippocampal subfield volumes')
+    lh_amygNucVolumes = File(exists=True, desc='Left hemisphere amygdala nuclei volumes')
+    rh_hippoAmygLabels = File(exists=True, desc='Right hemisphere hippocampus and amygdala labels')
+    rh_hippoSfVolumes = File(exists=True, desc='Right hemisphere hippocampal subfield volumes')
+    rh_amygNucVolumes = File(exists=True, desc='Right hemisphere amygdala nuclei volumes')
+
+class SegmentHA_T1(FSCommand):
+    _cmd = 'segmentHA_T1.sh'
+    input_spec = SegmentHA_T1InputSpec
+    output_spec = SegmentHA_T1OutputSpec
+
+    def _list_outputs(self):
+        outputs = self.output_spec().get()
+        subj_dir = os.path.abspath(self.inputs.subject_id + '/mri/')
+
+        outputs['lh_hippoAmygLabels'] = os.path.join(subj_dir, 'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz')
+        outputs['rh_hippoAmygLabels'] = os.path.join(subj_dir, 'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz')
+        outputs['lh_hippoSfVolumes'] = os.path.join(subj_dir, 'lh.hippoSfVolumes-T1.v22.txt')
+        outputs['lh_amygNucVolumes'] = os.path.join(subj_dir, 'lh.amygNucVolumes-T1.v22.txt')
+        outputs['rh_hippoAmygLabels'] = os.path.join(subj_dir, 'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz')
+        outputs['rh_hippoSfVolumes'] = os.path.join(subj_dir, 'rh.hippoSfVolumes-T1.v22.txt')
+        outputs['rh_amygNucVolumes'] = os.path.join(subj_dir, 'rh.amygNucVolumes-T1.v22.txt')
+
+        return outputs
+
+    def _gen_filename(self, name):
+        if name == 'subjects_dir':
+            return os.path.abspath(self.inputs.subject_id)
+        return None
