@@ -1,3 +1,3 @@
-# Contributing to *PETPrep*
+# Contributing to *fMRIPrep*
 
-*PETPrep* is a project of the [*NiPreps* Community, which specifies the contributing guidelines](https://www.nipreps.org/community/).
+*fMRIPrep* is a project of the [*NiPreps* Community, which specifies the contributing guidelines](https://www.nipreps.org/community/).

@@ -1,1 +1,0 @@
-ImageMath 3 sub-PS11_ses-baselinebrain_T1w_ras_valid_maths.nii.gz TruncateImageIntensity /Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/anat_validate/sub-PS11_ses-baselinebrain_T1w_ras_valid.nii.gz 0.01 0.999 256

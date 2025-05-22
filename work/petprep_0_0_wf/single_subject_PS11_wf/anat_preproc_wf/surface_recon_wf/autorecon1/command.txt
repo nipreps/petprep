@@ -1,1 +1,0 @@
-recon-all -autorecon1 -i /Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep/work/petprep_0_0_wf/single_subject_PS11_wf/anat_preproc_wf/anat_validate/sub-PS11_ses-baselinebrain_T1w_ras_valid.nii.gz -noskullstrip -noT2pial -noFLAIRpial -openmp 8 -subjid sub-PS11 -sd /Users/martinnorgaard/Documents/dev_dir2/nimh_cox_test/derivatives/sourcedata/freesurfer
