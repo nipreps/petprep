@@ -66,3 +66,23 @@ def estimate_bold_mem_usage(bold_fname: str) -> tuple[int, dict]:
     }
 
     return bold_tlen, mem_gb
+
+
+@cache
+def estimate_pet_mem_usage(pet_fname: str) -> tuple[int, dict]:
+    """Estimate memory usage for a PET series."""
+    import nibabel as nb
+    import numpy as np
+
+    img = nb.load(pet_fname)
+    nvox = int(np.prod(img.shape, dtype='u8'))
+    # Assume tools will coerce to 8-byte floats to be safe
+    pet_size_gb = 8 * nvox / (1024**3)
+    pet_tlen = img.shape[-1]
+    mem_gb = {
+        'filesize': pet_size_gb,
+        'resampled': pet_size_gb * 4,
+        'largemem': pet_size_gb * (max(pet_tlen / 100, 1.0) + 4),
+    }
+
+    return pet_tlen, mem_gbs
