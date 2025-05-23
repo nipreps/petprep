@@ -1,0 +1,83 @@
+[environment]
+cpu_count = 10
+exec_env = "posix"
+free_mem = 7.8
+overcommit_policy = "n/a"
+overcommit_limit = "n/a"
+nipype_version = "1.8.6"
+templateflow_version = "24.2.2"
+version = "25.1.0.dev19+gc1afa7a6.d20250502"
+
+[execution]
+bids_dir = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet"
+bids_database_dir = "/Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep_dev/work/20250523-105016_751fcf58-9ed0-4f61-b135-21bf30de23ff/bids_db"
+boilerplate_only = false
+sloppy = false
+debug = []
+petprep_dir = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet/derivatives"
+fs_license_file = "/Applications/freesurfer/7.4.1/license.txt"
+fs_subjects_dir = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet/derivatives/freesurfer"
+layout = "BIDS Layout: .../petprep_dev/fmriprep/data/pet | Subjects: 1 | Sessions: 1 | Runs: 0"
+log_dir = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet/derivatives/logs"
+log_level = 25
+low_mem = false
+md_only_boilerplate = false
+notrack = true
+track_carbon = false
+country_code = "CAN"
+output_dir = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet/derivatives"
+aggr_ses_reports = 4
+output_layout = "bids"
+output_spaces = "MNI152NLin2009cAsym:res-native"
+reports_only = false
+run_uuid = "20250523-105016_751fcf58-9ed0-4f61-b135-21bf30de23ff"
+participant_label = [ "003",]
+templateflow_home = "/Users/martinnorgaard/.cache/templateflow"
+work_dir = "/Users/martinnorgaard/Dropbox/Mac/Documents/GitHub/petprep_dev/work"
+write_graph = false
+
+[workflow]
+anat_only = false
+pet2anat_dof = 6
+pet2anat_init = "auto"
+cifti_output = false
+hires = true
+fs_no_resume = false
+ignore = []
+level = "full"
+longitudinal = false
+run_msmsulc = true
+medial_surface_nan = false
+project_goodvoxels = false
+regressors_all_comps = false
+regressors_dvars_th = 1.5
+regressors_fd_th = 0.5
+run_reconall = true
+skull_strip_fixed_seed = false
+skull_strip_template = "OASIS30ANTs"
+skull_strip_t1w = "force"
+
+[nipype]
+crashfile_format = "txt"
+get_linked_libs = false
+nprocs = 10
+omp_nthreads = 8
+plugin = "MultiProc"
+remove_unnecessary_outputs = true
+resource_monitor = false
+stop_on_first_crash = false
+
+[seeds]
+master = 54705
+ants = 43758
+numpy = 43819
+
+[execution.derivatives]
+
+[execution.dataset_links]
+raw = "/Users/martinnorgaard/Documents/GitHub/petprep_dev/fmriprep/data/pet"
+templateflow = "/Users/martinnorgaard/.cache/templateflow"
+
+[nipype.plugin_args]
+maxtasksperchild = 1
+raise_insufficient = false

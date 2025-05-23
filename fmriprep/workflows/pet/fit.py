@@ -21,25 +21,25 @@
 #     https://www.nipreps.org/community/licensing/
 #
 import nibabel as nb
+import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.header import ValidateImage
-import numpy as np
+
 
 from ... import config
 from ...interfaces.reports import FunctionalSummary
 from ...interfaces.resampling import ResampleSeries
 from ...utils.misc import estimate_pet_mem_usage
-from .outputs import prepare_timing_parameters
 
 # PET workflows
 from .hmc import init_pet_hmc_wf
 from .outputs import (
-    init_ds_petmask_wf,
-    init_ds_petref_wf,
     init_ds_hmc_wf,
+    init_ds_petref_wf,
     init_ds_registration_wf,
     init_func_fit_reports_wf,
+    prepare_timing_parameters,
 )
 from .reference import init_raw_petref_wf, init_validation_and_dummies_wf
 from .registration import init_pet_reg_wf
@@ -204,8 +204,6 @@ def init_pet_fit_wf(
                 'Precomputed'
                 if petref2anat_xform
                 else 'mri_coreg'
-                if config.workflow.run_reconall
-                else 'FSL'
             ),
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
@@ -216,9 +214,8 @@ def init_pet_fit_wf(
     )
 
     func_fit_reports_wf = init_func_fit_reports_wf(
-        sdc_correction=False,
         freesurfer=config.workflow.run_reconall,
-        output_dir=config.execution.fmriprep_dir,
+        output_dir=config.execution.petprep_dir,
     )
 
     workflow.connect([
@@ -261,7 +258,7 @@ def init_pet_fit_wf(
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
             desc='hmc',
             name='ds_petref_wf',
         )
@@ -307,7 +304,7 @@ def init_pet_fit_wf(
 
         ds_hmc_wf = init_ds_hmc_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
         )
         ds_hmc_wf.inputs.inputnode.source_files = [pet_file]
 
@@ -335,7 +332,7 @@ def init_pet_fit_wf(
 
         ds_petreg_wf = init_ds_registration_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
             source='petref',
             dest='T1w',
             name='ds_petreg_wf',
