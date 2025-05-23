@@ -585,7 +585,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (pet_confounds_wf, carpetplot_wf, [
                 ('outputnode.confounds_file', 'inputnode.confounds_file'),
                 ('outputnode.crown_mask', 'inputnode.crown_mask'),
-                (('outputnode.acompcor_masks', _last), 'inputnode.acompcor_mask'),
             ]),
         ])  # fmt:skip
 
