@@ -452,6 +452,10 @@ EPI to T1w registration
         pet2anat_init='t2w',
     )
 
+``pet2anat_init`` selects the initialization strategy for PET-to-anatomical
+registration. The default ``'auto'`` setting uses available metadata to choose
+between header information and intensity-based approaches.
+
 The alignment between the reference :abbr:`EPI (echo-planar imaging)` image
 of each run and the reconstructed subject using the gray/white matter boundary
 (FreeSurfer's ``?h.white`` surfaces) is calculated by the ``bbregister`` routine.
