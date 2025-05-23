@@ -199,13 +199,15 @@ It is released under the [CC0]\
 ### References
 
 """
+    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 
     subject_data = collect_data(
-        config.execution.layout,
+        config.execution.bids_dir,
         subject_id,
-        task=config.execution.task_id,
         bids_filters=config.execution.bids_filters,
+        queries=DEFAULT_BIDS_QUERIES
     )[0]
+
 
     if 'flair' in config.workflow.ignore:
         subject_data['flair'] = []
