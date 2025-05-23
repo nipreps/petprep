@@ -287,12 +287,12 @@ executed, *fMRIPrep* replaces the brain mask with a refined one that derives
 from the ``aseg.mgz`` file as described in
 :py:class:`~niworkflows.interfaces.freesurfer.RefineBrainMask`.
 
-BOLD preprocessing
+PET preprocessing
 ------------------
 *fMRIPrep* performs a series of steps to preprocess :abbr:`PET (positron emission tomography)`
 data. Broadly, these are split into fit and transform stages.
 
-The following figures show the overall workflow graph and the ``bold_fit_wf``
+The following figures show the overall workflow graph and the ``pet_fit_wf``
 subgraph:
 
 :py:func:`~fmriprep.workflows.pet.base.init_pet_wf`
@@ -305,11 +305,11 @@ subgraph:
     from fmriprep import config
     from fmriprep.workflows.pet.base import init_pet_wf
     with mock_config():
-        bold_file = config.execution.bids_dir / 'sub-01' / 'func' \
-            / 'sub-01_task-mixedgamblestask_run-01_bold.nii.gz'
-        wf = init_pet_wf(bold_series=[str(bold_file)])
+        pet_file = config.execution.bids_dir / 'sub-01' / 'pet' \
+            / 'sub-01_task-mixedgamblestask_run-01_pet.nii.gz'
+        wf = init_pet_wf(pet_series=[str(pet_file)])
 
-.. _bold_fit:
+.. _pet_fit:
 
 :py:func:`~fmriprep.workflows.pet.fit.init_pet_fit_wf`
 
@@ -328,9 +328,9 @@ subgraph:
 Preprocessing of :abbr:`PET (positron emission tomography)` files is
 split into multiple sub-workflows described below.
 
-.. _bold_ref:
+.. _pet_ref:
 
-BOLD reference image estimation
+PET reference image estimation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :py:func:`~fmriprep.workflows.pet.reference.init_raw_boldref_wf`
 
@@ -348,9 +348,9 @@ detected, they are averaged and used as reference due to their
 superior tissue contrast.
 Otherwise, a median of motion corrected subset of volumes is used.
 
-This reference is used for :ref:`head-motion estimation <bold_hmc>`.
+This reference is used for :ref:`head-motion estimation <pet_hmc>`.
 
-For the :ref:`registration workflow <bold_reg>`, the reference image is
+For the :ref:`registration workflow <pet_reg>`, the reference image is
 either the above described reference image or a single-band reference,
 if one is found in the input dataset.
 In either case, this image is contrast-enhanced and skull-stripped
@@ -360,11 +360,11 @@ prior to registration.
 
 .. figure:: _static/sub-01_task-balloonanalogrisktask_run-1_desc-rois_bold.svg
 
-    The red contour shows the brain mask estimated for a BOLD reference volume.
+    The red contour shows the brain mask estimated for a PET reference volume.
     The blue and magenta contours show the tCompCor and aCompCor masks,
-    respectively. (See :ref:`bold_confounds`, below.)
+    respectively. (See :ref:`pet_confounds`, below.)
 
-.. _bold_hmc:
+.. _pet_hmc:
 
 Head-motion estimation
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -379,14 +379,14 @@ Head-motion estimation
         mem_gb=1,
         omp_nthreads=1)
 
-Using the previously :ref:`estimated reference scan <bold_ref>`,
+Using the previously :ref:`estimated reference scan <pet_ref>`,
 FSL ``mcflirt`` is used to estimate head-motion.
 As a result, one rigid-body transform with respect to
 the reference image is written for each :abbr:`PET (positron emission tomography)`
 time-step.
 Additionally, a list of 6-parameters (three rotations,
 three translations) per time-step is written and fed to the
-:ref:`confounds workflow <bold_confounds>`.
+:ref:`confounds workflow <pet_confounds>`.
 
 Susceptibility Distortion Correction (SDC)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -409,7 +409,7 @@ routines, check on the `SDCFlows component <https://www.nipreps.org/sdcflows>`__
 Theory, methods and references are found within the
 `SDCFlows documentation <https://www.nipreps.org/sdcflows/master/api/sdcflows.workflows.fit.fieldmap.html>`__.
 
-Pre-processed BOLD in native space
+Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :py:func:`~fmriprep.workflows.pet.fit.init_pet_native_wf`
 
@@ -421,9 +421,9 @@ Pre-processed BOLD in native space
     from fmriprep import config
     from fmriprep.workflows.pet.fit import init_pet_native_wf
     with mock_config():
-        bold_file = config.execution.bids_dir / 'sub-01' / 'func' \
-            / 'sub-01_task-mixedgamblestask_run-01_bold.nii.gz'
-        wf = init_pet_native_wf(bold_series=[str(bold_file)], fieldmap_id='fmap')
+        pet_file = config.execution.bids_dir / 'sub-01' / 'pet' \
+            / 'sub-01_task-mixedgamblestask_run-01_pet.nii.gz'
+        wf = init_pet_native_wf(pet_series=[str(pet_file)])
 
 A new *preproc* :abbr:`PET (positron emission tomography)` series is generated
 from the original data in the original space.
@@ -434,7 +434,7 @@ correction workflows (:abbr:`HMC (head-motion correction)` and
 for a one-shot interpolation process.
 Interpolation uses a Lanczos kernel.
 
-.. _bold_reg:
+.. _pet_reg:
 
 EPI to T1w registration
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -475,7 +475,7 @@ transform will be compared to the initial transform found by FLIRT.
 Excessive deviation will result in rejecting the BBR refinement and accepting the
 original, affine registration.
 
-Resampling BOLD runs onto standard spaces
+Resampling PET runs onto standard spaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :py:func:`~fmriprep.workflows.pet.apply.init_pet_volumetric_resample_wf`
 
@@ -562,7 +562,7 @@ These workflows make use of various `Connectome Workbench`_ functions.
 These surfaces are then combined with corresponding volumetric timeseries to create a
 CIFTI-2 file.
 
-.. _bold_confounds:
+.. _pet_confounds:
 
 Confounds estimation
 ~~~~~~~~~~~~~~~~~~~~
