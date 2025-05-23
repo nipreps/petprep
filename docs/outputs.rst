@@ -3,19 +3,19 @@
 .. _outputs:
 
 ---------------------
-Outputs of *fMRIPrep*
+Outputs of *PETPrep*
 ---------------------
-*fMRIPrep* outputs conform to the :abbr:`BIDS (brain imaging data structure)`
+*PETPrep* outputs conform to the :abbr:`BIDS (brain imaging data structure)`
 Derivatives specification (see `BIDS Derivatives`_, along with the
 upcoming `BEP 011`_ and `BEP 012`_).
-*fMRIPrep* generates three broad classes of outcomes:
+*PETPrep* generates three broad classes of outcomes:
 
 1. **Visual QA (quality assessment) reports**:
    one :abbr:`HTML (hypertext markup language)` per subject,
    that allows the user a thorough visual assessment of the quality
-   of processing and ensures the transparency of *fMRIPrep* operation.
+   of processing and ensures the transparency of *PETPrep* operation.
 
-2. **Derivatives (preprocessed data)** the input fMRI data ready for
+2. **Derivatives (preprocessed data)** the input PET data ready for
    analysis, i.e., after the various preparation procedures
    have been applied.
    For example, :abbr:`INU (intensity non-uniformity)`-corrected versions
@@ -29,7 +29,7 @@ upcoming `BEP 011`_ and `BEP 012`_).
 
    .. important::
        In order to remain agnostic to any possible subsequent analysis,
-       *fMRIPrep* does not perform any denoising (e.g., spatial smoothing) itself.
+       *PETPrep* does not perform any denoising (e.g., spatial smoothing) itself.
        There are exceptions to this principle (described in its corresponding
        section below):
 
@@ -37,9 +37,9 @@ upcoming `BEP 011`_ and `BEP 012`_).
 
 Layout
 ------
-Assuming fMRIPrep is invoked with::
+Assuming PETPrep is invoked with::
 
-    fmriprep <input_dir>/ <output_dir>/ participant [OPTIONS]
+    petprep <input_dir>/ <output_dir>/ participant [OPTIONS]
 
 The outputs will be a `BIDS Derivatives`_ dataset of the form::
 
@@ -54,17 +54,17 @@ For each participant in the dataset,
 a directory of derivatives (``sub-<label>/``)
 and a visual report (``sub-<label>.html``) are generated.
 The log directory contains `citation boilerplate`_ text.
-``dataset_description.json`` is a metadata file in which fMRIPrep
+``dataset_description.json`` is a metadata file in which PETPrep
 records metadata recommended by the BIDS standard.
 
 This layout, now the default, may be explicitly specified with the
 ``--output-layout bids`` command-line option.
-For compatibility with versions of fMRIPrep prior to 21.0, the
+For compatibility with versions of PETPrep prior to 21.0, the
 `legacy layout`_ is available via ``--output-layout legacy``.
 
 Processing level
 ----------------
-As of version 23.2.0, fMRIPrep supports three levels of derivatives:
+As of version 23.2.0, PETPrep supports three levels of derivatives:
 
 * ``--level minimal``: This processing mode aims to produce the smallest
   working directory and output dataset possible, while enabling all further
@@ -81,16 +81,16 @@ As of version 23.2.0, fMRIPrep supports three levels of derivatives:
   slice-timing correction, head-motion correction, and susceptibility
   distortion correction.
 * ``--level full``: This processing mode aims to produce all derivatives
-  that have previously been a part of the fMRIPrep output dataset.
+  that have previously been a part of the PETPrep output dataset.
   This is the default processing level.
 
 Visual Reports
 --------------
-*fMRIPrep* outputs summary reports, written to ``<output dir>/fmriprep/sub-<subject_label>.html``.
+*PETPrep* outputs summary reports, written to ``<output dir>/petprep/sub-<subject_label>.html``.
 These reports provide a quick way to make visual inspection of the results easy.
 `View a sample report. <_static/SampleReport/sample_report.html>`_
 
-Derivatives of *fMRIPrep* (preprocessed data)
+Derivatives of *PETPrep* (preprocessed data)
 ---------------------------------------------
 Preprocessed, or derivative, data are written to
 ``<output dir>/sub-<subject_label>/``.
@@ -165,10 +165,10 @@ and CIFTI-2::
 .. warning::
 
    GIFTI metric files follow the FreeSurfer conventions and are not modified
-   by *fMRIPrep* in any way.
+   by *PETPrep* in any way.
 
    The Human Connectome Project (HCP) inverts the sign of the curvature and
-   sulcal depth maps. For consistency with HCP, *fMRIPrep* follows these
+   sulcal depth maps. For consistency with HCP, *PETPrep* follows these
    conventions and masks the medial wall of CIFTI-2 dscalar files.
 
 .. _fsderivs:
@@ -201,10 +201,10 @@ FreeSurfer are copied into this subjects directory, if any functional data are
 sampled to those subject spaces.
 
 Note that the use of ``sourcedata/`` recognizes FreeSurfer derivatives as an input to
-the fMRIPrep workflow.
+the PETPrep workflow.
 This is strictly true when pre-computed FreeSurfer derivatives are provided either in
 the ``sourcedata/`` directory or passed via the ``--fs-subjects-dir`` flag;
-if fMRIPrep runs FreeSurfer, then there is a mutual dependency.
+if PETPrep runs FreeSurfer, then there is a mutual dependency.
 
 Functional derivatives
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -310,7 +310,7 @@ output (91282 grayordinates @ 2mm). However, '170k' outputs are also possible, a
 higher resolution CIFTI output (170494 grayordinates @ 1.6mm).
 
 **Extracted confounding time series**.
-For each :abbr:`BOLD (blood-oxygen level dependent)` run processed with *fMRIPrep*, an
+For each :abbr:`BOLD (blood-oxygen level dependent)` run processed with *PETPrep*, an
 accompanying *confounds* file will be generated.
 Confounds_ are saved as a :abbr:`TSV (tab-separated value)` file::
 
@@ -364,7 +364,7 @@ These may then be used independently with multi-echo tools, such as `tedana`_,
 to perform more advanced denoising or alternative combination strategies.
 
 .. danger::
-   Slice timing correction in *fMRIPrep* is referenced to the middle slice by default,
+   Slice timing correction in *PETPrep* is referenced to the middle slice by default,
    which leads to a time shift in the volume onsets by 0.5 TR (repetition time).
    For example, assuming a TR of 2s, original onsets of 0, 2, and 4s would be shifted
    to 1, 3, and 5s, respectively.
@@ -380,7 +380,7 @@ to perform more advanced denoising or alternative combination strategies.
 
    Further information on this issue is found at
    `this blog post (with thanks to Russell Poldrack and Jeanette Mumford)
-   <https://reproducibility.stanford.edu/slice-timing-correction-in-fmriprep-and-linear-modeling/>`__.
+   <https://reproducibility.stanford.edu/slice-timing-correction-in-petprep-and-linear-modeling/>`__.
 
 Confounds
 ---------
@@ -402,17 +402,17 @@ There is currently no consensus on an optimal denoising strategy in the fMRI com
 Rather, different strategies have been proposed, which achieve different compromises between
 how much of the non-neuronal fluctuations are effectively removed, and how much of neuronal fluctuations
 are damaged in the process.
-The *fMRIPrep* pipeline generates a large array of possible confounds.
+The *PETPrep* pipeline generates a large array of possible confounds.
 
 The most well established confounding variables in neuroimaging are the six head-motion parameters
 (three rotations and three translations) - the common output of the head-motion correction
 (also known as *realignment*) of popular fMRI preprocessing software
 such as SPM_ or FSL_.
-Beyond the standard head-motion parameters, the fMRIPrep pipeline generates a large array
+Beyond the standard head-motion parameters, the PETPrep pipeline generates a large array
 of possible confounds, which enable researchers to choose the most suitable denoising
 strategy for their downstream analyses.
 
-Confounding variables calculated in *fMRIPrep* are stored separately for each subject,
+Confounding variables calculated in *PETPrep* are stored separately for each subject,
 session and run in :abbr:`TSV (tab-separated value)` files - one column for each confound variable.
 Such tabular files may include over 100 columns of potential confound regressors.
 
@@ -445,13 +445,13 @@ The standard six-motion parameters may not account for all the variance related
 to head-motion.
 [Friston1996]_ and [Satterthwaite2013]_ proposed an expansion of the six fundamental
 head-motion parameters.
-To make this technique more accessible, *fMRIPrep* automatically calculates motion parameter
+To make this technique more accessible, *PETPrep* automatically calculates motion parameter
 expansion [Satterthwaite2013]_, providing time series corresponding to the first
 *temporal derivatives* of the six base motion parameters, together with their
 *quadratic terms*, resulting in the total 24 head motion parameters
 (six base motion parameters + six temporal derivatives of six motion parameters +
 12 quadratic terms of six motion parameters and their six temporal derivatives).
-Additionally, *fMRIPrep* returns temporal derivatives and quadratic terms for the
+Additionally, *PETPrep* returns temporal derivatives and quadratic terms for the
 three global signals (``csf``, ``white_matter`` and ``global_signal``)
 to enable applying the 36-parameter denoising strategy proposed by [Satterthwaite2013]_.
 
@@ -482,7 +482,7 @@ including outlier points in the subsequent first-level analysis when building
 the design matrix.
 Averaged value of confound (for example, mean ``framewise_displacement``)
 can also be added as regressors in group level analysis [Yan2013]_.
-*Regressors of motion spikes* for outlier censoring are generated from within *fMRIPrep*,
+*Regressors of motion spikes* for outlier censoring are generated from within *PETPrep*,
 and their calculation may be adjusted with the command line options ``--fd-spike-threshold``
 and ``--dvars-spike-threshold`` (defaults are FD > 0.5 mm or standardized DVARS > 1.5).
 Regressors of motion spikes are stored in separate ``motion_outlier_XX`` columns.
@@ -493,7 +493,7 @@ data, typically taking the form of low-frequency signal drifts.
 To account for these drifts, temporal high-pass filtering is the immediate option.
 Alternatively, low-frequency regressors can be included in the statistical model to account
 for these confounding signals.
-Using the :abbr:`DCT (discrete cosine transform)` basis functions, *fMRIPrep* generates
+Using the :abbr:`DCT (discrete cosine transform)` basis functions, *PETPrep* generates
 these low-frequency predictors:
 
 - ``cosine_XX`` - DCT-basis regressors.
@@ -514,7 +514,7 @@ states* are removed before generating the cosine regressors.
       the `BrainVoyager User Guide
       <https://www.brainvoyager.com/bvqx/doc/UsersGuide/Preprocessing/TemporalHighPassFiltering.html>`_.
     - `This comment
-      <https://github.com/nipreps/fmriprep/issues/1899#issuecomment-561687460>`__
+      <https://github.com/nipreps/petprep/issues/1899#issuecomment-561687460>`__
       on an issue regarding CompCor regressors.
 
 **CompCor confounds**.
@@ -586,7 +586,7 @@ For CompCor decompositions, entries include:
     There are many valid ways of selecting CompCor components for further denoising.
     In general, the components with the largest singular values (i.e., those that
     explain the largest fraction of variance in the data) should be selected.
-    *fMRIPrep* outputs components in descending order of singular value.
+    *PETPrep* outputs components in descending order of singular value.
     Common approaches include selecting a fixed number of components (e.g., the
     first 5 or 6), using a quantitative or qualitative criterion (e.g., elbow, broken
     stick, or condition number), or using sufficiently many components that a minimum
@@ -595,12 +595,12 @@ For CompCor decompositions, entries include:
 .. caution::
     Similarly, if you are using anatomical or temporal CompCor it may not make sense
     to use the ``csf``, or ``white_matter`` global regressors -
-    see `#1049 <https://github.com/nipreps/fmriprep/issues/1049>`_.
+    see `#1049 <https://github.com/nipreps/petprep/issues/1049>`_.
     Conversely, using the overall ``global_signal`` confound in addition to CompCor's
     regressors can be beneficial (see [Parkes2018]_).
 
 .. danger::
-    *fMRIPrep* does high-pass filtering before running anatomical or temporal CompCor.
+    *PETPrep* does high-pass filtering before running anatomical or temporal CompCor.
     Therefore, when using CompCor regressors, the corresponding ``cosine_XX`` regressors
     should also be included in the design matrix.
 
@@ -609,10 +609,10 @@ For CompCor decompositions, entries include:
     This didactic `discussion on NeuroStars.org
     <https://neurostars.org/t/fmrirep-outputs-very-high-number-of-acompcors-up-to-1000/5451>`__
     where Patrick Sadil gets into details about PCA and how that base technique applies
-    to CompCor in general and *fMRIPrep*'s implementation in particular.
+    to CompCor in general and *PETPrep*'s implementation in particular.
 
 **Confounds estimated from the brain's outer edge**.
-Reusing the implementation of aCompCor, *fMRIPrep* generates regressors corresponding to the
+Reusing the implementation of aCompCor, *PETPrep* generates regressors corresponding to the
 24 first principal components extracted with PCA using the voxel time-series delineated by
 the brain's outer edge (*crown*) mask.
 The procedure essentially follows the initial proposal of the approach by Patriat et al.
@@ -641,12 +641,12 @@ An example of these plots follows:
 
 Noise components computed during each CompCor decomposition are evaluated according
 to the fraction of variance that they explain across the nuisance ROI.
-This is used by *fMRIPrep* to determine whether each component should be saved for
+This is used by *PETPrep* to determine whether each component should be saved for
 use in denoising operations: a component is saved if it contributes to explaining
 the top 50 percent of variance in the nuisance ROI.
-*fMRIPrep* can be configured to save all components instead using the command line
+*PETPrep* can be configured to save all components instead using the command line
 option ``--return-all-components``.
-*fMRIPrep* reports include a plot of the cumulative variance explained by each
+*PETPrep* reports include a plot of the cumulative variance explained by each
 component, ordered by descending singular value.
 
 .. figure:: _static/sub-01_task-rest_compcor.svg
@@ -676,19 +676,19 @@ to which tissue-specific regressors correlate with global signal.
     are those with greatest correlation with the global signal.
     This information can be used to diagnose partial volume effects.
 
-See implementation on :mod:`~fmriprep.workflows.pet.confounds.init_pet_confs_wf`.
+See implementation on :mod:`~petprep.workflows.pet.confounds.init_pet_confs_wf`.
 
 Legacy layout
 -------------
 
-Prior to fMRIPrep 21.0, the following organizational structure was used::
+Prior to PETPrep 21.0, the following organizational structure was used::
 
     <output_dir>/
-      fmriprep/
+      petprep/
       freesurfer/
 
 Although this has the advantage of keeping all outputs together,
-it ensured that the output of fMRIPrep could not itself be a BIDS derivative dataset,
+it ensured that the output of PETPrep could not itself be a BIDS derivative dataset,
 only contain one.
 
 To restore this behavior, use the ``--output-layout legacy`` command-line option.
@@ -697,7 +697,7 @@ The BIDS and legacy layouts are otherwise the same in all respects.
 It is thus possible to achieve identical results with the BIDS layout by using
 the following invocation::
 
-    fmriprep <input_dir>/ <output_dir>/fmriprep/ participant \
+    petprep <input_dir>/ <output_dir>/petprep/ participant \
         --fs-subjects-dir <output_dir>/freesurfer/ [OPTIONS]
 
 
