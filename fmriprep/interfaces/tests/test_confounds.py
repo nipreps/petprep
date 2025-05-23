@@ -40,7 +40,7 @@ def test_FSLRMSDeviation(tmp_path, data_dir):
     timeseries = data_dir / f'{base}_desc-motion_timeseries.tsv'
 
     rmsd = pe.Node(
-        confounds.FSLRMSDeviation(xfm_file=str(xfms), boldref_file=str(boldref)),
+        confounds.FSLRMSDeviation(xfm_file=str(xfms), petref_file=str(boldref)),
         name='rmsd',
         base_dir=str(tmp_path),
     )
@@ -60,7 +60,7 @@ def test_FSLMotionParams(tmp_path, data_dir):
     orig_timeseries = data_dir / f'{base}_desc-motion_timeseries.tsv'
 
     motion = pe.Node(
-        confounds.FSLMotionParams(xfm_file=str(xfms), boldref_file=str(boldref)),
+        confounds.FSLMotionParams(xfm_file=str(xfms), petref_file=str(boldref)),
         name='fsl_motion',
         base_dir=str(tmp_path),
     )

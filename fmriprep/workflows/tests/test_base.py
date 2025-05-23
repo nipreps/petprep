@@ -8,7 +8,7 @@ from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from ... import config
-from ..base import init_fmriprep_wf
+from ..base import init_petprep_wf
 from ..tests import mock_config
 
 BASE_LAYOUT = {
@@ -133,7 +133,7 @@ def _make_params(
         # _make_params(freesurfer=False, pet2anat_init="header", force=['no-bbr']),
     ],
 )
-def test_init_fmriprep_wf(
+def test_init_petprep_wf(
     bids_root: Path,
     tmp_path: Path,
     level: str,
@@ -163,6 +163,6 @@ def test_init_fmriprep_wf(
         config.workflow.ignore = ignore
         config.workflow.force = force
         with patch.dict('fmriprep.config.execution.bids_filters', bids_filters):
-            wf = init_fmriprep_wf()
+            wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())

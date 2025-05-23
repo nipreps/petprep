@@ -498,10 +498,10 @@ def init_pet_grayords_wf(
 
     Outputs
     -------
-    cifti_bold : :obj:`str`
+    cifti_pet : :obj:`str`
         PET CIFTI dtseries.
     cifti_metadata : :obj:`str`
-        BIDS metadata file corresponding to ``cifti_bold``.
+        BIDS metadata file corresponding to ``cifti_pet``.
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
@@ -523,7 +523,7 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['cifti_bold', 'cifti_metadata']),
+        niu.IdentityInterface(fields=['cifti_pet', 'cifti_metadata']),
         name='outputnode',
     )
 
@@ -542,7 +542,7 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
             ('pet_std', 'pet_file'),
         ]),
         (gen_cifti, outputnode, [
-            ('out_file', 'cifti_bold'),
+            ('out_file', 'cifti_pet'),
             ('out_metadata', 'cifti_metadata'),
         ]),
     ])  # fmt:skip

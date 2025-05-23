@@ -1,0 +1,14 @@
+{
+    "Name": "Simulated [11C]DASB without motion",
+    "BIDSVersion": "1.7.0",
+    "Authors": [
+        {
+            "Name": "Martin Norgaard",
+            "Affiliation": "University of Copenhagen, Denmark"
+        },
+        {
+            "Name": "Martin Norgaard",
+            "Affiliation": "University of Copenhagen, Denmark"
+        }
+    ]
+}
