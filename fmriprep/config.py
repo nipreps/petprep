@@ -556,8 +556,6 @@ class workflow(_Config):
     """Initial transform for PET-to-anatomical registration."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
-    dummy_scans = None
-    """Set a number of initial scans to be considered nonsteady states."""
     hires = None
     """Run FreeSurfer ``recon-all`` with the ``-hires`` flag."""
     fs_no_resume = None
@@ -594,7 +592,10 @@ class workflow(_Config):
     spaces = None
     """Keeps the :py:class:`~niworkflows.utils.spaces.SpatialReferences`
     instance keeping standard and nonstandard spaces."""
+    reference_frame: int | str | None = None
+    """Selected frame index for PET reference generation.
 
+    ``None`` or ``'average'`` retains the current averaging behavior."""
 
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""

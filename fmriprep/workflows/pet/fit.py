@@ -41,7 +41,7 @@ from .outputs import (
     init_func_fit_reports_wf,
     prepare_timing_parameters,
 )
-from .reference import init_raw_petref_wf, init_validation_and_dummies_wf
+from .reference import init_raw_petref_wf
 from .registration import init_pet_reg_wf
 
 
@@ -107,8 +107,6 @@ def init_pet_fit_wf(
     petref2anat_xfm
         Affine transform mapping from PET reference space to the anatomical
         space.
-    dummy_scans
-        The number of dummy scans declared or detected at the beginning of the series.
 
     See Also
     --------
@@ -165,7 +163,6 @@ def init_pet_fit_wf(
     outputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
-                'dummy_scans',
                 'petref',
                 'pet_mask',
                 'motion_xfm',
@@ -253,6 +250,7 @@ def init_pet_fit_wf(
         petref_wf = init_raw_petref_wf(
             name='petref_wf',
             pet_file=pet_file,
+            reference_frame=config.workflow.reference_frame,
         )
         petref_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
 
@@ -268,7 +266,6 @@ def init_pet_fit_wf(
             (petref_wf, petref_buffer, [
                 ('outputnode.pet_file', 'pet_file'),
                 ('outputnode.petref', 'petref'),
-                ('outputnode.skip_vols', 'dummy_scans'),
             ]),
             (petref_buffer, ds_petref_wf, [('petref', 'inputnode.petref')]),
             (petref_wf, func_fit_reports_wf, [
@@ -281,18 +278,14 @@ def init_pet_fit_wf(
     else:
         config.loggers.workflow.info('Found HMC petref - skipping Stage 1')
 
-        validation_and_dummies_wf = init_validation_and_dummies_wf(pet_file=pet_file)
+        val_pet = pe.Node(ValidateImage(), name='val_pet')
 
         workflow.connect([
-            (validation_and_dummies_wf, petref_buffer, [
-                ('outputnode.pet_file', 'pet_file'),
-                ('outputnode.skip_vols', 'dummy_scans'),
-            ]),
-            (validation_and_dummies_wf, func_fit_reports_wf, [
-                ('outputnode.validation_report', 'inputnode.validation_report'),
-            ]),
+            (val_pet, petref_buffer, [('out_file', 'pet_file')]),
+            (val_pet, func_fit_reports_wf, [('out_report', 'inputnode.validation_report')]),
             (petref_buffer, petref_source_buffer, [('petref', 'in_file')]),
         ])  # fmt:skip
+        val_pet.inputs.in_file = pet_file
 
     # Stage 2: Estimate head motion
     if not hmc_xforms:
@@ -415,8 +408,6 @@ def init_pet_native_wf(
 
     _, mem_gb = estimate_pet_mem_usage(pet_file)
 
-    run_stc = bool(metadata.get('SliceTiming')) and 'slicetiming' not in config.workflow.ignore
-
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(
@@ -426,7 +417,6 @@ def init_pet_native_wf(
                 'petref',
                 'pet_mask',
                 'motion_xfm',
-                'dummy_scans',
             ],
         ),
         name='inputnode',
@@ -451,7 +441,13 @@ def init_pet_native_wf(
     )
 
     # PET source: track original PET file(s)
-    pet_source = pe.Node(niu.Select(inlist=[pet_file]), name='pet_source')
+    # The Select interface requires an index to choose from ``inlist``. Since
+    # ``pet_file`` is a single path, explicitly set the index to ``0`` to avoid
+    # missing mandatory input errors when the node runs.
+    pet_source = pe.Node(
+        niu.Select(inlist=[pet_file], index=0),
+        name='pet_source'
+    )
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),

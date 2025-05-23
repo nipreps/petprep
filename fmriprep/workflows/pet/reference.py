@@ -24,13 +24,15 @@ from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.header import ValidateImage
-from niworkflows.utils.misc import pass_dummy_scans
+from nipype.interfaces import fsl
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
 
 def init_raw_petref_wf(
     pet_file=None,
+    *,
+    reference_frame: int | str | None = None,
     name='raw_petref_wf',
 ):
     """
@@ -54,6 +56,9 @@ def init_raw_petref_wf(
     ----------
     pet_file : :obj:`str`
         PET series NIfTI file
+    reference_frame : :obj:`int` or ``"average"`` or ``None``
+        Select a specific volume to use as reference. ``None`` or ``"average"``
+        computes a robust average across frames.
     name : :obj:`str`
         Name of workflow (default: ``pet_reference_wf``)
 
@@ -61,8 +66,6 @@ def init_raw_petref_wf(
     ------
     pet_file : str
         PET series NIfTI file
-    dummy_scans : int or None
-        Number of non-steady-state volumes specified by user at beginning of ``pet_file``
 
     Outputs
     -------
@@ -70,11 +73,6 @@ def init_raw_petref_wf(
         Validated PET series NIfTI file
     petref : str
         Reference image to which PET series is motion corrected
-    skip_vols : int
-        Number of non-steady-state volumes selected at beginning of ``pet_file``
-    algo_dummy_scans : int
-        Number of non-steady-state volumes agorithmically detected at
-        beginning of ``pet_file``
 
     """
     from niworkflows.interfaces.images import RobustAverage
@@ -86,7 +84,7 @@ using a custom methodology of *fMRIPrep*, for use in head motion correction.
 """
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'dummy_scans']),
+        niu.IdentityInterface(fields=['pet_file']),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -94,8 +92,6 @@ using a custom methodology of *fMRIPrep*, for use in head motion correction.
             fields=[
                 'pet_file',
                 'petref',
-                'skip_vols',
-                'algo_dummy_scans',
                 'validation_report',
             ]
         ),
@@ -106,110 +102,60 @@ using a custom methodology of *fMRIPrep*, for use in head motion correction.
     if pet_file is not None:
         inputnode.inputs.pet_file = pet_file
 
-    validation_and_dummies_wf = init_validation_and_dummies_wf()
+    val_pet = pe.Node(ValidateImage(), name='val_pet', mem_gb=DEFAULT_MEMORY_MIN_GB)
 
     gen_avg = pe.Node(RobustAverage(), name='gen_avg', mem_gb=1)
+    extract_roi = pe.Node(
+        fsl.ExtractROI(t_size=1),
+        name='extract_frame',
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
 
-    workflow.connect([
-        (inputnode, validation_and_dummies_wf, [
-            ('pet_file', 'inputnode.pet_file'),
-            ('dummy_scans', 'inputnode.dummy_scans'),
-        ]),
-        (validation_and_dummies_wf, gen_avg, [
-            ('outputnode.pet_file', 'in_file'),
-            ('outputnode.t_mask', 't_mask'),
-        ]),
-        (validation_and_dummies_wf, outputnode, [
-            ('outputnode.pet_file', 'pet_file'),
-            ('outputnode.skip_vols', 'skip_vols'),
-            ('outputnode.algo_dummy_scans', 'algo_dummy_scans'),
-            ('outputnode.validation_report', 'validation_report'),
-        ]),
-        (gen_avg, outputnode, [('out_file', 'petref')]),
-    ])  # fmt:skip
+    workflow.connect(
+        [
+            (inputnode, val_pet, [('pet_file', 'in_file')]),
+            (val_pet, outputnode, [
+                ('out_file', 'pet_file'),
+                ('out_report', 'validation_report'),
+            ]),
+        ]
+    )  # fmt:skip
 
-    return workflow
+    if reference_frame in (None, 'average'):
+        workflow.connect(
+            [
+                (val_pet, gen_avg, [('out_file', 'in_file')]),
+                (gen_avg, outputnode, [('out_file', 'petref')]),
+            ]
+        )  # fmt:skip
+    else:
+        extract_roi.inputs.t_min = int(reference_frame)
+        workflow.connect(
+            [
+                (val_pet, extract_roi, [('out_file', 'in_file')]),
+                (extract_roi, outputnode, [('roi_file', 'petref')]),
+            ]
+        )  # fmt:skip
 
 
 def init_validation_and_dummies_wf(
     pet_file=None,
     name='validation_and_dummies_wf',
 ):
-    """
-    Build a workflow that validates a PET image and detects non-steady-state volumes.
-
-    Workflow Graph
-        .. workflow::
-            :graph2use: orig
-            :simple_form: yes
-
-            from fmriprep.workflows.pet.reference import init_validation_and_dummies_wf
-            wf = init_validation_and_dummies_wf()
-
-    Parameters
-    ----------
-    pet_file : :obj:`str`
-        PET series NIfTI file
-    name : :obj:`str`
-        Name of workflow (default: ``validation_and_dummies_wf``)
-
-    Inputs
-    ------
-    pet_file : str
-        PET series NIfTI file
-    dummy_scans : int or None
-        Number of non-steady-state volumes specified by user at beginning of ``pet_file``
-
-    Outputs
-    -------
-    pet_file : str
-        Validated PET series NIfTI file
-    skip_vols : int
-        Number of non-steady-state volumes selected at beginning of ``pet_file``
-    algo_dummy_scans : int
-        Number of non-steady-state volumes agorithmically detected at
-        beginning of ``pet_file``
-
-    """
-    from niworkflows.interfaces.bold import NonsteadyStatesDetector
+    """Build a workflow that validates a PET image."""
 
     workflow = Workflow(name=name)
 
-    inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'dummy_scans']),
-        name='inputnode',
-    )
+    inputnode = pe.Node(niu.IdentityInterface(fields=['pet_file']), name='inputnode')
     outputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=[
-                'pet_file',
-                'skip_vols',
-                'algo_dummy_scans',
-                't_mask',
-                'validation_report',
-            ]
-        ),
+        niu.IdentityInterface(fields=['pet_file', 'validation_report']),
         name='outputnode',
     )
 
-    # Simplify manually setting input image
     if pet_file is not None:
         inputnode.inputs.pet_file = pet_file
 
-    val_pet = pe.Node(
-        ValidateImage(),
-        name='val_pet',
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    get_dummy = pe.Node(NonsteadyStatesDetector(), name='get_dummy')
-
-    calc_dummy_scans = pe.Node(
-        niu.Function(function=pass_dummy_scans, output_names=['skip_vols_num']),
-        name='calc_dummy_scans',
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
+    val_pet = pe.Node(ValidateImage(), name='val_pet', mem_gb=DEFAULT_MEMORY_MIN_GB)
 
     workflow.connect([
         (inputnode, val_pet, [('pet_file', 'in_file')]),
@@ -217,14 +163,6 @@ def init_validation_and_dummies_wf(
             ('out_file', 'pet_file'),
             ('out_report', 'validation_report'),
         ]),
-        (inputnode, get_dummy, [('pet_file', 'in_file')]),
-        (inputnode, calc_dummy_scans, [('dummy_scans', 'dummy_scans')]),
-        (get_dummy, calc_dummy_scans, [('n_dummy', 'algo_dummy_scans')]),
-        (get_dummy, outputnode, [
-            ('n_dummy', 'algo_dummy_scans'),
-            ('t_mask', 't_mask'),
-        ]),
-        (calc_dummy_scans, outputnode, [('skip_vols_num', 'skip_vols')]),
-    ])  # fmt:skip
+    ])
 
     return workflow

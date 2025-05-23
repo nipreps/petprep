@@ -50,3 +50,25 @@ from ..reports import get_world_pedir
 )
 def test_get_world_pedir(tmpdir, orientation, pe_dir, expected):
     assert get_world_pedir(orientation, pe_dir) == expected
+
+
+def test_subject_summary_handles_missing_task(tmp_path):
+    from ..reports import SubjectSummary
+
+    t1w = tmp_path / 'sub-01_T1w.nii.gz'
+    t1w.write_text('')
+    pet1 = tmp_path / 'sub-01_task-rest_run-01_pet.nii.gz'
+    pet1.write_text('')
+    pet2 = tmp_path / 'sub-01_run-01_pet.nii.gz'
+    pet2.write_text('')
+
+    summary = SubjectSummary(
+        t1w=[str(t1w)],
+        pet=[str(pet1), str(pet2)],
+        std_spaces=[],
+        nstd_spaces=[],
+    )
+
+    segment = summary._generate_segment()
+    assert 'Task: rest (1 run)' in segment
+    assert 'Task: <none> (1 run)' in segment

@@ -336,9 +336,6 @@ class GatherConfoundsInputSpec(BaseInterfaceInputSpec):
     std_dvars = File(exists=True, desc='file containing standardized DVARS')
     fd = File(exists=True, desc='input framewise displacement')
     rmsd = File(exists=True, desc='input RMS framewise displacement')
-    tcompcor = File(exists=True, desc='input tCompCorr')
-    acompcor = File(exists=True, desc='input aCompCorr')
-    crowncompcor = File(exists=True, desc='input crown-based regressors')
     cos_basis = File(exists=True, desc='input cosine basis')
     motion = File(exists=True, desc='input motion parameters')
 
@@ -379,9 +376,6 @@ class GatherConfounds(SimpleInterface):
             std_dvars=self.inputs.std_dvars,
             fdisp=self.inputs.fd,
             rmsd=self.inputs.rmsd,
-            tcompcor=self.inputs.tcompcor,
-            acompcor=self.inputs.acompcor,
-            crowncompcor=self.inputs.crowncompcor,
             cos_basis=self.inputs.cos_basis,
             motion=self.inputs.motion,
             newpath=runtime.cwd,
@@ -397,9 +391,6 @@ def _gather_confounds(
     std_dvars=None,
     fdisp=None,
     rmsd=None,
-    tcompcor=None,
-    acompcor=None,
-    crowncompcor=None,
     cos_basis=None,
     motion=None,
     newpath=None,
@@ -449,9 +440,6 @@ def _gather_confounds(
         (dvars, 'DVARS'),
         (fdisp, 'Framewise displacement'),
         (rmsd, 'Framewise displacement (RMS)'),
-        (tcompcor, 'tCompCor'),
-        (acompcor, 'aCompCor'),
-        (crowncompcor, 'crownCompCor'),
         (cos_basis, 'Cosine basis'),
         (motion, 'Motion parameters'),
     ):

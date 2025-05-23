@@ -42,7 +42,6 @@ from ...interfaces.confounds import (
     FSLMotionParams,
     FSLRMSDeviation,
     GatherConfounds,
-    RenameACompCor,
 )
 from .outputs import prepare_timing_parameters
 
@@ -67,8 +66,6 @@ def init_pet_confs_wf(
     #. DVARS - original and standardized variants (``dvars``, ``std_dvars``)
     #. Framewise displacement, based on head-motion parameters
        (``framewise_displacement``)
-    #. Temporal CompCor (``t_comp_cor_XX``)
-    #. Anatomical CompCor (``a_comp_cor_XX``)
     #. Cosine basis set for high-pass filtering w/ 0.008 Hz cut-off
        (``cosine_XX``)
     #. Non-steady-state volumes (``non_steady_state_XX``)
@@ -124,8 +121,6 @@ def init_pet_confs_wf(
         PET series mask
     motion_xfm
         ITK-formatted head motion transforms
-    skip_vols
-        number of non steady state volumes
     t1w_mask
         Mask of the skull-stripped template image
     t1w_tpms
@@ -147,20 +142,14 @@ def init_pet_confs_wf(
         Mask of brain edge voxels
 
     """
-    from nireports.interfaces.nuisance import (
-        CompCorVariancePlot,
-        ConfoundsCorrelationPlot,
-    )
+    from nireports.interfaces.nuisance import ConfoundsCorrelationPlot
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.confounds import ExpandModel, SpikeRegressors
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.images import SignalExtraction
     from niworkflows.interfaces.morphology import BinaryDilation, BinarySubtraction
     from niworkflows.interfaces.nibabel import ApplyMask, Binarize
-    from niworkflows.interfaces.patches import RobustACompCor as ACompCor
-    from niworkflows.interfaces.patches import RobustTCompCor as TCompCor
-    from niworkflows.interfaces.reportlets.masks import ROIsPlot
-    from niworkflows.interfaces.utility import TSV2JSON, AddTSVHeader, DictMerge
+    from niworkflows.interfaces.utility import AddTSVHeader, DictMerge
 
     from ...interfaces.confounds import aCompCorMasks
 
@@ -223,7 +212,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
                 'pet_mask',
                 'petref',
                 'motion_xfm',
-                'skip_vols',
                 't1w_mask',
                 't1w_tpms',
                 'petref2anat_xfm',
@@ -236,8 +224,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
             fields=[
                 'confounds_file',
                 'confounds_metadata',
-                'acompcor_masks',
-                'tcompcor_mask',
                 'crown_mask',
             ]
         ),
@@ -269,87 +255,12 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
     fdisp = pe.Node(FramewiseDisplacement(), name='fdisp')
     rmsd = pe.Node(FSLRMSDeviation(), name='rmsd')
 
-    # Generate aCompCor probseg maps
-    acc_masks = pe.Node(aCompCorMasks(is_aseg=freesurfer), name='acc_masks')
-
-    # Resample probseg maps in PET space via PET-to-T1w transform
-    acc_msk_tfm = pe.MapNode(
-        ApplyTransforms(interpolation='Gaussian', invert_transform_flags=[True]),
-        iterfield=['input_image'],
-        name='acc_msk_tfm',
-        mem_gb=0.1,
-    )
-    acc_msk_brain = pe.MapNode(ApplyMask(), name='acc_msk_brain', iterfield=['in_file'])
-    acc_msk_bin = pe.MapNode(Binarize(thresh_low=0.99), name='acc_msk_bin', iterfield=['in_file'])
-    acompcor = pe.Node(
-        ACompCor(
-            components_file='acompcor.tsv',
-            header_prefix='a_comp_cor_',
-            pre_filter='cosine',
-            save_pre_filter=True,
-            save_metadata=True,
-            mask_names=['CSF', 'WM', 'combined'],
-            merge_method='none',
-            failure_mode='NaN',
-        ),
-        name='acompcor',
-        mem_gb=mem_gb,
-    )
-
-    crowncompcor = pe.Node(
-        ACompCor(
-            components_file='crown_compcor.tsv',
-            header_prefix='edge_comp_',
-            pre_filter='cosine',
-            save_pre_filter=True,
-            save_metadata=True,
-            mask_names=['Edge'],
-            merge_method='none',
-            failure_mode='NaN',
-            num_components=24,
-        ),
-        name='crowncompcor',
-        mem_gb=mem_gb,
-    )
-
-    tcompcor = pe.Node(
-        TCompCor(
-            components_file='tcompcor.tsv',
-            header_prefix='t_comp_cor_',
-            pre_filter='cosine',
-            save_pre_filter=True,
-            save_metadata=True,
-            percentile_threshold=0.02,
-            failure_mode='NaN',
-        ),
-        name='tcompcor',
-        mem_gb=mem_gb,
-    )
-
-    # Set number of components
-    if regressors_all_comps:
-        acompcor.inputs.num_components = 'all'
-        tcompcor.inputs.num_components = 'all'
-    else:
-        acompcor.inputs.variance_threshold = 0.5
-        tcompcor.inputs.variance_threshold = 0.5
-
-    # Set TR if present
-    if 'RepetitionTime' in metadata:
-        tcompcor.inputs.repetition_time = metadata['RepetitionTime']
-        acompcor.inputs.repetition_time = metadata['RepetitionTime']
-        crowncompcor.inputs.repetition_time = metadata['RepetitionTime']
-
-    # Split aCompCor results into a_comp_cor, c_comp_cor, w_comp_cor
-    rename_acompcor = pe.Node(RenameACompCor(), name='rename_acompcor')
-
     # Global and segment regressors
     signals_class_labels = [
         'global_signal',
         'csf',
         'white_matter',
         'csf_wm',
-        'tcompcor',
     ]
     merge_rois = pe.Node(
         niu.Merge(3, ravel_inputs=True), name='merge_rois', run_without_submitting=True
@@ -373,46 +284,14 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
     )
     concat = pe.Node(GatherConfounds(), name='concat', mem_gb=0.01, run_without_submitting=True)
 
-    # CompCor metadata
-    tcc_metadata_filter = pe.Node(FilterDropped(), name='tcc_metadata_filter')
-    acc_metadata_filter = pe.Node(FilterDropped(), name='acc_metadata_filter')
-    tcc_metadata_fmt = pe.Node(
-        TSV2JSON(
-            index_column='component',
-            drop_columns=['mask'],
-            output=None,
-            additional_metadata={'Method': 'tCompCor'},
-            enforce_case=True,
-        ),
-        name='tcc_metadata_fmt',
-    )
-    acc_metadata_fmt = pe.Node(
-        TSV2JSON(
-            index_column='component',
-            output=None,
-            additional_metadata={'Method': 'aCompCor'},
-            enforce_case=True,
-        ),
-        name='acc_metadata_fmt',
-    )
-    crowncc_metadata_fmt = pe.Node(
-        TSV2JSON(
-            index_column='component',
-            output=None,
-            additional_metadata={'Method': 'EdgeRegressor'},
-            enforce_case=True,
-        ),
-        name='crowncc_metadata_fmt',
-    )
-
     # Combine all confounds metadata
     mrg_conf_metadata = pe.Node(
-        niu.Merge(4), name='merge_confound_metadata', run_without_submitting=True
+        niu.Merge(2), name='merge_confound_metadata', run_without_submitting=True
     )
     # Tissue mean time series
-    mrg_conf_metadata.inputs.in3 = {label: {'Method': 'Mean'} for label in signals_class_labels}
+    mrg_conf_metadata.inputs.in1 = {label: {'Method': 'Mean'} for label in signals_class_labels}
     # Movement parameters
-    mrg_conf_metadata.inputs.in4 = {
+    mrg_conf_metadata.inputs.in2 = {
         'trans_x': {'Description': 'Translation along left-right axis.', 'Units': 'mm'},
         'trans_y': {'Description': 'Translation along anterior-posterior axis.', 'Units': 'mm'},
         'trans_z': {'Description': 'Translation along superior-inferior axis.', 'Units': 'mm'},
@@ -444,44 +323,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
     spike_regress = pe.Node(
         SpikeRegressors(fd_thresh=regressors_fd_th, dvars_thresh=regressors_dvars_th),
         name='spike_regressors',
-    )
-
-    # Generate reportlet (ROIs)
-    mrg_compcor = pe.Node(
-        niu.Merge(3, ravel_inputs=True), name='mrg_compcor', run_without_submitting=True
-    )
-    rois_plot = pe.Node(
-        ROIsPlot(colors=['b', 'magenta', 'g'], generate_report=True),
-        name='rois_plot',
-        mem_gb=mem_gb,
-    )
-
-    ds_report_pet_rois = pe.Node(
-        DerivativesDataSink(desc='rois', datatype='figures'),
-        name='ds_report_pet_rois',
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    # Generate reportlet (CompCor)
-    mrg_cc_metadata = pe.Node(
-        niu.Merge(2), name='merge_compcor_metadata', run_without_submitting=True
-    )
-    compcor_plot = pe.Node(
-        CompCorVariancePlot(
-            variance_thresholds=(0.5, 0.7, 0.9),
-            metadata_sources=['tCompCor', 'aCompCor', 'crownCompCor'],
-        ),
-        name='compcor_plot',
-    )
-
-    ds_report_compcor = pe.Node(
-        DerivativesDataSink(
-            desc='compcorvar', datatype='figures'
-        ),
-        name='ds_report_compcor',
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
     # Generate reportlet (Confound correlation)
@@ -529,35 +370,9 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         (union_mask, subtract_mask, [('out', 'in_subtract')]),
         (dilated_mask, subtract_mask, [('out_mask', 'in_base')]),
         (subtract_mask, outputnode, [('out_mask', 'crown_mask')]),
-        # aCompCor
-        (inputnode, acompcor, [('pet', 'realigned_file'),
-                               ('skip_vols', 'ignore_initial_volumes')]),
-        (inputnode, acc_masks, [('t1w_tpms', 'in_vfs'),
-                                (('pet', _get_zooms), 'pet_zooms')]),
-        (inputnode, acc_msk_tfm, [('petref2anat_xfm', 'transforms'),
-                                  ('pet_mask', 'reference_image')]),
-        (inputnode, acc_msk_brain, [('pet_mask', 'in_mask')]),
-        (acc_masks, acc_msk_tfm, [('out_masks', 'input_image')]),
-        (acc_msk_tfm, acc_msk_brain, [('output_image', 'in_file')]),
-        (acc_msk_brain, acc_msk_bin, [('out_file', 'in_file')]),
-        (acc_msk_bin, acompcor, [('out_file', 'mask_files')]),
-        (acompcor, rename_acompcor, [('components_file', 'components_file'),
-                                     ('metadata_file', 'metadata_file')]),
-
-        # crownCompCor
-        (inputnode, crowncompcor, [('pet', 'realigned_file'),
-                                   ('skip_vols', 'ignore_initial_volumes')]),
-        (subtract_mask, crowncompcor, [('out_mask', 'mask_files')]),
-
-        # tCompCor
-        (inputnode, tcompcor, [('pet', 'realigned_file'),
-                               ('skip_vols', 'ignore_initial_volumes'),
-                               ('pet_mask', 'mask_files')]),
         # Global signals extraction (constrained by anatomy)
         (inputnode, signals, [('pet', 'in_file')]),
         (inputnode, merge_rois, [('pet_mask', 'in1')]),
-        (acc_msk_bin, merge_rois, [('out_file', 'in2')]),
-        (tcompcor, merge_rois, [('high_variance_masks', 'in3')]),
         (merge_rois, signals, [('out', 'label_files')]),
 
         # Collate computed confounds together
@@ -565,24 +380,12 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         (dvars, add_std_dvars_header, [('out_std', 'in_file')]),
         (signals, concat, [('out_file', 'signals')]),
         (fdisp, concat, [('out_file', 'fd')]),
-        (tcompcor, concat, [('components_file', 'tcompcor'),
-                            ('pre_filter_file', 'cos_basis')]),
-        (rename_acompcor, concat, [('components_file', 'acompcor')]),
-        (crowncompcor, concat, [('components_file', 'crowncompcor')]),
         (motion_params, concat, [('out_file', 'motion')]),
         (rmsd, concat, [('out_file', 'rmsd')]),
         (add_dvars_header, concat, [('out_file', 'dvars')]),
         (add_std_dvars_header, concat, [('out_file', 'std_dvars')]),
 
         # Confounds metadata
-        (tcompcor, tcc_metadata_filter, [('metadata_file', 'in_file')]),
-        (tcc_metadata_filter, tcc_metadata_fmt, [('out_file', 'in_file')]),
-        (rename_acompcor, acc_metadata_filter, [('metadata_file', 'in_file')]),
-        (acc_metadata_filter, acc_metadata_fmt, [('out_file', 'in_file')]),
-        (crowncompcor, crowncc_metadata_fmt, [('metadata_file', 'in_file')]),
-        (tcc_metadata_fmt, mrg_conf_metadata, [('output', 'in1')]),
-        (acc_metadata_fmt, mrg_conf_metadata, [('output', 'in2')]),
-        (crowncc_metadata_fmt, mrg_conf_metadata, [('output', 'in3')]),
         (mrg_conf_metadata, mrg_conf_metadata2, [('out', 'in_dicts')]),
 
         # Expand the model with derivatives, quadratics, and spikes
@@ -592,21 +395,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         # Set outputs
         (spike_regress, outputnode, [('confounds_file', 'confounds_file')]),
         (mrg_conf_metadata2, outputnode, [('out_dict', 'confounds_metadata')]),
-        (tcompcor, outputnode, [('high_variance_masks', 'tcompcor_mask')]),
-        (acc_msk_bin, outputnode, [('out_file', 'acompcor_masks')]),
-        (inputnode, rois_plot, [('pet', 'in_file'),
-                                ('pet_mask', 'in_mask')]),
-        (tcompcor, mrg_compcor, [('high_variance_masks', 'in1')]),
-        (acc_msk_bin, mrg_compcor, [(('out_file', _last), 'in2')]),
-        (subtract_mask, mrg_compcor, [('out_mask', 'in3')]),
-        (mrg_compcor, rois_plot, [('out', 'in_rois')]),
-        (rois_plot, ds_report_pet_rois, [('out_report', 'in_file')]),
-        (tcompcor, mrg_cc_metadata, [('metadata_file', 'in1')]),
-        (acompcor, mrg_cc_metadata, [('metadata_file', 'in2')]),
-        (crowncompcor, mrg_cc_metadata, [('metadata_file', 'in3')]),
-        (mrg_cc_metadata, compcor_plot, [('out', 'metadata_files')]),
-        (compcor_plot, ds_report_compcor, [('out_file', 'in_file')]),
-        (inputnode, conf_corr_plot, [('skip_vols', 'ignore_initial_volumes')]),
         (concat, conf_corr_plot, [('confounds_file', 'confounds_file'),
                                   (('confounds_file', _select_cols), 'columns')]),
         (conf_corr_plot, ds_report_conf_corr, [('out_file', 'in_file')]),
@@ -653,10 +441,6 @@ def init_carpetplot_wf(
         PET image in CIFTI format, to be used in place of volumetric PET
     crown_mask
         Mask of brain edge voxels
-    acompcor_mask
-        Mask of deep WM+CSF
-    dummy_scans
-        Number of nonsteady states to be dropped at the beginning of the timeseries.
 
     Outputs
     -------
@@ -677,8 +461,6 @@ def init_carpetplot_wf(
                 'std2anat_xfm',
                 'cifti_pet',
                 'crown_mask',
-                'acompcor_mask',
-                'dummy_scans',
             ]
         ),
         name='inputnode',
@@ -711,7 +493,14 @@ def init_carpetplot_wf(
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    parcels = pe.Node(niu.Function(function=_carpet_parcellation), name='parcels')
+    parcels = pe.Node(
+        niu.Function(
+            function=_carpet_parcellation,
+            input_names=['segmentation', 'crown_mask', 'nifti'],
+            output_names=['out'],
+        ),
+        name='parcels',
+    )
     parcels.inputs.nifti = not cifti_output
     # List transforms
     mrg_xfms = pe.Node(niu.Merge(2), name='mrg_xfms')
@@ -747,11 +536,9 @@ def init_carpetplot_wf(
         ]),
         (inputnode, resample_parc, [('pet_mask', 'reference_image')]),
         (inputnode, parcels, [('crown_mask', 'crown_mask')]),
-        (inputnode, parcels, [('acompcor_mask', 'acompcor_mask')]),
         (inputnode, conf_plot, [
             ('pet', 'in_nifti'),
             ('confounds_file', 'confounds_file'),
-            ('dummy_scans', 'drop_trs'),
         ]),
         (mrg_xfms, resample_parc, [('out', 'transforms')]),
         (resample_parc, parcels, [('output_image', 'segmentation')]),
@@ -779,8 +566,8 @@ def _binary_union(mask1, mask2):
     return str(out_name)
 
 
-def _carpet_parcellation(segmentation, crown_mask, acompcor_mask, nifti=False):
-    """Generate the union of two masks."""
+def _carpet_parcellation(segmentation, crown_mask, nifti=False):
+    """Generate a segmentation for carpet plot visualization."""
     from pathlib import Path
 
     import nibabel as nb
@@ -796,8 +583,6 @@ def _carpet_parcellation(segmentation, crown_mask, acompcor_mask, nifti=False):
     # Apply lookup table
     seg = lut[np.uint16(img.dataobj)]
     seg[np.bool_(nb.load(crown_mask).dataobj)] = 6 if nifti else 2
-    # Separate deep from shallow WM+CSF
-    seg[np.bool_(nb.load(acompcor_mask).dataobj)] = 4 if nifti else 1
 
     outimg = img.__class__(seg.astype('uint8'), img.affine, img.header)
     outimg.set_data_dtype('uint8')
