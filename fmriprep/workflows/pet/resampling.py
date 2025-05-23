@@ -459,7 +459,7 @@ The PET time-series were resampled onto the left/right-symmetric template
 def init_pet_grayords_wf(
     grayord_density: ty.Literal['91k', '170k'],
     mem_gb: float,
-    repetition_time: float,
+    metadata: dict,
     name: str = 'pet_grayords_wf',
 ):
     """
@@ -473,7 +473,7 @@ def init_pet_grayords_wf(
             :simple_form: yes
 
             from fmriprep.workflows.pet.resampling import init_pet_grayords_wf
-            wf = init_pet_grayords_wf(mem_gb=0.1, grayord_density="91k", repetition_time=2)
+            wf = init_pet_grayords_wf(mem_gb=0.1, grayord_density="91k", metadata={"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]})
 
     Parameters
     ----------
@@ -481,8 +481,8 @@ def init_pet_grayords_wf(
         Either ``"91k"`` or ``"170k"``, representing the total *grayordinates*.
     mem_gb : :obj:`float`
         Size of PET file in GB
-    repetition_time : :obj:`float`
-        Repetition time in seconds
+    metadata : :obj:`dict`
+        BIDS metadata for PET file
     name : :obj:`str`
         Unique name for the subworkflow (default: ``"pet_grayords_wf"``)
 
@@ -506,6 +506,7 @@ def init_pet_grayords_wf(
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.cifti import GenerateCifti
+    import numpy as np
 
     workflow = Workflow(name=name)
 
@@ -527,9 +528,20 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
         name='outputnode',
     )
 
+    timing_parameters = prepare_timing_parameters(metadata)
+    tr = timing_parameters.get('RepetitionTime')
+    if tr is None and 'VolumeTiming' in timing_parameters:
+        vt = timing_parameters['VolumeTiming']
+        if len(vt) > 1:
+            diffs = np.diff(vt)
+            if np.allclose(diffs, diffs[0]):
+                tr = float(diffs[0])
+            else:
+                tr = float(np.mean(diffs))
+
     gen_cifti = pe.Node(
         GenerateCifti(
-            TR=repetition_time,
+            TR=tr,
             grayordinates=grayord_density,
         ),
         name='gen_cifti',

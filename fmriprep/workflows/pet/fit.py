@@ -24,11 +24,13 @@ import nibabel as nb
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.header import ValidateImage
+import numpy as np
 
 from ... import config
 from ...interfaces.reports import FunctionalSummary
 from ...interfaces.resampling import ResampleSeries
 from ...utils.misc import estimate_pet_mem_usage
+from .outputs import prepare_timing_parameters
 
 # PET workflows
 from .hmc import init_pet_hmc_wf
@@ -189,6 +191,13 @@ def init_pet_fit_wf(
         hmc_buffer.inputs.hmc_xforms = hmc_xforms
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
+    timing_parameters = prepare_timing_parameters(metadata)
+    tr = timing_parameters.get('RepetitionTime')
+    if tr is None and 'VolumeTiming' in timing_parameters:
+        vt = timing_parameters['VolumeTiming']
+        if len(vt) > 1 and np.allclose(np.diff(vt), np.diff(vt)[0]):
+            tr = float(np.diff(vt)[0])
+
     summary = pe.Node(
         FunctionalSummary(
             distortion_correction='None',  # Can override with connection
@@ -201,7 +210,7 @@ def init_pet_fit_wf(
             ),
             registration_dof=config.workflow.pet2anat_dof,
             registration_init=config.workflow.pet2anat_init,
-            tr=metadata['RepetitionTime'],
+            r=tr,
             orientation=orientation,
         ),
         name='summary',
@@ -450,7 +459,7 @@ def init_pet_native_wf(
     )
 
     # PET source: track original PET file(s)
-    pet_source = pe.Node(niu.Select(inlist=pet_series), name='pet_source')
+    pet_source = pe.Node(niu.Select(inlist=[pet_file]), name='pet_source')
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),
