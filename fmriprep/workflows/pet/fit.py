@@ -203,7 +203,7 @@ def init_pet_fit_wf(
             registration=(
                 'Precomputed'
                 if petref2anat_xform
-                else 'FreeSurfer'
+                else 'mri_coreg'
                 if config.workflow.run_reconall
                 else 'FSL'
             ),
