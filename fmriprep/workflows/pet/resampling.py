@@ -505,7 +505,7 @@ def init_pet_grayords_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.cifti import GenerateCifti
+    from fmriprep.interfaces import GeneratePetCifti
     import numpy as np
 
     workflow = Workflow(name=name)
@@ -540,7 +540,7 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
                 tr = float(np.mean(diffs))
 
     gen_cifti = pe.Node(
-        GenerateCifti(
+        GeneratePetCifti(
             TR=tr,
             grayordinates=grayord_density,
         ),
@@ -550,7 +550,7 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
 
     workflow.connect([
         (inputnode, gen_cifti, [
-            ('pet_fsLR', 'surface_bolds'),
+            ('pet_fsLR', 'surface_pets'),
             ('pet_std', 'pet_file'),
         ]),
         (gen_cifti, outputnode, [
