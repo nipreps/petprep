@@ -56,7 +56,7 @@ def mock_config(bids_dir=None):
 
     config.execution.work_dir = Path(mkdtemp())
     config.execution.bids_dir = bids_dir
-    config.execution.fmriprep_dir = Path(mkdtemp())
+    config.execution.petprep_dir = Path(mkdtemp())
     config.execution.bids_database_dir = None
     config.execution._layout = None
     config.execution.init()
@@ -64,7 +64,7 @@ def mock_config(bids_dir=None):
     yield
 
     shutil.rmtree(config.execution.work_dir)
-    shutil.rmtree(config.execution.fmriprep_dir)
+    shutil.rmtree(config.execution.petprep_dir)
 
     if not _old_fs:
         del os.environ['FREESURFER_HOME']
