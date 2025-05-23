@@ -85,4 +85,4 @@ def estimate_pet_mem_usage(pet_fname: str) -> tuple[int, dict]:
         'largemem': pet_size_gb * (max(pet_tlen / 100, 1.0) + 4),
     }
 
-    return pet_tlen, mem_gbs
+    return pet_tlen, mem_gb
