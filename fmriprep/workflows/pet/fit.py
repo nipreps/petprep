@@ -271,7 +271,6 @@ def init_pet_fit_wf(
                 ('outputnode.skip_vols', 'dummy_scans'),
             ]),
             (petref_buffer, ds_petref_wf, [('petref', 'inputnode.petref')]),
-            (petref_wf, summary, [('outputnode.algo_dummy_scans', 'algo_dummy_scans')]),
             (petref_wf, func_fit_reports_wf, [
                 ('outputnode.validation_report', 'inputnode.validation_report'),
             ]),
