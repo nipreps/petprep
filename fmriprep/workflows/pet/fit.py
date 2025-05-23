@@ -40,7 +40,7 @@ from .outputs import (
     init_ds_registration_wf,
     init_func_fit_reports_wf,
 )
-from .reference import init_petref_wf, init_validation_and_dummies_wf
+from .reference import init_raw_petref_wf, init_validation_and_dummies_wf
 from .registration import init_pet_reg_wf
 
 
@@ -112,7 +112,7 @@ def init_pet_fit_wf(
     See Also
     --------
 
-    * :py:func:`~fmriprep.workflows.pet.reference.init_petref_wf`
+    * :py:func:`~fmriprep.workflows.pet.reference.init_raw_petref_wf`
     * :py:func:`~fmriprep.workflows.pet.hmc.init_pet_hmc_wf`
     * :py:func:`~niworkflows.func.utils.init_enhance_and_skullstrip_bold_wf`
     * :py:func:`~fmriprep.workflows.pet.registration.init_pet_reg_wf`
@@ -250,7 +250,7 @@ def init_pet_fit_wf(
     )
     if not petref:
         config.loggers.workflow.info('Stage 1: Adding PET reference workflow')
-        petref_wf = init_petref_wf(
+        petref_wf = init_raw_petref_wf(
             name='petref_wf',
             pet_file=pet_file,
         )
