@@ -17,10 +17,10 @@ Datasets
 | B          | 2 T1w, 6 PEPolar fieldmaps, 8 SE-BOLD (4274 volumes total)                             |
 +------------+----------------------------------------------------------------------------------------+
 
-fMRIPrep versions and modes
+PETPrep versions and modes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All commands took the form ``fmriprep sourcedata/raw . participant $OPTIONS``.
+All commands took the form ``petprep sourcedata/raw . participant $OPTIONS``.
 The specific options for each version or mode are presented in the following table.
 
 +------------+----------------------------------------------------------------------------------------+
@@ -46,7 +46,7 @@ Tests were run on a desktop machine running no other significant tests.
 * Memory: 64GiB
 * Storage: PC801 NVMe SK hynix 2TB
 * OS: Ubuntu 22.04
-* Environment: Docker images published to https://hub.docker.com/r/nipreps/fmriprep/
+* Environment: Docker images published to https://hub.docker.com/r/nipreps/petprep/
 
 Benchmarks
 ----------
