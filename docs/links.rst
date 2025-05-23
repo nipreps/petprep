@@ -14,10 +14,10 @@
 .. _GIFTI: https://www.nitrc.org/projects/gifti/
 .. _`Connectome Workbench`: https://www.humanconnectome.org/software/connectome-workbench.html
 .. _`HCP Pipelines`: https://humanconnectome.org/software/hcp-mr-pipelines/
-.. _`Docker wrapper`: https://pypi.python.org/pypi/fmriprep-docker
+.. _`Docker wrapper`: https://pypi.python.org/pypi/petprep-docker
 .. _`Docker Engine`: https://www.docker.com/products/container-runtime
 .. _`Docker installation`: https://docs.docker.com/install/
-.. _`Docker Hub`: https://hub.docker.com/r/nipreps/fmriprep/tags
+.. _`Docker Hub`: https://hub.docker.com/r/nipreps/petprep/tags
 .. _Singularity: https://github.com/singularityware/singularity
 ..  _SPM: https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
 .. _TACC: https://www.tacc.utexas.edu/

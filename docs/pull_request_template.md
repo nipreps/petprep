@@ -7,11 +7,11 @@ beginning "Welcome, new contributors!".
 ## Changes proposed in this pull request
 
 <!--
-Please describe here the main features / changes proposed for review and integration in fMRIPrep
+Please describe here the main features / changes proposed for review and integration in PETPrep
 If this PR addresses some existing problem, please use GitHub's citing tools
 (eg. ref #, closes # or fixes #).
 If there is not an existing issue open describing the problem, please consider opening a new
-issue first and then link it from here (so the *fMRIPrep* community has a better understanding
+issue first and then link it from here (so the *PETPrep* community has a better understanding
 of ongoing development efforts and possible overlaps between contributions).
 -->
 
@@ -27,7 +27,7 @@ Please summarize here the main changes to the documentation that the reviewers s
 Welcome, new contributors!
 
 We ask you to read through the Contributing Guide:
-https://github.com/nipreps/fmriprep/blob/master/CONTRIBUTING.md
+https://github.com/nipreps/petprep/blob/master/CONTRIBUTING.md
 
 These are guidelines intended to make communication easier by describing a consistent process, but
 don't worry if you don't get it everything exactly "right" on the first try.
@@ -38,9 +38,9 @@ To boil it down, here are some highlights:
    lot of time coding.
 2) Please use descriptive prefixes in your pull request title, such as "ENH:" for an enhancement or "FIX:" for a bug fix.
    (See the Contributing guide for the full set.) And consider adding a "WIP" tag for works-in-progress.
-3) Any code you submit will be licensed under the same terms (Apache License 2.0) as the rest of fMRIPrep.
+3) Any code you submit will be licensed under the same terms (Apache License 2.0) as the rest of PETPrep.
 4) We invite every contributor to add themselves to the `.zenodo.json` file
-   (https://github.com/nipreps/fmriprep/blob/master/.zenodo.json), which will result in your being listed as an author
+   (https://github.com/nipreps/petprep/blob/master/.zenodo.json), which will result in your being listed as an author
    at the next release. Please add yourself as the next-to-last entry, just above Russ.
 
 A pull request is a conversation. We may ask you to make some changes before accepting your PR,

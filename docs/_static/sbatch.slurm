@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH -J fmriprep
+#SBATCH -J petprep
 #SBATCH --time=48:00:00
 #SBATCH -n 1
 #SBATCH --cpus-per-task=16
@@ -14,12 +14,12 @@
 # ------------------------------------------
 
 BIDS_DIR="$STUDY/data"
-DERIVS_DIR="derivatives/fmriprep-1.5.0"
+DERIVS_DIR="derivatives/petprep-1.5.0"
 LOCAL_FREESURFER_DIR="$STUDY/data/derivatives/freesurfer-6.0.1"
 
 # Prepare some writeable bind-mount points.
 TEMPLATEFLOW_HOST_HOME=$HOME/.cache/templateflow
-FMRIPREP_HOST_CACHE=$HOME/.cache/fmriprep
+FMRIPREP_HOST_CACHE=$HOME/.cache/petprep
 mkdir -p ${TEMPLATEFLOW_HOST_HOME}
 mkdir -p ${FMRIPREP_HOST_CACHE}
 
@@ -31,7 +31,7 @@ export SINGULARITYENV_FS_LICENSE=$HOME/.freesurfer.txt
 
 # Designate a templateflow bind-mount point
 export SINGULARITYENV_TEMPLATEFLOW_HOME="/templateflow"
-SINGULARITY_CMD="singularity run --cleanenv -B $BIDS_DIR:/data -B ${TEMPLATEFLOW_HOST_HOME}:${SINGULARITYENV_TEMPLATEFLOW_HOME} -B $L_SCRATCH:/work -B ${LOCAL_FREESURFER_DIR}:/fsdir $STUDY/images/nipreps_fmriprep_1.5.0.simg"
+SINGULARITY_CMD="singularity run --cleanenv -B $BIDS_DIR:/data -B ${TEMPLATEFLOW_HOST_HOME}:${SINGULARITYENV_TEMPLATEFLOW_HOME} -B $L_SCRATCH:/work -B ${LOCAL_FREESURFER_DIR}:/fsdir $STUDY/images/nipreps_petprep_1.5.0.simg"
 
 # Parse the participants.tsv file and extract one subject ID from the line corresponding to this SLURM task.
 subject=$( sed -n -E "$((${SLURM_ARRAY_TASK_ID} + 1))s/sub-(\S*)\>.*/\1/gp" ${BIDS_DIR}/participants.tsv )

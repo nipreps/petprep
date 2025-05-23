@@ -1,4 +1,4 @@
-# fmriprep documentation build configuration file, created by
+# petprep documentation build configuration file, created by
 # sphinx-quickstart on Mon May  9 09:04:25 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -85,8 +85,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'fmriprep'
-author = 'The fMRIPrep developers'
+project = 'petprep'
+author = 'The PETPrep developers'
 copyright = f'2016-, {author}'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -160,7 +160,7 @@ html_theme = 'sphinx_rtd_theme'
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
-# html_title = u'fmriprep vversion'
+# html_title = u'petprep vversion'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 # html_short_title = None
@@ -242,7 +242,7 @@ html_static_path = ['_static']
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'fmriprepdoc'
+htmlhelp_basename = 'petprepdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -261,7 +261,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'fmriprep.tex', 'fMRIprep Documentation', author, 'manual'),
+    (master_doc, 'petprep.tex', 'PETPrep Documentation', author, 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -289,7 +289,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, 'fmriprep', 'fmriprep Documentation', [author], 1)]
+man_pages = [(master_doc, 'petprep', 'petprep Documentation', [author], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -303,10 +303,10 @@ man_pages = [(master_doc, 'fmriprep', 'fmriprep Documentation', [author], 1)]
 texinfo_documents = [
     (
         master_doc,
-        'fmriprep',
-        'fMRIprep Documentation',
+        'petprep',
+        'PETPrep Documentation',
         author,
-        'fmriprep',
+        'petprep',
         'One line description of project.',
         'Miscellaneous',
     ),
@@ -326,8 +326,8 @@ texinfo_documents = [
 
 # The following is used by sphinx.ext.linkcode to provide links to github
 linkcode_resolve = make_linkcode_resolve(
-    'fmriprep',
-    'https://github.com/nipreps/fmriprep/blob/{revision}/{package}/{path}#L{lineno}',
+    'petprep',
+    'https://github.com/nipreps/petprep/blob/{revision}/{package}/{path}#L{lineno}',
 )
 
 # Example configuration for intersphinx: refer to the Python standard library.
