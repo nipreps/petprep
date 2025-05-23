@@ -44,7 +44,7 @@ from ...interfaces.confounds import (
     GatherConfounds,
     RenameACompCor,
 )
-
+from .outputs import prepare_timing_parameters
 
 def init_pet_confs_wf(
     mem_gb: float,
@@ -687,9 +687,10 @@ def init_carpetplot_wf(
     outputnode = pe.Node(niu.IdentityInterface(fields=['out_carpetplot']), name='outputnode')
 
     # Carpetplot and confounds plot
+    timing_parameters = prepare_timing_parameters(metadata)
     conf_plot = pe.Node(
         PETSummary(
-            tr=metadata['RepetitionTime'],
+            volume_timing=timing_parameters.get('VolumeTiming'),
             confounds_list=[
                 ('global_signal', None, 'GS'),
                 ('csf', None, 'CSF'),

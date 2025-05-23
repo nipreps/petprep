@@ -21,9 +21,11 @@
 #     https://www.nipreps.org/community/licensing/
 #
 import nibabel as nb
+import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.header import ValidateImage
+
 
 from ... import config
 from ...interfaces.reports import FunctionalSummary
@@ -33,11 +35,11 @@ from ...utils.misc import estimate_pet_mem_usage
 # PET workflows
 from .hmc import init_pet_hmc_wf
 from .outputs import (
-    init_ds_petmask_wf,
-    init_ds_petref_wf,
     init_ds_hmc_wf,
+    init_ds_petref_wf,
     init_ds_registration_wf,
     init_func_fit_reports_wf,
+    prepare_timing_parameters,
 )
 from .reference import init_raw_petref_wf, init_validation_and_dummies_wf
 from .registration import init_pet_reg_wf
@@ -189,31 +191,31 @@ def init_pet_fit_wf(
         hmc_buffer.inputs.hmc_xforms = hmc_xforms
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
+    timing_parameters = prepare_timing_parameters(metadata)
+    tr = timing_parameters.get('RepetitionTime')
+    if tr is None and 'VolumeTiming' in timing_parameters:
+        vt = timing_parameters['VolumeTiming']
+        if len(vt) > 1 and np.allclose(np.diff(vt), np.diff(vt)[0]):
+            tr = float(np.diff(vt)[0])
+
     summary = pe.Node(
         FunctionalSummary(
-            distortion_correction='None',  # Can override with connection
             registration=(
                 'Precomputed'
                 if petref2anat_xform
-                else 'FreeSurfer'
-                if config.workflow.run_reconall
-                else 'FSL'
+                else 'mri_coreg'
             ),
             registration_dof=config.workflow.pet2anat_dof,
-            registration_init=config.workflow.pet2anat_init,
-            tr=metadata['RepetitionTime'],
             orientation=orientation,
         ),
         name='summary',
         mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         run_without_submitting=True,
     )
-    summary.inputs.dummy_scans = config.workflow.dummy_scans
 
     func_fit_reports_wf = init_func_fit_reports_wf(
-        sdc_correction=False,
         freesurfer=config.workflow.run_reconall,
-        output_dir=config.execution.fmriprep_dir,
+        output_dir=config.execution.petprep_dir,
     )
 
     workflow.connect([
@@ -256,7 +258,7 @@ def init_pet_fit_wf(
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
             desc='hmc',
             name='ds_petref_wf',
         )
@@ -269,7 +271,6 @@ def init_pet_fit_wf(
                 ('outputnode.skip_vols', 'dummy_scans'),
             ]),
             (petref_buffer, ds_petref_wf, [('petref', 'inputnode.petref')]),
-            (petref_wf, summary, [('outputnode.algo_dummy_scans', 'algo_dummy_scans')]),
             (petref_wf, func_fit_reports_wf, [
                 ('outputnode.validation_report', 'inputnode.validation_report'),
             ]),
@@ -302,7 +303,7 @@ def init_pet_fit_wf(
 
         ds_hmc_wf = init_ds_hmc_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
         )
         ds_hmc_wf.inputs.inputnode.source_files = [pet_file]
 
@@ -330,7 +331,7 @@ def init_pet_fit_wf(
 
         ds_petreg_wf = init_ds_registration_wf(
             bids_root=layout.root,
-            output_dir=config.execution.fmriprep_dir,
+            output_dir=config.execution.petprep_dir,
             source='petref',
             dest='T1w',
             name='ds_petreg_wf',
@@ -450,7 +451,7 @@ def init_pet_native_wf(
     )
 
     # PET source: track original PET file(s)
-    pet_source = pe.Node(niu.Select(inlist=pet_series), name='pet_source')
+    pet_source = pe.Node(niu.Select(inlist=[pet_file]), name='pet_source')
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),

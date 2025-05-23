@@ -98,6 +98,12 @@ def prepare_timing_parameters(metadata: dict):
     >>> with mock.patch("fmriprep.config.workflow.ignore", []):
     ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0]))
     {'RepetitionTime': 2, 'SliceTimingCorrected': False}
+
+     If ``RepetitionTime`` is not provided, ``FrameTimesStart`` and
+    ``FrameDuration`` will be used to compute ``VolumeTiming``:
+
+    >>> prepare_timing_parameters({'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4]})
+    {'VolumeTiming': [0, 2, 6], 'AcquisitionDuration': [2, 4, 4], 'SliceTimingCorrected': False}
     """
     timing_parameters = {
         key: metadata[key]
@@ -107,12 +113,25 @@ def prepare_timing_parameters(metadata: dict):
             'DelayTime',
             'AcquisitionDuration',
             'SliceTiming',
+            'FrameTimesStart',
+            'FrameDuration',
         )
         if key in metadata
     }
 
     # Treat SliceTiming of [] or length 1 as equivalent to missing and remove it in any case
     slice_timing = timing_parameters.pop('SliceTiming', [])
+    frame_times = timing_parameters.pop('FrameTimesStart', None)
+    frame_duration = timing_parameters.pop('FrameDuration', None)
+
+    if 'RepetitionTime' not in timing_parameters and 'VolumeTiming' not in timing_parameters:
+        if frame_times is not None:
+            timing_parameters['VolumeTiming'] = frame_times
+            if frame_duration is not None:
+                if isinstance(frame_duration, list) and len(set(frame_duration)) == 1:
+                    timing_parameters.setdefault('AcquisitionDuration', frame_duration[0])
+                else:
+                    timing_parameters.setdefault('AcquisitionDuration', frame_duration)
 
     run_stc = len(slice_timing) > 1 and 'slicetiming' not in config.workflow.ignore
     timing_parameters['SliceTimingCorrected'] = run_stc
@@ -345,6 +364,7 @@ def init_ds_petref_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc=desc,
+            datatype='pet',
             suffix='petref',
             compress=True,
         ),
@@ -393,6 +413,7 @@ def init_ds_petmask_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc=desc,
+            datatype='pet',
             suffix='mask',
             compress=True,
         ),
@@ -557,6 +578,7 @@ def init_ds_pet_native_wf(
             DerivativesDataSink(
                 base_directory=output_dir,
                 desc='preproc',
+                datatype='pet',
                 compress=True,
                 TaskName=metadata.get('TaskName'),
                 **timing_parameters,
@@ -625,6 +647,7 @@ def init_ds_volumes_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc='preproc',
+            datatype='pet',
             compress=True,
             TaskName=metadata.get('TaskName'),
             **timing_parameters,
@@ -676,6 +699,7 @@ def init_ds_volumes_wf(
     ds_ref = pe.Node(
         DerivativesDataSink(
             base_directory=output_dir,
+            datatype='pet',
             suffix='petref',
             compress=True,
         ),
@@ -687,6 +711,7 @@ def init_ds_volumes_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc='brain',
+            datatype='pet',
             suffix='mask',
             compress=True,
         ),

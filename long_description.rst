@@ -1,17 +1,17 @@
-Preprocessing of functional MRI (fMRI) involves numerous steps to clean and standardize
+Preprocessing of positron emission tomography (PET) involves numerous steps to clean and standardize
 the data before statistical analysis.
 Generally, researchers create ad hoc preprocessing workflows for each dataset,
 building upon a large inventory of available tools.
 The complexity of these workflows has snowballed with rapid advances in
 acquisition and processing.
-fMRIPrep is an analysis-agnostic tool that addresses the challenge of robust and
-reproducible preprocessing for task-based and resting fMRI data.
-fMRIPrep automatically adapts a best-in-breed workflow to the idiosyncrasies of
+PETPrep is an analysis-agnostic tool that addresses the challenge of robust and
+reproducible preprocessing for PET data.
+PETPrep automatically adapts a best-in-breed workflow to the idiosyncrasies of
 virtually any dataset, ensuring high-quality preprocessing without manual intervention.
-fMRIPrep robustly produces high-quality results on diverse fMRI data.
-Additionally, fMRIPrep introduces less uncontrolled spatial smoothness than observed
+PETPrep robustly produces high-quality results on diverse PET data.
+Additionally, PETPrep introduces less uncontrolled spatial smoothness than observed
 with commonly used preprocessing tools.
-fMRIPrep equips neuroscientists with an easy-to-use and transparent preprocessing
+PETPrep equips neuroscientists with an easy-to-use and transparent preprocessing
 workflow, which can help ensure the validity of inference and the interpretability
 of results.
 
@@ -26,13 +26,13 @@ This pipeline was designed to provide the best software implementation for each 
 preprocessing, and will be updated as newer and better neuroimaging software becomes
 available.
 
-fMRIPrep performs basic preprocessing steps (coregistration, normalization, unwarping, noise
+PETPrep performs basic preprocessing steps (coregistration, normalization, unwarping, noise
 component extraction, segmentation, skullstripping etc.) providing outputs that can be
 easily submitted to a variety of group level analyses, including task-based or resting-state
-fMRI, graph theory measures, surface or volume-based statistics, etc.
-fMRIPrep allows you to easily do the following:
+PET imaging, graph theory measures, surface or volume-based statistics, etc.
+PETPrep allows you to easily do the following:
 
-  * Take fMRI data from *unprocessed* (only reconstructed) to ready for analysis.
+  * Take PET data from *unprocessed* (only reconstructed) to ready for analysis.
   * Implement tools from different software packages.
   * Achieve optimal data processing quality by using the best tools available.
   * Generate preprocessing-assessment reports, with which the user can easily identify problems.
@@ -42,13 +42,13 @@ fMRIPrep allows you to easily do the following:
     typical linear, manual processing.
 
 [Nat Meth doi:`10.1038/s41592-018-0235-4 <https://doi.org/10.1038/s41592-018-0235-4>`_]
-[Documentation `fmriprep.org <https://fmriprep.readthedocs.io>`_]
+[Documentation `petprep.org <https://petprep.readthedocs.io>`_]
 [Software doi:`10.5281/zenodo.852659 <https://doi.org/10.5281/zenodo.852659>`_]
-[Support `neurostars.org <https://neurostars.org/tags/fmriprep>`_]
+[Support `neurostars.org <https://neurostars.org/tags/petprep>`_]
 
 License information
 -------------------
-*fMRIPrep* adheres to the
+*PETPrep* adheres to the
 `general licensing guidelines <https://www.nipreps.org/community/licensing/>`__
 of the *NiPreps framework*.
 
@@ -56,7 +56,7 @@ License
 ~~~~~~~
 Copyright (c) the *NiPreps* Developers.
 
-As of the 21.0.x pre-release and release series, *fMRIPrep* is
+As of the 21.0.x pre-release and release series, *PETPrep* is
 licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at

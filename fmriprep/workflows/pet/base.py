@@ -40,7 +40,7 @@ from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
 from .apply import init_pet_volumetric_resample_wf
-from .confounds import init_pet_confs_wf, init_carpetplot_wf
+from .confounds import init_carpetplot_wf, init_pet_confs_wf
 from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
     init_ds_pet_native_wf,
@@ -294,7 +294,6 @@ configured with cubic B-spline interpolation.
 
     # Resample to anatomical space
     pet_anat_wf = init_pet_volumetric_resample_wf(
-        metadata=all_metadata[0],
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
         name='pet_anat_wf',
@@ -345,7 +344,6 @@ configured with cubic B-spline interpolation.
         #  * Clipping PET after resampling
         #  * Resampling parcellations
         pet_std_wf = init_pet_volumetric_resample_wf(
-            metadata=all_metadata[0],
             omp_nthreads=omp_nthreads,
             mem_gb=mem_gb,
             name='pet_std_wf',
@@ -442,7 +440,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         )
 
         pet_MNI6_wf = init_pet_volumetric_resample_wf(
-            metadata=all_metadata[0],
             omp_nthreads=omp_nthreads,
             mem_gb=mem_gb,
             name='pet_MNI6_wf',
@@ -457,7 +454,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         pet_grayords_wf = init_pet_grayords_wf(
             grayord_density=config.workflow.cifti_output,
             mem_gb=1,
-            repetition_time=all_metadata[0]['RepetitionTime'],
+            metadata=all_metadata[0],
         )
 
         ds_pet_cifti = pe.Node(

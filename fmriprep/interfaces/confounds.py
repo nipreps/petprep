@@ -110,14 +110,14 @@ class FSLRMSDeviation(SimpleInterface):
             self.inputs.petref_file, suffix='_motion.tsv', newpath=runtime.cwd
         )
 
-        petref = nb.load(self.inputs.boldref_file)
+        petref = nb.load(self.inputs.petref_file)
         hmc = nt.linear.load(self.inputs.xfm_file)
 
-        center = 0.5 * (np.array(boldref.shape[:3]) - 1) * boldref.header.get_zooms()[:3]
+        center = 0.5 * (np.array(petref.shape[:3]) - 1) * petref.header.get_zooms()[:3]
 
         # Revert to vox2vox transforms
         fsl_hmc = nt.io.fsl.FSLLinearTransformArray.from_ras(
-            hmc.matrix, reference=boldref, moving=boldref
+            hmc.matrix, reference=petref, moving=petref
         )
         fsl_matrix = np.stack([xfm['parameters'] for xfm in fsl_hmc.xforms])
 
@@ -498,7 +498,12 @@ class _PETSummaryInputSpec(BaseInterfaceInputSpec):
     confounds_list = traits.List(
         str_or_tuple, minlen=1, desc='list of headers to extract from the confounds_file'
     )
-    tr = traits.Either(None, traits.Float, usedefault=True, desc='the repetition time')
+    volume_timing = traits.Either(
+        None,
+        traits.List(traits.Float()),
+        usedefault=True,
+        desc='onset time of each frame',
+    )
     drop_trs = traits.Int(0, usedefault=True, desc='dummy scans')
 
 
@@ -580,10 +585,16 @@ class PETSummary(SimpleInterface):
 
         data = data.rename(columns=names)
 
+        tr = None
+        if isdefined(self.inputs.volume_timing) and self.inputs.volume_timing:
+            diffs = np.diff(self.inputs.volume_timing)
+            if np.allclose(diffs, diffs[0]):
+                tr = float(diffs[0])
+
         fig = fMRIPlot(
             dataset,
             segments=segments,
-            tr=self.inputs.tr,
+            tr=tr,
             confounds=data,
             units=units,
             nskip=self.inputs.drop_trs,
