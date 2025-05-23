@@ -51,8 +51,8 @@ def _make_params(
         'have_petref2anat_xfm',
     ),
     [
-        (True, True, True, True, True),
-        (False, False, False, False, False),
+        (True, True, True),
+        (False, False, False),
         _make_params(have_petref=False),
         _make_params(have_hmc_xfms=False),
         _make_params(have_petref2anat_xfm=False),
