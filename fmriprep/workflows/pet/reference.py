@@ -25,12 +25,15 @@ from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.header import ValidateImage
 from niworkflows.utils.misc import pass_dummy_scans
+from nipype.interfaces import fsl
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 
 
 def init_raw_petref_wf(
     pet_file=None,
+    *,
+    reference_frame: int | str | None = None,
     name='raw_petref_wf',
 ):
     """
@@ -54,6 +57,9 @@ def init_raw_petref_wf(
     ----------
     pet_file : :obj:`str`
         PET series NIfTI file
+    reference_frame : :obj:`int` or ``"average"`` or ``None``
+        Select a specific volume to use as reference. ``None`` or ``"average"``
+        computes a robust average across frames.
     name : :obj:`str`
         Name of workflow (default: ``pet_reference_wf``)
 
@@ -109,26 +115,45 @@ using a custom methodology of *fMRIPrep*, for use in head motion correction.
     validation_and_dummies_wf = init_validation_and_dummies_wf()
 
     gen_avg = pe.Node(RobustAverage(), name='gen_avg', mem_gb=1)
+    extract_roi = pe.Node(
+        fsl.ExtractROI(t_size=1),
+        name='extract_frame',
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
 
-    workflow.connect([
-        (inputnode, validation_and_dummies_wf, [
-            ('pet_file', 'inputnode.pet_file'),
-            ('dummy_scans', 'inputnode.dummy_scans'),
-        ]),
-        (validation_and_dummies_wf, gen_avg, [
-            ('outputnode.pet_file', 'in_file'),
-            ('outputnode.t_mask', 't_mask'),
-        ]),
-        (validation_and_dummies_wf, outputnode, [
-            ('outputnode.pet_file', 'pet_file'),
-            ('outputnode.skip_vols', 'skip_vols'),
-            ('outputnode.algo_dummy_scans', 'algo_dummy_scans'),
-            ('outputnode.validation_report', 'validation_report'),
-        ]),
-        (gen_avg, outputnode, [('out_file', 'petref')]),
-    ])  # fmt:skip
+    workflow.connect(
+        [
+            (inputnode, validation_and_dummies_wf, [
+                ('pet_file', 'inputnode.pet_file'),
+                ('dummy_scans', 'inputnode.dummy_scans'),
+            ]),
+            (validation_and_dummies_wf, outputnode, [
+                ('outputnode.pet_file', 'pet_file'),
+                ('outputnode.skip_vols', 'skip_vols'),
+                ('outputnode.algo_dummy_scans', 'algo_dummy_scans'),
+                ('outputnode.validation_report', 'validation_report'),
+            ]),
+        ]
+    )  # fmt:skip
 
-    return workflow
+    if reference_frame in (None, 'average'):
+        workflow.connect(
+            [
+                (validation_and_dummies_wf, gen_avg, [
+                    ('outputnode.pet_file', 'in_file'),
+                    ('outputnode.t_mask', 't_mask'),
+                ]),
+                (gen_avg, outputnode, [('out_file', 'petref')]),
+            ]
+        )  # fmt:skip
+    else:
+        extract_roi.inputs.t_min = int(reference_frame)
+        workflow.connect(
+            [
+                (validation_and_dummies_wf, extract_roi, [('outputnode.pet_file', 'in_file')]),
+                (extract_roi, outputnode, [('roi_file', 'petref')]),
+            ]
+        )  # fmt:skip
 
 
 def init_validation_and_dummies_wf(

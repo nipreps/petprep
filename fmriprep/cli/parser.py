@@ -145,6 +145,16 @@ def _build_parser(**kwargs):
             raise parser.error(f'Slice time reference must be in range 0-1. Received {value}.')
         return value
 
+    def _reference_frame(value, parser):
+        if value == 'average':
+            return 'average'
+        try:
+            return int(value)
+        except ValueError:
+            raise parser.error(
+                "Reference frame must be an integer index or 'average'."
+            ) from None
+
     verstr = f'PETPrep v{config.environment.version}'
     currentv = Version(config.environment.version)
     is_release = not any((currentv.is_devrelease, currentv.is_prerelease, currentv.is_postrelease))
@@ -158,6 +168,7 @@ def _build_parser(**kwargs):
     IsFile = partial(_is_file, parser=parser)
     PositiveInt = partial(_min_one, parser=parser)
     BIDSFilter = partial(_bids_filter, parser=parser)
+    ReferenceFrame = partial(_reference_frame, parser=parser)
 
     # Arguments as specified by BIDS-Apps
     # required, positional arguments
@@ -383,6 +394,17 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         default=None,
         type=int,
         help='Number of nonsteady-state volumes. Overrides automatic detection.',
+    )
+    g_conf.add_argument(
+        '--reference-frame',
+        action='store',
+        dest='reference_frame',
+        type=ReferenceFrame,
+        default='average',
+        help=(
+            "Reference frame index (0-based) for PET preprocessing. "
+            "Use 'average' to compute the standard averaged reference."
+        ),
     )
     g_conf.add_argument(
         '--random-seed',
