@@ -486,7 +486,8 @@ Resampling BOLD runs onto standard spaces
     from fmriprep.workflows.pet.apply import init_pet_volumetric_resample_wf
     wf = init_pet_volumetric_resample_wf(
         metadata={
-            'RepetitionTime': 2.0,
+            'FrameTimesStart': [0, 2, 4, 6],
+            'FrameDuration': [2, 2, 2, 2],
             'PhaseEncodingDirection': 'j-',
             'TotalReadoutTime': 0.03
         },
@@ -575,8 +576,11 @@ Confounds estimation
     wf = init_pet_confs_wf(
         name="discover_wf",
         mem_gb=1,
-        metadata={"RepetitionTime": 2.0,
-                  "SliceTiming": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
+        metadata={
+            "FrameTimesStart": [0, 2, 4, 6],
+            "FrameDuration": [2, 2, 2, 2],
+            "SliceTiming": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        },
         regressors_all_comps=False,
         regressors_dvars_th=1.5,
         regressors_fd_th=0.5,
