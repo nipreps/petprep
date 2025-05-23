@@ -552,6 +552,8 @@ class workflow(_Config):
     """Execute the anatomical preprocessing only."""
     pet2anat_dof = None
     """Degrees of freedom of the PET-to-anatomical registration steps."""
+    pet2anat_init = 'auto'
+    """Initial transform for PET-to-anatomical registration."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     dummy_scans = None
