@@ -253,8 +253,8 @@ def init_pet_fit_wf(
         petref_wf = init_raw_petref_wf(
             name='petref_wf',
             pet_file=pet_file,
+            reference_frame=config.workflow.reference_frame,
         )
-        petref_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
@@ -451,7 +451,13 @@ def init_pet_native_wf(
     )
 
     # PET source: track original PET file(s)
-    pet_source = pe.Node(niu.Select(inlist=[pet_file]), name='pet_source')
+    # The Select interface requires an index to choose from ``inlist``. Since
+    # ``pet_file`` is a single path, explicitly set the index to ``0`` to avoid
+    # missing mandatory input errors when the node runs.
+    pet_source = pe.Node(
+        niu.Select(inlist=[pet_file], index=0),
+        name='pet_source'
+    )
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),
