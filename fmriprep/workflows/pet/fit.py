@@ -200,7 +200,6 @@ def init_pet_fit_wf(
 
     summary = pe.Node(
         FunctionalSummary(
-            distortion_correction='None',  # Can override with connection
             registration=(
                 'Precomputed'
                 if petref2anat_xform
@@ -209,15 +208,12 @@ def init_pet_fit_wf(
                 else 'FSL'
             ),
             registration_dof=config.workflow.pet2anat_dof,
-            registration_init=config.workflow.pet2anat_init,
-            r=tr,
             orientation=orientation,
         ),
         name='summary',
         mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         run_without_submitting=True,
     )
-    summary.inputs.dummy_scans = config.workflow.dummy_scans
 
     func_fit_reports_wf = init_func_fit_reports_wf(
         sdc_correction=False,
