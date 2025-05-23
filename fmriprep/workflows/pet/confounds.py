@@ -121,8 +121,6 @@ def init_pet_confs_wf(
         PET series mask
     motion_xfm
         ITK-formatted head motion transforms
-    skip_vols
-        number of non steady state volumes
     t1w_mask
         Mask of the skull-stripped template image
     t1w_tpms
@@ -214,7 +212,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
                 'pet_mask',
                 'petref',
                 'motion_xfm',
-                'skip_vols',
                 't1w_mask',
                 't1w_tpms',
                 'petref2anat_xfm',
@@ -398,7 +395,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         # Set outputs
         (spike_regress, outputnode, [('confounds_file', 'confounds_file')]),
         (mrg_conf_metadata2, outputnode, [('out_dict', 'confounds_metadata')]),
-        (inputnode, conf_corr_plot, [('skip_vols', 'ignore_initial_volumes')]),
         (concat, conf_corr_plot, [('confounds_file', 'confounds_file'),
                                   (('confounds_file', _select_cols), 'columns')]),
         (conf_corr_plot, ds_report_conf_corr, [('out_file', 'in_file')]),
@@ -445,8 +441,6 @@ def init_carpetplot_wf(
         PET image in CIFTI format, to be used in place of volumetric PET
     crown_mask
         Mask of brain edge voxels
-    dummy_scans
-        Number of nonsteady states to be dropped at the beginning of the timeseries.
 
     Outputs
     -------
@@ -467,7 +461,6 @@ def init_carpetplot_wf(
                 'std2anat_xfm',
                 'cifti_pet',
                 'crown_mask',
-                'dummy_scans',
             ]
         ),
         name='inputnode',
@@ -546,7 +539,6 @@ def init_carpetplot_wf(
         (inputnode, conf_plot, [
             ('pet', 'in_nifti'),
             ('confounds_file', 'confounds_file'),
-            ('dummy_scans', 'drop_trs'),
         ]),
         (mrg_xfms, resample_parc, [('out', 'transforms')]),
         (resample_parc, parcels, [('output_image', 'segmentation')]),

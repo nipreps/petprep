@@ -388,14 +388,6 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         help='Deprecated - use `--force no-bbr` instead.',
     )
     g_conf.add_argument(
-        '--dummy-scans',
-        required=False,
-        action='store',
-        default=None,
-        type=int,
-        help='Number of nonsteady-state volumes. Overrides automatic detection.',
-    )
-    g_conf.add_argument(
         '--reference-frame',
         action='store',
         dest='reference_frame',

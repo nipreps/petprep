@@ -60,7 +60,6 @@ def bids_root(tmp_path_factory):
 
 def _make_params(
     pet2anat_init: str = 'auto',
-    dummy_scans: int | None = None,
     medial_surface_nan: bool = False,
     cifti_output: bool | str = False,
     run_msmsulc: bool = True,
@@ -79,7 +78,6 @@ def _make_params(
         bids_filters = {}
     return (
         pet2anat_init,
-        dummy_scans,
         medial_surface_nan,
         cifti_output,
         run_msmsulc,
@@ -97,7 +95,6 @@ def _make_params(
 @pytest.mark.parametrize(
     (
         'pet2anat_init',
-        'dummy_scans',
         'medial_surface_nan',
         'cifti_output',
         'run_msmsulc',
@@ -118,7 +115,6 @@ def _make_params(
         _make_params(pet2anat_init='header', force=['bbr']),
         # Currently disabled
         # _make_params(pet2anat_init="header", force=['no-bbr']),
-        _make_params(dummy_scans=2),
         _make_params(medial_surface_nan=True),
         _make_params(cifti_output='91k'),
         _make_params(cifti_output='91k', run_msmsulc=False),
@@ -139,7 +135,6 @@ def test_init_petprep_wf(
     level: str,
     anat_only: bool,
     pet2anat_init: str,
-    dummy_scans: int | None,
     medial_surface_nan: bool,
     cifti_output: bool | str,
     run_msmsulc: bool,
@@ -154,7 +149,6 @@ def test_init_petprep_wf(
         config.workflow.level = level
         config.workflow.anat_only = anat_only
         config.workflow.pet2anat_init = pet2anat_init
-        config.workflow.dummy_scans = dummy_scans
         config.workflow.medial_surface_nan = medial_surface_nan
         config.workflow.run_msmsulc = run_msmsulc
         config.workflow.skull_strip_t1w = skull_strip_t1w

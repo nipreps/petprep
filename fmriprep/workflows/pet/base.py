@@ -543,7 +543,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             ('outputnode.petref', 'inputnode.petref'),
             ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
             ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
-            ('outputnode.dummy_scans', 'inputnode.skip_vols'),
         ]),
         (pet_native_wf, pet_confounds_wf, [
             ('outputnode.pet_native', 'inputnode.pet'),
@@ -575,7 +574,6 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('mni2009c2anat_xfm', 'inputnode.std2anat_xfm'),
             ]),
             (pet_fit_wf, carpetplot_wf, [
-                ('outputnode.dummy_scans', 'inputnode.dummy_scans'),
                 ('outputnode.pet_mask', 'inputnode.pet_mask'),
                 ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
             ]),
