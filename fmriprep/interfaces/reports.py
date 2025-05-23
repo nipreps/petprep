@@ -151,7 +151,7 @@ class SubjectSummary(SummaryInterface):
             t2w_seg = f'(+ {len(self.inputs.t2w):d} T2-weighted)'
 
         # Add list of tasks with number of runs
-        pet_series = self.inputs.bold or []
+        pet_series = self.inputs.pet or []
 
         counts = Counter(
             BIDS_NAME.search(series).groupdict().get('task_id', 'task-<none>')[5:]
