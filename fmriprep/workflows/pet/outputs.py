@@ -364,6 +364,7 @@ def init_ds_petref_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc=desc,
+            datatype='pet',
             suffix='petref',
             compress=True,
         ),
@@ -412,6 +413,7 @@ def init_ds_petmask_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc=desc,
+            datatype='pet',
             suffix='mask',
             compress=True,
         ),
@@ -576,6 +578,7 @@ def init_ds_pet_native_wf(
             DerivativesDataSink(
                 base_directory=output_dir,
                 desc='preproc',
+                datatype='pet',
                 compress=True,
                 TaskName=metadata.get('TaskName'),
                 **timing_parameters,
@@ -644,6 +647,7 @@ def init_ds_volumes_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc='preproc',
+            datatype='pet',
             compress=True,
             TaskName=metadata.get('TaskName'),
             **timing_parameters,
@@ -695,6 +699,7 @@ def init_ds_volumes_wf(
     ds_ref = pe.Node(
         DerivativesDataSink(
             base_directory=output_dir,
+            datatype='pet',
             suffix='petref',
             compress=True,
         ),
@@ -706,6 +711,7 @@ def init_ds_volumes_wf(
         DerivativesDataSink(
             base_directory=output_dir,
             desc='brain',
+            datatype='pet',
             suffix='mask',
             compress=True,
         ),
