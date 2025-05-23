@@ -154,7 +154,7 @@ class SubjectSummary(SummaryInterface):
         pet_series = self.inputs.pet or []
 
         counts = Counter(
-            BIDS_NAME.search(series).groupdict().get('task_id', 'task-<none>')[5:]
+            (BIDS_NAME.search(series).groupdict().get('task_id') or 'task-<none>')[5:]
             for series in pet_series
         )
 
