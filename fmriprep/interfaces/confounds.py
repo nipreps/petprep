@@ -110,14 +110,14 @@ class FSLRMSDeviation(SimpleInterface):
             self.inputs.petref_file, suffix='_motion.tsv', newpath=runtime.cwd
         )
 
-        petref = nb.load(self.inputs.boldref_file)
+        petref = nb.load(self.inputs.petref_file)
         hmc = nt.linear.load(self.inputs.xfm_file)
 
-        center = 0.5 * (np.array(boldref.shape[:3]) - 1) * boldref.header.get_zooms()[:3]
+        center = 0.5 * (np.array(petref.shape[:3]) - 1) * petref.header.get_zooms()[:3]
 
         # Revert to vox2vox transforms
         fsl_hmc = nt.io.fsl.FSLLinearTransformArray.from_ras(
-            hmc.matrix, reference=boldref, moving=boldref
+            hmc.matrix, reference=petref, moving=petref
         )
         fsl_matrix = np.stack([xfm['parameters'] for xfm in fsl_hmc.xforms])
 
