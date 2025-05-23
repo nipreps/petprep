@@ -62,7 +62,7 @@ class _aCompCorMasksInputSpec(BaseInterfaceInputSpec):
     is_aseg = traits.Bool(
         False, usedefault=True, desc="Whether the input volume fractions come from FS' aseg."
     )
-    bold_zooms = traits.Tuple(
+    pet_zooms = traits.Tuple(
         traits.Float, traits.Float, traits.Float, mandatory=True, desc='PET series zooms'
     )
 
@@ -85,14 +85,14 @@ class aCompCorMasks(SimpleInterface):
         self._results['out_masks'] = acompcor_masks(
             self.inputs.in_vfs,
             self.inputs.is_aseg,
-            self.inputs.bold_zooms,
+            self.inputs.pet_zooms,
         )
         return runtime
 
 
 class _FSLRMSDeviationInputSpec(BaseInterfaceInputSpec):
     xfm_file = File(exists=True, mandatory=True, desc='Head motion transform file')
-    boldref_file = File(exists=True, mandatory=True, desc='PET reference file')
+    petref_file = File(exists=True, mandatory=True, desc='PET reference file')
 
 
 class _FSLRMSDeviationOutputSpec(TraitedSpec):
@@ -107,10 +107,10 @@ class FSLRMSDeviation(SimpleInterface):
 
     def _run_interface(self, runtime):
         self._results['out_file'] = fname_presuffix(
-            self.inputs.boldref_file, suffix='_motion.tsv', newpath=runtime.cwd
+            self.inputs.petref_file, suffix='_motion.tsv', newpath=runtime.cwd
         )
 
-        boldref = nb.load(self.inputs.boldref_file)
+        petref = nb.load(self.inputs.boldref_file)
         hmc = nt.linear.load(self.inputs.xfm_file)
 
         center = 0.5 * (np.array(boldref.shape[:3]) - 1) * boldref.header.get_zooms()[:3]
@@ -144,7 +144,7 @@ class FSLRMSDeviation(SimpleInterface):
 
 class _FSLMotionParamsInputSpec(BaseInterfaceInputSpec):
     xfm_file = File(exists=True, desc='Head motion transform file')
-    boldref_file = File(exists=True, desc='PET reference file')
+    petref_file = File(exists=True, desc='PET reference file')
 
 
 class _FSLMotionParamsOutputSpec(TraitedSpec):
@@ -159,10 +159,10 @@ class FSLMotionParams(SimpleInterface):
 
     def _run_interface(self, runtime):
         self._results['out_file'] = fname_presuffix(
-            self.inputs.boldref_file, suffix='_motion.tsv', newpath=runtime.cwd
+            self.inputs.petref_file, suffix='_motion.tsv', newpath=runtime.cwd
         )
 
-        boldref = nb.load(self.inputs.boldref_file)
+        boldref = nb.load(self.inputs.petref_file)
         hmc = nt.linear.load(self.inputs.xfm_file)
 
         # FSL's "center of gravity" is the center of mass scaled by zooms
