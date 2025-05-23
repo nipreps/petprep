@@ -37,7 +37,7 @@ from ...config import DEFAULT_MEMORY_MIN_GB
 from ...interfaces import DerivativesDataSink
 from ...interfaces.confounds import (
     FilterDropped,
-    FMRISummary,
+    PETSummary,
     FramewiseDisplacement,
     FSLMotionParams,
     FSLRMSDeviation,
@@ -688,7 +688,7 @@ def init_carpetplot_wf(
 
     # Carpetplot and confounds plot
     conf_plot = pe.Node(
-        FMRISummary(
+        PETSummary(
             tr=metadata['RepetitionTime'],
             confounds_list=[
                 ('global_signal', None, 'GS'),
