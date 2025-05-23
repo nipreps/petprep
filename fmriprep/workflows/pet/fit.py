@@ -23,7 +23,6 @@
 import nibabel as nb
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
-from niworkflows.func.util import init_enhance_and_skullstrip_bold_wf, init_skullstrip_bold_wf
 from niworkflows.interfaces.header import ValidateImage
 
 from ... import config
@@ -114,7 +113,6 @@ def init_pet_fit_wf(
 
     * :py:func:`~fmriprep.workflows.pet.reference.init_raw_petref_wf`
     * :py:func:`~fmriprep.workflows.pet.hmc.init_pet_hmc_wf`
-    * :py:func:`~niworkflows.func.utils.init_enhance_and_skullstrip_bold_wf`
     * :py:func:`~fmriprep.workflows.pet.registration.init_pet_reg_wf`
     * :py:func:`~fmriprep.workflows.pet.outputs.init_ds_petref_wf`
     * :py:func:`~fmriprep.workflows.pet.outputs.init_ds_hmc_wf`
