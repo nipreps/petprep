@@ -485,15 +485,7 @@ Resampling PET runs onto standard spaces
 
     from fmriprep.workflows.pet.apply import init_pet_volumetric_resample_wf
     wf = init_pet_volumetric_resample_wf(
-        metadata={
-            'FrameTimesStart': [0, 2, 4, 6],
-            'FrameDuration': [2, 2, 2, 2],
-            'PhaseEncodingDirection': 'j-',
-            'TotalReadoutTime': 0.03
-        },
         mem_gb={'resampled': 1},
-        jacobian=True,
-        fieldmap_id='fmap',
     )
 
 This sub-workflow concatenates the transforms calculated upstream (see
