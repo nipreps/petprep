@@ -261,6 +261,15 @@ def init_pet_fit_wf(
         )
         ds_petref_wf.inputs.inputnode.source_files = [pet_file]
 
+        # Ensure all stage-1 workflows were created successfully before
+        # attempting to connect them. Nipype's ``connect`` call will fail
+        # with a ``NoneType`` error if any node is undefined.
+        stage1_nodes = [petref_wf, petref_buffer, ds_petref_wf,
+                        func_fit_reports_wf, petref_source_buffer]
+        if any(node is None for node in stage1_nodes):
+            raise RuntimeError('PET reference stage could not be built - '
+                               'check inputs and configuration.')
+
         workflow.connect([
             (petref_wf, petref_buffer, [
                 ('outputnode.pet_file', 'pet_file'),

@@ -137,6 +137,8 @@ using a custom methodology of *fMRIPrep*, for use in head motion correction.
             ]
         )  # fmt:skip
 
+    return workflow
+
 
 def init_validation_and_dummies_wf(
     pet_file=None,
