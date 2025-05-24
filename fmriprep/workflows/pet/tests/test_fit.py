@@ -134,3 +134,23 @@ def test_pet_native_precomputes(
 
     flatgraph = wf._create_flat_graph()
     generate_expanded_graph(flatgraph)
+
+
+def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
+    """Ensure the PET mask is generated and connected correctly."""
+    pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img.to_filename(pet_file)
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_file=pet_file, precomputed={}, omp_nthreads=1)
+
+    assert 'merge_mask' in wf.list_node_names()
+    assert 'ds_petmask_wf.ds_petmask' in wf.list_node_names()
+
+    merge_mask = wf.get_node('merge_mask')
+    edge = wf._graph.get_edge_data(merge_mask, wf.get_node('outputnode'))
+    assert ('out', 'pet_mask') in edge['connect']
+
+    ds_edge = wf._graph.get_edge_data(merge_mask, wf.get_node('ds_petmask_wf'))
+    assert ('out', 'inputnode.petmask') in ds_edge['connect']

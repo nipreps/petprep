@@ -198,11 +198,7 @@ def init_pet_fit_wf(
 
     summary = pe.Node(
         FunctionalSummary(
-            registration=(
-                'Precomputed'
-                if petref2anat_xform
-                else 'mri_coreg'
-            ),
+            registration=('Precomputed' if petref2anat_xform else 'mri_coreg'),
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
         ),
@@ -220,7 +216,6 @@ def init_pet_fit_wf(
         (petref_buffer, outputnode, [
             ('petref', 'petref'),
         ]),
-        (merge_mask, outputnode, [('out', 'pet_mask')]),
         (hmc_buffer, outputnode, [
             ('hmc_xforms', 'motion_xfm'),
         ]),
@@ -265,11 +260,17 @@ def init_pet_fit_wf(
         # Ensure all stage-1 workflows were created successfully before
         # attempting to connect them. Nipype's ``connect`` call will fail
         # with a ``NoneType`` error if any node is undefined.
-        stage1_nodes = [petref_wf, petref_buffer, ds_petref_wf,
-                        func_fit_reports_wf, petref_source_buffer]
+        stage1_nodes = [
+            petref_wf,
+            petref_buffer,
+            ds_petref_wf,
+            func_fit_reports_wf,
+            petref_source_buffer,
+        ]
         if any(node is None for node in stage1_nodes):
-            raise RuntimeError('PET reference stage could not be built - '
-                               'check inputs and configuration.')
+            raise RuntimeError(
+                'PET reference stage could not be built - check inputs and configuration.'
+            )
 
         workflow.connect([
             (petref_wf, petref_buffer, [
@@ -373,14 +374,16 @@ def init_pet_fit_wf(
     else:
         t1w_mask_tfm.inputs.transforms = petref2anat_xform
 
-    workflow.connect([
-        (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
-        (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
-        (petref_buffer, petref_mask, [('petref', 'in_file')]),
-        (petref_mask, merge_mask, [('out_mask', 'mask1')]),
-        (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
-        (merge_mask, petref_buffer, [('out', 'pet_mask')]),
-    ])
+    workflow.connect(
+        [
+            (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
+            (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
+            (petref_buffer, petref_mask, [('petref', 'in_file')]),
+            (petref_mask, merge_mask, [('out_mask', 'mask1')]),
+            (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
+            (merge_mask, outputnode, [('out', 'pet_mask')]),
+        ]
+    )
 
     ds_petmask_wf = init_ds_petmask_wf(
         output_dir=config.execution.petprep_dir,
@@ -482,18 +485,13 @@ def init_pet_native_wf(
     )
     outputnode.inputs.metadata = metadata
 
-    petbuffer = pe.Node(
-        niu.IdentityInterface(fields=['pet_file']), name='petbuffer'
-    )
+    petbuffer = pe.Node(niu.IdentityInterface(fields=['pet_file']), name='petbuffer')
 
     # PET source: track original PET file(s)
     # The Select interface requires an index to choose from ``inlist``. Since
     # ``pet_file`` is a single path, explicitly set the index to ``0`` to avoid
     # missing mandatory input errors when the node runs.
-    pet_source = pe.Node(
-        niu.Select(inlist=[pet_file], index=0),
-        name='pet_source'
-    )
+    pet_source = pe.Node(niu.Select(inlist=[pet_file], index=0), name='pet_source')
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),
