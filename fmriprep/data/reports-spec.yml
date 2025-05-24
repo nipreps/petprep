@@ -1,5 +1,5 @@
 package: fmriprep
-title: Visual report for participant '{subject}' - fMRIPrep
+title: Visual report for participant '{subject}' - PETPrep
 sections:
 - name: Summary
   reportlets:
@@ -107,13 +107,37 @@ sections:
       confound regression.
     subtitle: Correlations among nuisance regressors
 - name: PET
-  ordering: session
+  ordering: session,task,acquisition,ceagent,reconstruction,direction,run
   reportlets:
   - bids: {datatype: figures, desc: summary, suffix: pet}
+    caption: Summary of PET data acquisition parameters and processing workflow overview, including details such as injected dose, radiotracer used, and scan duration.
+    static: true
+    subtitle: PET Acquisition and Workflow Summary
+
   - bids: {datatype: figures, desc: validation, suffix: pet}
+    caption: Validation of PET images against BIDS specifications and initial quality assessment including checks for missing slices, artifacts, and alignment issues.
+    static: true
+    subtitle: PET Data Validation
+
   - bids: {datatype: figures, desc: carpetplot, suffix: pet}
+    caption: |
+      Summary statistics and global PET signal measures are presented.
+      A carpet plot displays voxel-level PET tracer uptake over time within the brain mask. Global signals calculated across the whole-brain (GS), white matter (WM), and cerebrospinal fluid (CSF) regions are plotted, along with DVARS and framewise displacement (FD) to visualize potential motion or acquisition artifacts.
+      "Ctx" = cortex, "Cb" = cerebellum, "WM" = white matter, "CSF" = cerebrospinal fluid.
+    static: false
+    subtitle: PET Summary and Carpet Plot
+
   - bids: {datatype: figures, desc: confoundcorr, suffix: pet}
-  - bids: {datatype: figures, suffix: pet}
+    caption: |
+      Left: Correlation heatmap illustrating relationships among PET-derived confound variables (e.g., motion parameters, global signal).
+      Right: Magnitude of correlation between each PET confound time series and the global PET signal. High correlations suggest potential partial volume effects or motion-induced artifacts, informing subsequent confound regression strategies.
+    static: false
+    subtitle: PET Confound Correlation
+
+  - bids: {datatype: figures, desc: coreg, suffix: pet}
+    caption: PET to anatomical alignment check
+    static: false
+    subtitle: Additional PET Visualizations
 - name: About
   nested: true
   reportlets:

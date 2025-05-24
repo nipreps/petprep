@@ -307,7 +307,7 @@ def init_func_fit_reports_wf(
     pet_t1_report = pe.Node(
         SimpleBeforeAfter(
             before_label='T1w',
-            after_label='EPI',
+            after_label='PET',
             dismiss_affine=True,
         ),
         name='pet_t1_report',
@@ -317,6 +317,7 @@ def init_func_fit_reports_wf(
     ds_pet_t1_report = pe.Node(
         DerivativesDataSink(
             base_directory=output_dir,
+            desc='coreg',
             suffix='pet',
             datatype='figures',
         ),
