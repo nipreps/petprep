@@ -382,9 +382,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         (acompcor_tfm, acompcor_bin, [('output_image', 'in_file')]),
         (union_mask, merge_rois, [('out', 'in1')]),
         (acompcor_bin, merge_rois, [
-            (('out_mask', _last), 'in3'),
-            (('out_mask', _first), 'in1'),
-            (('out_mask', _second), 'in2'),
             (('out_mask', _first), 'in2'),
             (('out_mask', _second), 'in3'),
             (('out_mask', _last), 'in4'),
