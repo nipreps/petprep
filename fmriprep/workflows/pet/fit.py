@@ -37,6 +37,7 @@ from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
     init_ds_petref_wf,
+    init_ds_petmask_wf,
     init_ds_registration_wf,
     init_func_fit_reports_wf,
     prepare_timing_parameters,
@@ -351,6 +352,43 @@ def init_pet_fit_wf(
         ])  # fmt:skip
     else:
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
+
+    # Stage 4: Estimate PET brain mask
+    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+    from niworkflows.interfaces.nibabel import Binarize
+
+    from .confounds import _binary_union
+
+    t1w_mask_tfm = pe.Node(
+        ApplyTransforms(interpolation='MultiLabel', invert_transform_flags=[True]),
+        name='t1w_mask_tfm',
+    )
+    petref_mask = pe.Node(Binarize(thresh_low=0.2), name='petref_mask')
+    merge_mask = pe.Node(niu.Function(function=_binary_union), name='merge_mask')
+
+    if not petref2anat_xform:
+        workflow.connect(
+            [(pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')])]
+        )
+    else:
+        t1w_mask_tfm.inputs.transforms = petref2anat_xform
+
+    workflow.connect([
+        (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
+        (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
+        (petref_buffer, petref_mask, [('petref', 'in_file')]),
+        (petref_mask, merge_mask, [('out_mask', 'mask1')]),
+        (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
+        (merge_mask, petref_buffer, [('out', 'pet_mask')]),
+    ])
+
+    ds_petmask_wf = init_ds_petmask_wf(
+        output_dir=config.execution.petprep_dir,
+        desc='brain',
+        name='ds_petmask_wf',
+    )
+    ds_petmask_wf.inputs.inputnode.source_files = [pet_file]
+    workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
 
     return workflow
 
