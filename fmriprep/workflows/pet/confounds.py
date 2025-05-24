@@ -580,12 +580,12 @@ def _binary_union(mask1, mask2):
 
 
 def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
-    """Smooth ``in_file`` with a Gaussian kernel and binarize at ``thresh``."""
+    """Smooth ``in_file`` with a Gaussian kernel, binarize and keep largest cluster."""
     from pathlib import Path
 
     import nibabel as nb
     import numpy as np
-    from scipy.ndimage import gaussian_filter
+    from scipy.ndimage import gaussian_filter, label
 
     img = nb.load(in_file)
     data = img.get_fdata(dtype=np.float32)
@@ -593,6 +593,12 @@ def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
     sigma = (fwhm / 2.3548) / zooms
     smoothed = gaussian_filter(data, sigma=sigma)
     mask = smoothed > (thresh * smoothed.max())
+
+    labeled, n_labels = label(mask)
+    if n_labels > 1:
+        sizes = np.bincount(labeled.ravel())
+        sizes[0] = 0  # ignore background
+        mask = labeled == sizes.argmax()
 
     out_img = img.__class__(mask.astype('uint8'), img.affine, img.header)
     out_img.set_data_dtype('uint8')
