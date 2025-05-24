@@ -274,7 +274,7 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         iterfield=['in_file'],
     )
     merge_rois = pe.Node(
-        niu.Merge(3, ravel_inputs=True), name='merge_rois', run_without_submitting=True
+        niu.Merge(4, ravel_inputs=True), name='merge_rois', run_without_submitting=True
     )
     signals = pe.Node(
         SignalExtraction(class_labels=signals_class_labels), name='signals', mem_gb=mem_gb
@@ -380,10 +380,14 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
             ('petref2anat_xfm', 'transforms'),
         ]),
         (acompcor_tfm, acompcor_bin, [('output_image', 'in_file')]),
+        (union_mask, merge_rois, [('out', 'in1')]),
         (acompcor_bin, merge_rois, [
             (('out_mask', _last), 'in3'),
             (('out_mask', _first), 'in1'),
             (('out_mask', _second), 'in2'),
+            (('out_mask', _first), 'in2'),
+            (('out_mask', _second), 'in3'),
+            (('out_mask', _last), 'in4'),
         ]),
         (merge_rois, signals, [('out', 'label_files')]),
 
