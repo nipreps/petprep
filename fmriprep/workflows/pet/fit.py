@@ -252,7 +252,6 @@ def init_pet_fit_wf(
             pet_file=pet_file,
             reference_frame=config.workflow.reference_frame,
         )
-        petref_wf.inputs.inputnode.dummy_scans = config.workflow.dummy_scans
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
