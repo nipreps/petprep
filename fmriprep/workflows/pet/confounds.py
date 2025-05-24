@@ -579,6 +579,28 @@ def _binary_union(mask1, mask2):
     return str(out_name)
 
 
+def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
+    """Smooth ``in_file`` with a Gaussian kernel and binarize at ``thresh``."""
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+    from scipy.ndimage import gaussian_filter
+
+    img = nb.load(in_file)
+    data = img.get_fdata(dtype=np.float32)
+    zooms = np.array(img.header.get_zooms()[:3], dtype=float)
+    sigma = (fwhm / 2.3548) / zooms
+    smoothed = gaussian_filter(data, sigma=sigma)
+    mask = smoothed > (thresh * smoothed.max())
+
+    out_img = img.__class__(mask.astype('uint8'), img.affine, img.header)
+    out_img.set_data_dtype('uint8')
+    out_name = Path('smoothed_bin_mask.nii.gz').absolute()
+    out_img.to_filename(out_name)
+    return str(out_name)
+
+
 def _carpet_parcellation(segmentation, crown_mask, nifti=False):
     """Generate a segmentation for carpet plot visualization."""
     from pathlib import Path
