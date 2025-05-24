@@ -106,6 +106,14 @@ sections:
       effects and can inform decisions about feature orthogonalization prior to
       confound regression.
     subtitle: Correlations among nuisance regressors
+- name: PET
+  ordering: session
+  reportlets:
+  - bids: {datatype: figures, desc: summary, suffix: pet}
+  - bids: {datatype: figures, desc: validation, suffix: pet}
+  - bids: {datatype: figures, desc: carpetplot, suffix: pet}
+  - bids: {datatype: figures, desc: confoundcorr, suffix: pet}
+  - bids: {datatype: figures, suffix: pet}
 - name: About
   nested: true
   reportlets:
