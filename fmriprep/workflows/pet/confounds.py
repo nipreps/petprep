@@ -382,8 +382,8 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         (acompcor_tfm, acompcor_bin, [('output_image', 'in_file')]),
         (acompcor_bin, merge_rois, [
             (('out_mask', _last), 'in3'),
-            (('out_mask', lambda masks: masks[0]), 'in1'),
-            (('out_mask', lambda masks: masks[1]), 'in2'),
+            (('out_mask', _first), 'in1'),
+            (('out_mask', _second), 'in2'),
         ]),
         (merge_rois, signals, [('out', 'label_files')]),
 
@@ -615,6 +615,17 @@ def _last(inlist):
     return inlist[-1]
 
 
+def _first(inlist):
+    """Return the first element of a list."""
+
+    return inlist[0]
+
+
+def _second(inlist):
+    """Return the second element of a list."""
+
+    return inlist[1]
+
 def _select_cols(table):
     """Return confound columns excluding a/tCompCor and std_dvars."""
     import pandas as pd
@@ -622,5 +633,5 @@ def _select_cols(table):
     return [
         col
         for col in pd.read_table(table, nrows=2).columns
-        if not col.startswith(("a_comp_cor_", "t_comp_cor_", "std_dvars"))
+        if not col.startswith(('a_comp_cor_', 't_comp_cor_', 'std_dvars'))
     ]
