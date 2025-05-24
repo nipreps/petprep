@@ -350,18 +350,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    def _last(inlist):
-        return inlist[-1]
-
-    def _select_cols(table):
-        import pandas as pd
-
-        return [
-            col
-            for col in pd.read_table(table, nrows=2).columns
-            if not col.startswith(('a_comp_cor_', 't_comp_cor_', 'std_dvars'))
-        ]
-
     workflow.connect([
         # connect inputnode to each non-anatomical confound node
         (inputnode, dvars, [('pet', 'in_file'),
@@ -619,3 +607,20 @@ def _get_zooms(in_file):
     import nibabel as nb
 
     return tuple(nb.load(in_file).header.get_zooms()[:3])
+
+
+def _last(inlist):
+    """Return the last element of a list."""
+
+    return inlist[-1]
+
+
+def _select_cols(table):
+    """Return confound columns excluding a/tCompCor and std_dvars."""
+    import pandas as pd
+
+    return [
+        col
+        for col in pd.read_table(table, nrows=2).columns
+        if not col.startswith(("a_comp_cor_", "t_comp_cor_", "std_dvars"))
+    ]

@@ -228,6 +228,7 @@ def init_pet_fit_wf(
             ('subjects_dir', 'inputnode.subjects_dir'),
             ('subject_id', 'inputnode.subject_id'),
         ]),
+        (petref_buffer, func_fit_reports_wf, [('petref', 'inputnode.petref')]),
         (outputnode, func_fit_reports_wf, [
             ('pet_mask', 'inputnode.pet_mask'),
             ('petref2anat_xfm', 'inputnode.petref2anat_xfm'),
