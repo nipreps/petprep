@@ -262,6 +262,18 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         'white_matter',
         'csf_wm',
     ]
+    get_pet_zooms = pe.Node(niu.Function(function=_get_zooms), name='get_pet_zooms')
+    acompcor_masks = pe.Node(aCompCorMasks(), name='acompcor_masks')
+    acompcor_tfm = pe.MapNode(
+        ApplyTransforms(interpolation='MultiLabel', invert_transform_flags=[True]),
+        name='acompcor_tfm',
+        iterfield=['input_image'],
+    )
+    acompcor_bin = pe.MapNode(
+        Binarize(thresh_low=0.99),
+        name='acompcor_bin',
+        iterfield=['in_file'],
+    )
     merge_rois = pe.Node(
         niu.Merge(3, ravel_inputs=True), name='merge_rois', run_without_submitting=True
     )
@@ -372,7 +384,20 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         (subtract_mask, outputnode, [('out_mask', 'crown_mask')]),
         # Global signals extraction (constrained by anatomy)
         (inputnode, signals, [('pet', 'in_file')]),
-        (inputnode, merge_rois, [('pet_mask', 'in1')]),
+        (inputnode, get_pet_zooms, [('pet', 'in_file')]),
+        (inputnode, acompcor_masks, [('t1w_tpms', 'in_vfs')]),
+        (get_pet_zooms, acompcor_masks, [('out', 'pet_zooms')]),
+        (acompcor_masks, acompcor_tfm, [('out_masks', 'input_image')]),
+        (inputnode, acompcor_tfm, [
+            ('pet_mask', 'reference_image'),
+            ('petref2anat_xfm', 'transforms'),
+        ]),
+        (acompcor_tfm, acompcor_bin, [('output_image', 'in_file')]),
+        (acompcor_bin, merge_rois, [
+            (('out_mask', _last), 'in3'),
+            (('out_mask', lambda l: l[0]), 'in1'),
+            (('out_mask', lambda l: l[1]), 'in2'),
+        ]),
         (merge_rois, signals, [('out', 'label_files')]),
 
         # Collate computed confounds together

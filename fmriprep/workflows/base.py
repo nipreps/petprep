@@ -146,7 +146,7 @@ def init_single_subject_wf(subject_id: str):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.bids import BIDSDataGrabber, BIDSInfo
+    from niworkflows.interfaces.bids import BIDSInfo, BIDSDataGrabber
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.utils.bids import collect_data
@@ -209,7 +209,7 @@ It is released under the [CC0]\
         config.execution.bids_dir,
         subject_id,
         bids_filters=config.execution.bids_filters,
-        queries=queries
+        queries=queries,
     )[0]
 
 
@@ -455,12 +455,12 @@ It is released under the [CC0]\
             )
             ds_grayord_metrics_wf = init_ds_grayord_metrics_wf(
                 bids_root=bids_root,
-                output_dir=fmriprep_dir,
+                output_dir=petprep_dir,
                 metrics=['curv', 'thickness', 'sulc'],
                 cifti_output=config.workflow.cifti_output,
             )
             ds_fsLR_surfaces_wf = init_ds_surfaces_wf(
-                output_dir=fmriprep_dir,
+                output_dir=petprep_dir,
                 surfaces=['white', 'pial', 'midthickness'],
                 entities={
                     'space': 'fsLR',
