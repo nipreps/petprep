@@ -152,7 +152,7 @@ def init_pet_wf(
         precomputed = {}
     pet_file = pet_series
 
-    fmriprep_dir = config.execution.petprep_dir
+    petprep_dir = config.execution.petprep_dir
     omp_nthreads = config.nipype.omp_nthreads
     all_metadata = [config.execution.layout.get_metadata(file) for file in pet_series]
 
@@ -272,7 +272,7 @@ configured with cubic B-spline interpolation.
     if petref_out:
         ds_pet_native_wf = init_ds_pet_native_wf(
             bids_root=str(config.execution.bids_dir),
-            output_dir=fmriprep_dir,
+            output_dir=petprep_dir,
             pet_output=petref_out,
             all_metadata=all_metadata,
         )
@@ -288,7 +288,7 @@ configured with cubic B-spline interpolation.
         # Fill-in datasinks of reportlets seen so far
         for node in workflow.list_node_names():
             if node.split('.')[-1].startswith('ds_report'):
-                workflow.get_node(node).inputs.base_directory = fmriprep_dir
+                workflow.get_node(node).inputs.base_directory = petprep_dir
                 workflow.get_node(node).inputs.source_file = pet_file
         return workflow
 
@@ -319,7 +319,7 @@ configured with cubic B-spline interpolation.
     if nonstd_spaces.intersection(('anat', 'T1w')):
         ds_pet_t1_wf = init_ds_volumes_wf(
             bids_root=str(config.execution.bids_dir),
-            output_dir=fmriprep_dir,
+            output_dir=petprep_dir,
             metadata=all_metadata[0],
             name='ds_pet_t1_wf',
         )
@@ -350,7 +350,7 @@ configured with cubic B-spline interpolation.
         )
         ds_pet_std_wf = init_ds_volumes_wf(
             bids_root=str(config.execution.bids_dir),
-            output_dir=fmriprep_dir,
+            output_dir=petprep_dir,
             metadata=all_metadata[0],
             name='ds_pet_std_wf',
         )
@@ -401,7 +401,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             surface_spaces=freesurfer_spaces,
             medial_surface_nan=config.workflow.medial_surface_nan,
             metadata=all_metadata[0],
-            output_dir=fmriprep_dir,
+            output_dir=petprep_dir,
             name='pet_surf_wf',
         )
         pet_surf_wf.inputs.inputnode.source_file = pet_file
@@ -459,7 +459,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
         ds_pet_cifti = pe.Node(
             DerivativesDataSink(
-                base_directory=fmriprep_dir,
+                base_directory=petprep_dir,
                 space='fsLR',
                 density=config.workflow.cifti_output,
                 suffix='pet',
@@ -523,7 +523,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
 
     ds_confounds = pe.Node(
         DerivativesDataSink(
-            base_directory=fmriprep_dir,
+            base_directory=petprep_dir,
             desc='confounds',
             suffix='timeseries',
         ),
@@ -589,7 +589,7 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     # Fill-in datasinks of reportlets seen so far
     for node in workflow.list_node_names():
         if node.split('.')[-1].startswith('ds_report'):
-            workflow.get_node(node).inputs.base_directory = fmriprep_dir
+            workflow.get_node(node).inputs.base_directory = petprep_dir
             workflow.get_node(node).inputs.source_file = pet_file
 
     return workflow

@@ -154,3 +154,17 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 
     ds_edge = wf._graph.get_edge_data(merge_mask, wf.get_node('ds_petmask_wf'))
     assert ('out', 'inputnode.petmask') in ds_edge['connect']
+
+
+def test_petref_report_connections(bids_root: Path, tmp_path: Path):
+    """Ensure the PET reference is passed to the reports workflow."""
+    pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img.to_filename(pet_file)
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_file=pet_file, precomputed={}, omp_nthreads=1)
+
+    petref_buffer = wf.get_node('petref_buffer')
+    edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
+    assert ('petref', 'inputnode.petref') in edge['connect']

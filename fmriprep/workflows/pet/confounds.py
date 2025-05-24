@@ -274,7 +274,7 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         iterfield=['in_file'],
     )
     merge_rois = pe.Node(
-        niu.Merge(3, ravel_inputs=True), name='merge_rois', run_without_submitting=True
+        niu.Merge(4, ravel_inputs=True), name='merge_rois', run_without_submitting=True
     )
     signals = pe.Node(
         SignalExtraction(class_labels=signals_class_labels), name='signals', mem_gb=mem_gb
@@ -350,18 +350,6 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    def _last(inlist):
-        return inlist[-1]
-
-    def _select_cols(table):
-        import pandas as pd
-
-        return [
-            col
-            for col in pd.read_table(table, nrows=2).columns
-            if not col.startswith(('a_comp_cor_', 't_comp_cor_', 'std_dvars'))
-        ]
-
     workflow.connect([
         # connect inputnode to each non-anatomical confound node
         (inputnode, dvars, [('pet', 'in_file'),
@@ -392,10 +380,11 @@ the edge of the brain, as proposed by [@patriat_improved_2017].
             ('petref2anat_xfm', 'transforms'),
         ]),
         (acompcor_tfm, acompcor_bin, [('output_image', 'in_file')]),
+        (union_mask, merge_rois, [('out', 'in1')]),
         (acompcor_bin, merge_rois, [
-            (('out_mask', _last), 'in3'),
-            (('out_mask', lambda masks: masks[0]), 'in1'),
-            (('out_mask', lambda masks: masks[1]), 'in2'),
+            (('out_mask', _first), 'in2'),
+            (('out_mask', _second), 'in3'),
+            (('out_mask', _last), 'in4'),
         ]),
         (merge_rois, signals, [('out', 'label_files')]),
 
@@ -590,6 +579,34 @@ def _binary_union(mask1, mask2):
     return str(out_name)
 
 
+def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
+    """Smooth ``in_file`` with a Gaussian kernel, binarize and keep largest cluster."""
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+    from scipy.ndimage import gaussian_filter, label
+
+    img = nb.load(in_file)
+    data = img.get_fdata(dtype=np.float32)
+    zooms = np.array(img.header.get_zooms()[:3], dtype=float)
+    sigma = (fwhm / 2.3548) / zooms
+    smoothed = gaussian_filter(data, sigma=sigma)
+    mask = smoothed > (thresh * smoothed.max())
+
+    labeled, n_labels = label(mask)
+    if n_labels > 1:
+        sizes = np.bincount(labeled.ravel())
+        sizes[0] = 0  # ignore background
+        mask = labeled == sizes.argmax()
+
+    out_img = img.__class__(mask.astype('uint8'), img.affine, img.header)
+    out_img.set_data_dtype('uint8')
+    out_name = Path('smoothed_bin_mask.nii.gz').absolute()
+    out_img.to_filename(out_name)
+    return str(out_name)
+
+
 def _carpet_parcellation(segmentation, crown_mask, nifti=False):
     """Generate a segmentation for carpet plot visualization."""
     from pathlib import Path
@@ -619,3 +636,31 @@ def _get_zooms(in_file):
     import nibabel as nb
 
     return tuple(nb.load(in_file).header.get_zooms()[:3])
+
+
+def _last(inlist):
+    """Return the last element of a list."""
+
+    return inlist[-1]
+
+
+def _first(inlist):
+    """Return the first element of a list."""
+
+    return inlist[0]
+
+
+def _second(inlist):
+    """Return the second element of a list."""
+
+    return inlist[1]
+
+def _select_cols(table):
+    """Return confound columns excluding a/tCompCor and std_dvars."""
+    import pandas as pd
+
+    return [
+        col
+        for col in pd.read_table(table, nrows=2).columns
+        if not col.startswith(('a_comp_cor_', 't_comp_cor_', 'std_dvars'))
+    ]

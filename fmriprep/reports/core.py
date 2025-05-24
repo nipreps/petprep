@@ -119,7 +119,7 @@ def generate_reports(
             # we separate the functional reports per session
             if session_list is None:
                 all_filters = config.execution.bids_filters or {}
-                filters = all_filters.get('bold', {})
+                filters = all_filters.get("pet", all_filters.get("bold", {}))
                 session_list = config.execution.layout.get_sessions(
                     subject=subject_label, **filters
                 )
@@ -142,6 +142,23 @@ def generate_reports(
                     session=session_label,
                 )
                 # If the report generation failed, append the subject label for which it failed
+                if report_error is not None:
+                    errors.append(report_error)
+
+                bootstrap_file = data.load('reports-spec-pet.yml')
+                html_report = f'sub-{subject_label}_ses-{session_label}_pet.html'
+
+                report_error = run_reports(
+                    output_dir,
+                    subject_label,
+                    run_uuid,
+                    bootstrap_file=bootstrap_file,
+                    out_filename=html_report,
+                    reportlets_dir=reportlets_dir,
+                    errorname=f'report-{run_uuid}-{subject_label}-pet.err',
+                    subject=subject_label,
+                    session=session_label,
+                )
                 if report_error is not None:
                     errors.append(report_error)
 
