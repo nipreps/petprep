@@ -177,7 +177,7 @@ def init_pet_fit_wf(
     workflow.add_nodes([inputnode])
 
     petref_buffer = pe.Node(
-        niu.IdentityInterface(fields=['petref', 'pet_file', 'pet_mask']),
+        niu.IdentityInterface(fields=['petref', 'pet_file']),
         name='petref_buffer',
     )
     hmc_buffer = pe.Node(niu.IdentityInterface(fields=['hmc_xforms']), name='hmc_buffer')
@@ -219,8 +219,8 @@ def init_pet_fit_wf(
     workflow.connect([
         (petref_buffer, outputnode, [
             ('petref', 'petref'),
-            ('pet_mask', 'pet_mask'),
         ]),
+        (merge_mask, outputnode, [('out', 'pet_mask')]),
         (hmc_buffer, outputnode, [
             ('hmc_xforms', 'motion_xfm'),
         ]),
