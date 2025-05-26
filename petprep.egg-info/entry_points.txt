@@ -1,2 +1,0 @@
-[console_scripts]
-fmriprep = fmriprep.cli.run:main
