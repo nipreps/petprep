@@ -31,9 +31,9 @@ from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransf
 from niworkflows.utils.images import dseg_label
 
 from fmriprep import config
-from petprep.config import DEFAULT_MEMORY_MIN_GB
-from petprep.interfaces import DerivativesDataSink
-from petprep.interfaces.bids import BIDSURI
+from fmriprep.config import DEFAULT_MEMORY_MIN_GB
+from fmriprep.interfaces import DerivativesDataSink
+from fmriprep.interfaces.bids import BIDSURI
 
 
 def prepare_timing_parameters(metadata: dict):
@@ -67,10 +67,10 @@ def prepare_timing_parameters(metadata: dict):
     When SliceTiming is available and used, then ``SliceTimingCorrected`` is ``True``
     and the ``StartTime`` indicates a series offset.
 
-    >>> with mock.patch("petprep.config.workflow.ignore", []):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
     ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0, 0.2, 0.4, 0.6]))
     {'RepetitionTime': 2, 'SliceTimingCorrected': True, 'DelayTime': 1.2, 'StartTime': 0.3}
-    >>> with mock.patch("petprep.config.workflow.ignore", []):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
     ...     prepare_timing_parameters(
     ...         dict(VolumeTiming=[0.0, 1.0, 2.0, 5.0, 6.0, 7.0],
     ...              SliceTiming=[0.0, 0.2, 0.4, 0.6, 0.8]))  #doctest: +NORMALIZE_WHITESPACE
@@ -80,10 +80,10 @@ def prepare_timing_parameters(metadata: dict):
     When SliceTiming is available and not used, then ``SliceTimingCorrected`` is ``False``
     and TA is indicated with ``DelayTime`` or ``AcquisitionDuration``.
 
-    >>> with mock.patch("petprep.config.workflow.ignore", ["slicetiming"]):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", ["slicetiming"]):
     ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0, 0.2, 0.4, 0.6]))
     {'RepetitionTime': 2, 'SliceTimingCorrected': False, 'DelayTime': 1.2}
-    >>> with mock.patch("petprep.config.workflow.ignore", ["slicetiming"]):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", ["slicetiming"]):
     ...     prepare_timing_parameters(
     ...         dict(VolumeTiming=[0.0, 1.0, 2.0, 5.0, 6.0, 7.0],
     ...              SliceTiming=[0.0, 0.2, 0.4, 0.6, 0.8]))  #doctest: +NORMALIZE_WHITESPACE
@@ -92,10 +92,10 @@ def prepare_timing_parameters(metadata: dict):
 
     If SliceTiming metadata is present but empty, then treat it as missing:
 
-    >>> with mock.patch("petprep.config.workflow.ignore", []):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
     ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[]))
     {'RepetitionTime': 2, 'SliceTimingCorrected': False}
-    >>> with mock.patch("petprep.config.workflow.ignore", []):
+    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
     ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0]))
     {'RepetitionTime': 2, 'SliceTimingCorrected': False}
 
@@ -765,7 +765,7 @@ def init_pet_preproc_report_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from petprep.workflows.pet.resampling import init_pet_preproc_report_wf
+            from fmriprep.workflows.pet.resampling import init_pet_preproc_report_wf
             wf = init_pet_preproc_report_wf(mem_gb=1, reportlets_dir='.')
 
     Parameters

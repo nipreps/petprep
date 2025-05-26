@@ -38,8 +38,8 @@ def build_workflow(config_file, retval):
     from niworkflows.utils.bids import collect_participants
     from niworkflows.utils.misc import check_valid_fs_license
 
-    from petprep.reports.core import generate_reports
-    from petprep.utils.bids import check_pipeline_version
+    from fmriprep.reports.core import generate_reports
+    from fmriprep.utils.bids import check_pipeline_version
 
     from .. import config, data
     from ..utils.misc import check_deps

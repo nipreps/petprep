@@ -54,7 +54,7 @@ def main():
         tracker.start()
 
     if 'pdb' in config.execution.debug:
-        from petprep.utils.debug import setup_exceptionhook
+        from fmriprep.utils.debug import setup_exceptionhook
 
         setup_exceptionhook()
         config.nipype.plugin = 'Linear'
@@ -205,7 +205,7 @@ def main():
             config.loggers.workflow.log(25, f'Saving logs at: {config.execution.log_dir}')
             config.loggers.workflow.log(25, f'Carbon emissions: {emissions} kg')
 
-        from petprep.reports.core import generate_reports
+        from fmriprep.reports.core import generate_reports
 
         # Generate reports phase
         session_list = (
