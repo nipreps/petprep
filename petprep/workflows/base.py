@@ -21,7 +21,7 @@
 #     https://www.nipreps.org/community/licensing/
 #
 """
-fMRIPrep base processing workflows
+PETPrep base processing workflows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autofunction:: init_fmriprep_wf
@@ -166,12 +166,12 @@ def init_single_subject_wf(subject_id: str):
         init_resample_surfaces_wf,
     )
 
-    from fmriprep.workflows.pet.base import init_pet_wf
+    from petprep.workflows.pet.base import init_pet_wf
 
     workflow = Workflow(name=f'sub_{subject_id}_wf')
     workflow.__desc__ = f"""
 Results included in this manuscript come from preprocessing
-performed using *fMRIPrep* {config.environment.version}
+performed using *PETPrep* {config.environment.version}
 (@fmriprep1; @fmriprep2; RRID:SCR_016216),
 which is based on *Nipype* {config.environment.nipype_version}
 (@nipype1; @nipype2; RRID:SCR_002502).
@@ -544,7 +544,7 @@ tasks and sessions), the following preprocessing was performed.
     for pet_series in pet_runs:
         pet_cache = {}
         if config.execution.derivatives:
-            from fmriprep.utils.bids import collect_derivatives, extract_entities
+            from petprep.utils.bids import collect_derivatives, extract_entities
 
             entities = extract_entities(pet_series)
 

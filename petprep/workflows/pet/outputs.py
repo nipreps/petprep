@@ -30,10 +30,10 @@ from nipype.pipeline import engine as pe
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.utils.images import dseg_label
 
-from fmriprep import config
-from fmriprep.config import DEFAULT_MEMORY_MIN_GB
-from fmriprep.interfaces import DerivativesDataSink
-from fmriprep.interfaces.bids import BIDSURI
+from petprep import config
+from petprep.config import DEFAULT_MEMORY_MIN_GB
+from petprep.interfaces import DerivativesDataSink
+from petprep.interfaces.bids import BIDSURI
 
 
 def prepare_timing_parameters(metadata: dict):
