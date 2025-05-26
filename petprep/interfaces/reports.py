@@ -211,8 +211,8 @@ class FunctionalSummary(SummaryInterface):
 
 
 class AboutSummaryInputSpec(BaseInterfaceInputSpec):
-    version = Str(desc='FMRIPREP version')
-    command = Str(desc='FMRIPREP command')
+    version = Str(desc='PETPrep version')
+    command = Str(desc='PETPrep command')
     # Date not included - update timestamp only if version or command changes
 
 

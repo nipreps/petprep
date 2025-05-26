@@ -54,7 +54,7 @@ def init_pet_reg_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.pet.registration import init_pet_reg_wf
+            from petprep.workflows.pet.registration import init_pet_reg_wf
             wf = init_pet_reg_wf(
                 mem_gb=3,
                 omp_nthreads=1,

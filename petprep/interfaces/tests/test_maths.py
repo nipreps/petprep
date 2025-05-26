@@ -2,7 +2,7 @@ import nibabel as nb
 import numpy as np
 from nipype.pipeline import engine as pe
 
-from fmriprep.interfaces.maths import Clip
+from petprep.interfaces.maths import Clip
 
 
 def test_Clip(tmp_path):

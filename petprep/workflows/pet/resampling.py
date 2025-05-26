@@ -68,7 +68,7 @@ def init_pet_surf_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.pet import init_pet_surf_wf
+            from petprep.workflows.pet import init_pet_surf_wf
             wf = init_pet_surf_wf(mem_gb=0.1,
                                    surface_spaces=["fsnative", "fsaverage5"],
                                    medial_surface_nan=False,
@@ -112,7 +112,7 @@ def init_pet_surf_wf(
     from niworkflows.interfaces.nitransforms import ConcatenateXFMs
     from niworkflows.interfaces.surf import GiftiSetAnatomicalStructure
 
-    from fmriprep.interfaces import DerivativesDataSink
+    from petprep.interfaces import DerivativesDataSink
 
     timing_parameters = prepare_timing_parameters(metadata)
 
@@ -263,7 +263,7 @@ def init_pet_fsLR_resampling_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.pet.resampling import init_pet_fsLR_resampling_wf
+            from petprep.workflows.pet.resampling import init_pet_fsLR_resampling_wf
             wf = init_pet_fsLR_resampling_wf(
                 grayord_density='92k',
                 omp_nthreads=1,
@@ -311,7 +311,7 @@ def init_pet_fsLR_resampling_wf(
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.utility import KeySelect
 
-    from fmriprep.interfaces.workbench import VolumeToSurfaceMapping
+    from petprep.interfaces.workbench import VolumeToSurfaceMapping
 
     fslr_density = '32k' if grayord_density == '91k' else '59k'
 
@@ -472,7 +472,7 @@ def init_pet_grayords_wf(
             :graph2use: colored
             :simple_form: yes
 
-            from fmriprep.workflows.pet.resampling import init_pet_grayords_wf
+            from petprep.workflows.pet.resampling import init_pet_grayords_wf
             wf = init_pet_grayords_wf(mem_gb=0.1, grayord_density="91k", metadata={"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]})
 
     Parameters
@@ -505,7 +505,7 @@ def init_pet_grayords_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from fmriprep.interfaces import GeneratePetCifti
+    from petprep.interfaces import GeneratePetCifti
     import numpy as np
 
     workflow = Workflow(name=name)

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from fmriprep.utils import bids
+from petprep.utils import bids
 
 
 @pytest.mark.parametrize('desc', ['hmc', 'coreg'])

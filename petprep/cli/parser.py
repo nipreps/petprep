@@ -630,7 +630,7 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         default=False,
         help='Opt-out of sending tracking information of this run to '
         'the PETPREP developers. This information helps to '
-        'improve FMRIPREP and provides an indicator of real '
+        'improve PETPrep and provides an indicator of real '
         'world usage crucial for obtaining funding.',
     )
     g_other.add_argument(

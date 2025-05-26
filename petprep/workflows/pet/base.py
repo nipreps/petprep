@@ -63,9 +63,9 @@ def init_pet_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.tests import mock_config
+            from petprep.workflows.tests import mock_config
             from fmriprep import config
-            from fmriprep.workflows.pet.base import init_pet_wf
+            from petprep.workflows.pet.base import init_pet_wf
             with mock_config():
                 pet_file = config.execution.bids_dir / "sub-01" / "pet" \
                     / "sub-01_task-mixedgamblestask_run-01_pet.nii.gz"
@@ -134,16 +134,16 @@ def init_pet_wf(
     See Also
     --------
 
-    * :func:`~fmriprep.workflows.pet.fit.init_pet_fit_wf`
-    * :func:`~fmriprep.workflows.pet.fit.init_pet_native_wf`
-    * :func:`~fmriprep.workflows.pet.apply.init_pet_volumetric_resample_wf`
-    * :func:`~fmriprep.workflows.pet.outputs.init_ds_pet_native_wf`
-    * :func:`~fmriprep.workflows.pet.outputs.init_ds_volumes_wf`
-    * :func:`~fmriprep.workflows.pet.resampling.init_pet_surf_wf`
-    * :func:`~fmriprep.workflows.pet.resampling.init_pet_fsLR_resampling_wf`
-    * :func:`~fmriprep.workflows.pet.resampling.init_pet_grayords_wf`
-    * :func:`~fmriprep.workflows.pet.confounds.init_pet_confs_wf`
-    * :func:`~fmriprep.workflows.pet.confounds.init_carpetplot_wf`
+    * :func:`~petprep.workflows.pet.fit.init_pet_fit_wf`
+    * :func:`~petprep.workflows.pet.fit.init_pet_native_wf`
+    * :func:`~petprep.workflows.pet.apply.init_pet_volumetric_resample_wf`
+    * :func:`~petprep.workflows.pet.outputs.init_ds_pet_native_wf`
+    * :func:`~petprep.workflows.pet.outputs.init_ds_volumes_wf`
+    * :func:`~petprep.workflows.pet.resampling.init_pet_surf_wf`
+    * :func:`~petprep.workflows.pet.resampling.init_pet_fsLR_resampling_wf`
+    * :func:`~petprep.workflows.pet.resampling.init_pet_grayords_wf`
+    * :func:`~petprep.workflows.pet.confounds.init_pet_confs_wf`
+    * :func:`~petprep.workflows.pet.confounds.init_carpetplot_wf`
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow

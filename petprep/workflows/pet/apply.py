@@ -20,7 +20,7 @@ def init_pet_volumetric_resample_wf(
 
     .. workflow::
 
-        from fmriprep.workflows.pet.resampling import init_pet_volumetric_resample_wf
+        from petprep.workflows.pet.resampling import init_pet_volumetric_resample_wf
         wf = init_pet_volumetric_resample_wf(
             mem_gb={'resampled': 1},
         )
