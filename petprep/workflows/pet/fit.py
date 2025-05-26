@@ -122,7 +122,7 @@ def init_pet_fit_wf(
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
-    from fmriprep.utils.misc import estimate_pet_mem_usage
+    from petprep.utils.misc import estimate_pet_mem_usage
 
     if precomputed is None:
         precomputed = {}

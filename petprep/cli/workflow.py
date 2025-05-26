@@ -38,8 +38,8 @@ def build_workflow(config_file, retval):
     from niworkflows.utils.bids import collect_participants
     from niworkflows.utils.misc import check_valid_fs_license
 
-    from fmriprep.reports.core import generate_reports
-    from fmriprep.utils.bids import check_pipeline_version
+    from petprep.reports.core import generate_reports
+    from petprep.utils.bids import check_pipeline_version
 
     from .. import config, data
     from ..utils.misc import check_deps
@@ -54,18 +54,18 @@ def build_workflow(config_file, retval):
     retval['return_code'] = 1
     retval['workflow'] = None
 
-    banner = [f'Running fMRIPrep version {version}']
+    banner = [f'Running PETPrep version {version}']
     notice_path = data.load.readable('NOTICE')
     if notice_path.exists():
         banner[0] += '\n'
         banner += [f'License NOTICE {"#" * 50}']
-        banner += [f'fMRIPrep {version}']
+        banner += [f'PETPrep {version}']
         banner += notice_path.read_text().splitlines(keepends=False)[1:]
         banner += ['#' * len(banner[1])]
     build_log.log(25, f'\n{" " * 9}'.join(banner))
 
     # warn if older results exist: check for dataset_description.json in output folder
-    msg = check_pipeline_version('fMRIPrep', version, petprep_dir / 'dataset_description.json')
+    msg = check_pipeline_version('PETPrep', version, petprep_dir / 'dataset_description.json')
     if msg is not None:
         build_log.warning(msg)
 
@@ -108,7 +108,7 @@ def build_workflow(config_file, retval):
 
     # Build main workflow
     init_msg = [
-        "Building fMRIPrep's workflow:",
+        "Building PETPrep's workflow:",
         f'BIDS dataset path: {config.execution.bids_dir}.',
         f'Participant list: {subject_list}.',
         f'Run identifier: {config.execution.run_uuid}.',
@@ -133,13 +133,13 @@ def build_workflow(config_file, retval):
             build_log.critical(
                 """\
 ERROR: Federal Information Processing Standard (FIPS) mode is enabled on your system. \
-FreeSurfer (and thus fMRIPrep) cannot be used in FIPS mode. \
+FreeSurfer (and thus PETPrep) cannot be used in FIPS mode. \
 Contact your system administrator for assistance."""
             )
         else:
             build_log.critical(
                 """\
-ERROR: a valid license file is required for FreeSurfer to run. fMRIPrep looked for an existing \
+ERROR: a valid license file is required for FreeSurfer to run. PETPrep looked for an existing \
 license file at several paths, in this order: 1) command line argument ``--fs-license-file``; \
 2) ``$FS_LICENSE`` environment variable; and 3) the ``$FREESURFER_HOME/license.txt`` path. Get it \
 (for free) by registering at https://surfer.nmr.mgh.harvard.edu/registration.html"""
