@@ -1,9 +1,9 @@
-"""Tests for fmriprep.interfaces.bids."""
+"""Tests for petprep.interfaces.bids."""
 
 
 def test_BIDSURI():
     """Test the BIDSURI interface."""
-    from fmriprep.interfaces.bids import BIDSURI
+    from petprep.interfaces.bids import BIDSURI
 
     dataset_links = {
         'raw': '/data',

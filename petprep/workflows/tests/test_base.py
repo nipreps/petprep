@@ -156,7 +156,7 @@ def test_init_petprep_wf(
         config.workflow.run_reconall = freesurfer
         config.workflow.ignore = ignore
         config.workflow.force = force
-        with patch.dict('fmriprep.config.execution.bids_filters', bids_filters):
+        with patch.dict('petprep.config.execution.bids_filters', bids_filters):
             wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())

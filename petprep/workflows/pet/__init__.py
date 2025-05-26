@@ -5,12 +5,12 @@
 Pre-processing PET workflows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. automodule:: fmriprep.workflows.pet.base
-.. automodule:: fmriprep.workflows.pet.hmc
-.. automodule:: fmriprep.workflows.pet.stc
-.. automodule:: fmriprep.workflows.pet.registration
-.. automodule:: fmriprep.workflows.pet.resampling
-.. automodule:: fmriprep.workflows.pet.confounds
+.. automodule:: petprep.workflows.pet.base
+.. automodule:: petprep.workflows.pet.hmc
+.. automodule:: petprep.workflows.pet.stc
+.. automodule:: petprep.workflows.pet.registration
+.. automodule:: petprep.workflows.pet.resampling
+.. automodule:: petprep.workflows.pet.confounds
 
 
 """

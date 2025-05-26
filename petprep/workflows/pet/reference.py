@@ -49,7 +49,7 @@ def init_raw_petref_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.pet.reference import init_raw_petref_wf
+            from petprep.workflows.pet.reference import init_raw_petref_wf
             wf = init_raw_petref_wf()
 
     Parameters
