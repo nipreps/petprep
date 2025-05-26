@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs", "nipreps-versions"]
 build-backend = "hatchling.build"
 
 [project]
-name = "fmriprep"
+name = "petprep"
 description = "A robust and easy-to-use pipeline for preprocessing of diverse fMRI data"
 readme = "long_description.rst"
 authors = [{name = "The NiPreps Developers", email = "nipreps@gmail.com"}]
@@ -45,10 +45,10 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/nipreps/fmriprep"
-Documentation = "https://fmriprep.org"
+Homepage = "https://github.com/nipreps/petprep"
+Documentation = "https://petprep.org"
 Paper = "https://doi.org/10.1038/s41592-018-0235-4"
-"Docker Images" = "https://hub.docker.com/r/nipreps/fmriprep/tags/"
+"Docker Images" = "https://hub.docker.com/r/nipreps/petprep/tags/"
 NiPreps = "https://www.nipreps.org/"
 
 [project.optional-dependencies]
@@ -65,7 +65,7 @@ dev = [
 duecredit = ["duecredit"]
 resmon = []
 container = [
-    "fmriprep[telemetry]",
+    "petprep[telemetry]",
     # templateflow extras
     "datalad",
     "datalad-osf",
@@ -86,12 +86,12 @@ maint = [
     "python-Levenshtein",
 ]
 # Aliases
-docs = ["fmriprep[doc]"]
-tests = ["fmriprep[test]"]
-all = ["fmriprep[doc,maint,telemetry,test]"]
+docs = ["petprep[doc]"]
+tests = ["petprep[test]"]
+all = ["petprep[doc,maint,telemetry,test]"]
 
 [project.scripts]
-fmriprep = "fmriprep.cli.run:main"
+petprep = "petprep.cli.run:main"
 
 #
 # Hatch configurations
@@ -104,9 +104,9 @@ allow-direct-references = true
 exclude = [".git_archival.txt"]  # No longer needed in sdist
 
 [tool.hatch.build.targets.wheel]
-packages = ["fmriprep"]
+packages = ["petprep"]
 exclude = [
-    "fmriprep/data/tests/work",  # Large test data directory
+    "petprep/data/tests/work",  # Large test data directory
 ]
 
 ##  The following two sections configure setuptools_scm in the hatch way
@@ -116,7 +116,7 @@ source = "vcs"
 raw-options = { version_scheme = "nipreps-calver" }
 
 [tool.hatch.build.hooks.vcs]
-version-file = "fmriprep/_version.py"
+version-file = "petprep/_version.py"
 
 #
 # Developer tool configurations
@@ -128,7 +128,7 @@ exclude = ".*"
 
 [tool.pytest.ini_options]
 minversion = "6"
-testpaths = ["fmriprep"]
+testpaths = ["petprep"]
 log_cli_level = "INFO"
 xfail_strict = true
 norecursedirs = [".git"]
@@ -139,7 +139,7 @@ addopts = [
   "--strict-markers",
   "--doctest-modules",
   # Config pytest-cov
-  "--cov=fmriprep",
+  "--cov=petprep",
   "--cov-report=xml",
   "--cov-config=pyproject.toml",
 ]
@@ -185,7 +185,7 @@ inline-quotes = "single"
 
 [tool.ruff.lint.extend-per-file-ignores]
 "*/test_*.py" = ["S101"]
-"fmriprep/utils/debug.py" = ["A002", "T100"]
+"petprep/utils/debug.py" = ["A002", "T100"]
 "docs/conf.py" = ["A001"]
 "docs/sphinxext/github_link.py" = ["BLE001"]
 
@@ -200,6 +200,6 @@ omit = [
 
 [tool.coverage.paths]
 source = [
-  "fmriprep",
-  "**/site-packages/fmriprep"
+  "petprep",
+  "**/site-packages/petprep"
 ]
