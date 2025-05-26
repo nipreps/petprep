@@ -61,8 +61,8 @@ def init_petprep_wf():
             :graph2use: orig
             :simple_form: yes
 
-            from petprep.workflows.tests import mock_config
-            from petprep.workflows.base import init_petprep_wf
+            from fmriprep.workflows.tests import mock_config
+            from fmriprep.workflows.base import init_petprep_wf
             with mock_config():
                 wf = init_petprep_wf()
 
@@ -129,8 +129,8 @@ def init_single_subject_wf(subject_id: str):
             :graph2use: orig
             :simple_form: yes
 
-            from petprep.workflows.tests import mock_config
-            from petprep.workflows.base import init_single_subject_wf
+            from fmriprep.workflows.tests import mock_config
+            from fmriprep.workflows.base import init_single_subject_wf
             with mock_config():
                 wf = init_single_subject_wf('01')
 
@@ -166,7 +166,7 @@ def init_single_subject_wf(subject_id: str):
         init_resample_surfaces_wf,
     )
 
-    from petprep.workflows.pet.base import init_pet_wf
+    from fmriprep.workflows.pet.base import init_pet_wf
 
     workflow = Workflow(name=f'sub_{subject_id}_wf')
     workflow.__desc__ = f"""
@@ -184,7 +184,7 @@ Many internal operations of *fMRIPrep* use
 mostly within the PET processing workflow.
 For more details of the pipeline, see [the section corresponding
 to workflows in *fMRIPrep*'s documentation]\
-(https://petprep.readthedocs.io/en/latest/workflows.html \
+(https://fmriprep.readthedocs.io/en/latest/workflows.html \
 "FMRIPrep's documentation").
 
 
@@ -544,7 +544,7 @@ tasks and sessions), the following preprocessing was performed.
     for pet_series in pet_runs:
         pet_cache = {}
         if config.execution.derivatives:
-            from petprep.utils.bids import collect_derivatives, extract_entities
+            from fmriprep.utils.bids import collect_derivatives, extract_entities
 
             entities = extract_entities(pet_series)
 

@@ -46,7 +46,7 @@ def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
             :graph2use: orig
             :simple_form: yes
 
-            from petprep.workflows.pet import init_pet_hmc_wf
+            from fmriprep.workflows.pet import init_pet_hmc_wf
             wf = init_pet_hmc_wf(
                 mem_gb=3,
                 omp_nthreads=1)

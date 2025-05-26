@@ -37,7 +37,7 @@ the settings to hard disk in *ToML* format, which looks like:
    :caption: **Example file representation of PETPrep settings**.
 
 This config file is used to pass the settings across processes,
-using the :py:func:`~petprep.config.load` function.
+using the :py:func:`~fmriprep.config.load` function.
 
 Configuration sections
 ----------------------

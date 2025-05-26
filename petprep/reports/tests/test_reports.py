@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from bids.layout import BIDSLayout
 
-from petprep.reports.core import generate_reports
+from fmriprep.reports.core import generate_reports
 
 from ... import config, data
 
