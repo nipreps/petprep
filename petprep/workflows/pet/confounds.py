@@ -83,7 +83,7 @@ def init_pet_confs_wf(
             :graph2use: orig
             :simple_form: yes
 
-            from petprep.workflows.pet.confounds import init_pet_confs_wf
+            from fmriprep.workflows.pet.confounds import init_pet_confs_wf
             wf = init_pet_confs_wf(
                 mem_gb=1,
                 metadata={},

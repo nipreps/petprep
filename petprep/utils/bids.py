@@ -112,7 +112,7 @@ def write_bidsignore(deriv_dir):
 def write_derivative_description(bids_dir, deriv_dir, dataset_links=None):
     from .. import __version__
 
-    DOWNLOAD_URL = f'https://github.com/nipreps/petprep/archive/{__version__}.tar.gz'
+    DOWNLOAD_URL = f'https://github.com/nipreps/fmriprep/archive/{__version__}.tar.gz'
 
     bids_dir = Path(bids_dir)
     deriv_dir = Path(deriv_dir)
@@ -133,15 +133,15 @@ def write_derivative_description(bids_dir, deriv_dir, dataset_links=None):
     }
 
     # Keys that can only be set by environment
-    if 'PETPREP_DOCKER_TAG' in os.environ:
+    if 'FMRIPREP_DOCKER_TAG' in os.environ:
         desc['GeneratedBy'][0]['Container'] = {
             'Type': 'docker',
-            'Tag': f'nipreps/petprep:{os.environ["PETPREP_DOCKER_TAG"]}',
+            'Tag': f'nipreps/fmriprep:{os.environ["FMRIPREP_DOCKER_TAG"]}',
         }
-    if 'PETPREP_SINGULARITY_URL' in os.environ:
+    if 'FMRIPREP_SINGULARITY_URL' in os.environ:
         desc['GeneratedBy'][0]['Container'] = {
             'Type': 'singularity',
-            'URI': os.getenv('PETPREP_SINGULARITY_URL'),
+            'URI': os.getenv('FMRIPREP_SINGULARITY_URL'),
         }
 
     # Keys deriving from source dataset
