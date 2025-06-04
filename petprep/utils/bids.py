@@ -378,7 +378,7 @@ def _find_nearest_path(path_dict, input_path):
     --------
     >>> from pathlib import Path
     >>> path_dict = {
-    ...     'bids::': Path('/data/derivatives/fmriprep'),
+    ...     'bids::': Path('/data/derivatives/petprep'),
     ...     'bids:raw:': Path('/data'),
     ...     'bids:deriv-0:': Path('/data/derivatives/source-1'),
     ... }

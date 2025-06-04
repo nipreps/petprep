@@ -9,7 +9,7 @@ def test_BIDSURI():
         'raw': '/data',
         'deriv-0': '/data/derivatives/source-1',
     }
-    out_dir = '/data/derivatives/fmriprep'
+    out_dir = '/data/derivatives/petprep'
 
     # A single element as a string
     interface = BIDSURI(
