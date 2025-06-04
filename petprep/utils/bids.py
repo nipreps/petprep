@@ -68,13 +68,14 @@ def collect_derivatives(
     derivs_cache = defaultdict(list, {})
     layout = _get_layout(derivatives_dir)
 
-    # search for both boldrefs
+    # search for precomputed references
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
-        derivs_cache[f'{k}_boldref'] = item[0] if len(item) == 1 else item
+        suffix = q.get('suffix', 'petref')
+        derivs_cache[f'{k}_{suffix}'] = item[0] if len(item) == 1 else item
 
     transforms_cache = {}
     for xfm, q in spec['transforms'].items():
@@ -100,6 +101,7 @@ def write_bidsignore(deriv_dir):
         '*.surf.gii',  # Unspecified structural outputs
         # Unspecified functional outputs
         '*_boldref.nii.gz',
+        '*_petref.nii.gz',
         '*_bold.func.gii',
         '*_mixing.tsv',
         '*_timeseries.tsv',
