@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from niworkflows.interfaces.cifti import (
     _GenerateCiftiOutputSpec,
