@@ -43,6 +43,42 @@ from smriprep.interfaces.freesurfer import ReconAll
 
 LOGGER = logging.getLogger('nipype.interface')
 
+_ORI_TO_NAME = {
+    'L': 'Left',
+    'R': 'Right',
+    'A': 'Anterior',
+    'P': 'Posterior',
+    'S': 'Superior',
+    'I': 'Inferior',
+}
+
+_OPPOSITE = {
+    'L': 'R',
+    'R': 'L',
+    'A': 'P',
+    'P': 'A',
+    'S': 'I',
+    'I': 'S',
+}
+
+
+def get_world_pedir(orientation: str, pe_dir: str) -> str:
+    """Return the world phase-encoding direction."""
+
+    orientation = orientation.upper()
+    axis = pe_dir[0].lower()
+    idx = {'i': 0, 'j': 1, 'k': 2}[axis]
+    letter = orientation[idx]
+
+    if pe_dir.endswith('-'):
+        start = letter
+        end = _OPPOSITE[letter]
+    else:
+        start = _OPPOSITE[letter]
+        end = letter
+
+    return f"{_ORI_TO_NAME[start]}-{_ORI_TO_NAME[end]}"
+
 SUBJECT_TEMPLATE = """\
 \t<ul class="elem-desc">
 \t\t<li>Subject ID: {subject_id}</li>
