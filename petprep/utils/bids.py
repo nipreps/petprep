@@ -44,13 +44,14 @@ def _get_layout(derivatives_dir: Path, patterns: tuple[str, ...] | None = None) 
     import niworkflows.data
     config_files = [niworkflows.data.load('nipreps.json')]
 
+    # Pass patterns explicitly to initialization
     return BIDSLayout(
         derivatives_dir,
         config=config_files,
         validate=False,
         regex_search=True,
         derivatives=True,
-        patterns=list(patterns) if patterns else None
+        patterns=list(patterns) if patterns else None,
     )
 
 
@@ -69,8 +70,11 @@ def collect_derivatives(
         patterns = patterns or _patterns
 
     derivs_cache = defaultdict(list, {})
+    
+    # Initialize layout correctly with patterns
     layout = _get_layout(derivatives_dir, tuple(patterns) if patterns else None)
 
+    # Now safely query with the correct filters only
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
