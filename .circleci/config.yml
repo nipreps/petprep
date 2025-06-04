@@ -1,0 +1,30 @@
+version: 2.1
+
+orbs:
+  conda: circleci/conda@1.1.1
+
+jobs:
+  tests:
+    executor:
+      name: conda/default
+    steps:
+      - checkout
+      - conda/update-env:
+          environment-file: env.yml
+          environment-name: petprep
+      - conda/run:
+          environment-name: petprep
+          command: |
+            pip install -e .[tests]
+            pytest -n auto --junitxml=test-results/junit.xml --cov=petprep --cov-report=xml
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: coverage.xml
+          destination: coverage.xml
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - tests
