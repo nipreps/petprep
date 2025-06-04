@@ -1,7 +1,7 @@
 import numpy as np
 import nibabel as nb
 
-from ...utils.misc import estimate_pet_mem_usage
+from petprep.utils.misc import estimate_pet_mem_usage
 
 
 def test_estimate_pet_mem_usage(tmp_path):

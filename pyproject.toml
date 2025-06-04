@@ -137,14 +137,9 @@ addopts = [
   "-ra",
   "--strict-config",
   "--strict-markers",
-  "--doctest-modules",
-  # Config pytest-cov
-  "--cov=petprep",
-  "--cov-report=xml",
-  "--cov-config=pyproject.toml",
 ]
 doctest_optionflags = "ALLOW_UNICODE NORMALIZE_WHITESPACE ELLIPSIS"
-env = "PYTHONHASHSEED=0"
+
 filterwarnings = ["ignore::DeprecationWarning"]
 junit_family = "xunit2"
 
