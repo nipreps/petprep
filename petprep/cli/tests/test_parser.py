@@ -184,52 +184,6 @@ def test_bids_filter_file(tmp_path, capsys):
     _reset_config()
 
 
-@pytest.mark.parametrize('st_ref', (None, '0', '1', '0.5', 'start', 'middle'))  # noqa: PT007
-def test_slice_time_ref(tmp_path, st_ref):
-    bids_path = tmp_path / 'data'
-    out_path = tmp_path / 'out'
-    args = [str(bids_path), str(out_path), 'participant']
-    if st_ref:
-        args.extend(['--slice-time-ref', st_ref])
-    bids_path.mkdir()
-
-    parser = _build_parser()
-
-    parser.parse_args(args)
-    _reset_config()
-
-
-@pytest.mark.parametrize(
-    ('args', 'expectation'),
-    [
-        ([], False),
-        (['--use-syn-sdc'], 'error'),
-        (['--use-syn-sdc', 'error'], 'error'),
-        (['--use-syn-sdc', 'warn'], 'warn'),
-        (['--use-syn-sdc', 'other'], (SystemExit, ArgumentError)),
-    ],
-)
-def test_use_syn_sdc(tmp_path, args, expectation):
-    bids_path = tmp_path / 'data'
-    out_path = tmp_path / 'out'
-    args = [str(bids_path), str(out_path), 'participant'] + args
-    bids_path.mkdir()
-
-    parser = _build_parser()
-
-    cm = nullcontext()
-    if isinstance(expectation, tuple):
-        cm = pytest.raises(expectation)
-
-    with cm:
-        opts = parser.parse_args(args)
-
-    if not isinstance(expectation, tuple):
-        assert opts.use_syn_sdc == expectation
-
-    _reset_config()
-
-
 def test_derivatives(tmp_path):
     """Check the correct parsing of the derivatives argument."""
     bids_path = tmp_path / 'data'
