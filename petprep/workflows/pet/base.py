@@ -173,7 +173,7 @@ def init_pet_wf(
         mem_gb['largemem'],
     )
 
-    workflow = Workflow(name=_get_wf_name(pet_file, 'pet'))
+    workflow = Workflow(name=_get_wf_name(pet_file[0], 'pet'))
     workflow.__postdesc__ = """\
 All resamplings can be performed with *a single interpolation
 step* by composing all the pertinent transformations (i.e. head-motion
