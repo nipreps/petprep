@@ -74,7 +74,7 @@ def collect_derivatives(
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
-        suffix = q.get('suffix', 'petref')
+        suffix = q.get('suffix', entities.get('suffix', ''))
         derivs_cache[f'{k}_{suffix}'] = item[0] if len(item) == 1 else item
 
     transforms_cache = {}
