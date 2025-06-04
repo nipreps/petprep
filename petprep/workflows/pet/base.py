@@ -156,7 +156,7 @@ def init_pet_wf(
     omp_nthreads = config.nipype.omp_nthreads
     all_metadata = [config.execution.layout.get_metadata(file) for file in pet_series]
 
-    nvols, mem_gb = estimate_pet_mem_usage(pet_file)
+    nvols, mem_gb = estimate_pet_mem_usage(pet_file[0])
     if nvols <= 5 - config.execution.sloppy:
         config.loggers.workflow.warning(
             f'Too short PET series (<= 5 timepoints). Skipping processing of <{pet_file}>.'
