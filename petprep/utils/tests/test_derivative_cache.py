@@ -7,7 +7,7 @@ from petprep.utils import bids
 
 @pytest.mark.parametrize('desc', ['hmc', 'coreg'])
 def test_baseline_found_as_str(tmp_path: Path, desc: str):
-    subject = '0'
+    subject = '01'
     task = 'rest'
 
     to_find = tmp_path.joinpath(
@@ -29,7 +29,7 @@ def test_baseline_found_as_str(tmp_path: Path, desc: str):
 
 @pytest.mark.parametrize('xfm', ['petref2anat', 'hmc'])
 def test_transforms_found_as_str(tmp_path: Path, xfm: str):
-    subject = '0'
+    subject = '01'
     task = 'rest'
     fromto = {
         'hmc': 'from-orig_to-petref',
