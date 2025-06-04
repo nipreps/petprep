@@ -20,7 +20,7 @@ jobs:
       with:
         miniconda-version: "latest"
         activate-environment: petprep
-        environment-file: environment.yml
+        environment-file: env.yml
         auto-activate-base: true
         
     - name: Install dependencies
