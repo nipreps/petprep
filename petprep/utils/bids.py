@@ -40,16 +40,17 @@ from ..data import load as load_data
 
 
 @cache
-def _get_layout(derivatives_dir: Path, patterns: list[str] | None = None) -> BIDSLayout:
+def _get_layout(derivatives_dir: Path, patterns: tuple[str, ...] | None = None) -> BIDSLayout:
     import niworkflows.data
     config_files = [niworkflows.data.load('nipreps.json')]
 
-    # explicitly pass patterns if provided
     return BIDSLayout(
-        derivatives_dir, config=config_files, validate=False, 
-        regex_search=True, 
+        derivatives_dir,
+        config=config_files,
+        validate=False,
+        regex_search=True,
         derivatives=True,
-        patterns=patterns if patterns else None
+        patterns=list(patterns) if patterns else None
     )
 
 
@@ -68,7 +69,7 @@ def collect_derivatives(
         patterns = patterns or _patterns
 
     derivs_cache = defaultdict(list, {})
-    layout = _get_layout(derivatives_dir, patterns)  # <-- Important fix here!
+    layout = _get_layout(derivatives_dir, tuple(patterns) if patterns else None)
 
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
