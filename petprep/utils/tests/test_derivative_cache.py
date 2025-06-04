@@ -17,7 +17,7 @@ def test_baseline_found_as_str(tmp_path: Path, desc: str):
 
     entities = {
         'subject': subject,
-        'suffix': 'pet',
+        'suffix': 'petref',
         'extension': '.nii.gz',
         'desc': desc,
     }
