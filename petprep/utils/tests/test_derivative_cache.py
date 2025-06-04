@@ -19,7 +19,6 @@ def test_baseline_found_as_str(tmp_path: Path, desc: str):
         'subject': subject,
         'suffix': 'petref',
         'extension': '.nii.gz',
-        'desc': desc,
     }
 
     derivs = bids.collect_derivatives(derivatives_dir=tmp_path, entities=entities)
