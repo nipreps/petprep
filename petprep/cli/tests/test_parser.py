@@ -115,9 +115,9 @@ def test_get_parser_update(monkeypatch, capsys, current, latest):
     captured = capsys.readouterr().err
 
     msg = f"""\
-You are using fMRIPrep-{current}, and a newer version of fMRIPrep is available: {latest}.
+You are using PETPrep-{current}, and a newer version of PETPrep is available: {latest}.
 Please check out our documentation about how and when to upgrade:
-https://fmriprep.readthedocs.io/en/latest/faq.html#upgrading"""
+https://petprep.readthedocs.io/en/latest/faq.html#upgrading"""
 
     assert (msg in captured) is expectation
 
