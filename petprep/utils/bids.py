@@ -40,18 +40,11 @@ from ..data import load as load_data
 
 
 @cache
-def _get_layout(derivatives_dir: Path, patterns: tuple[str, ...] | None = None) -> BIDSLayout:
-    import niworkflows.data
-    config_files = [niworkflows.data.load('nipreps.json')]
+def _get_layout(derivatives_dir: Path) -> BIDSLayout:
+    from petprep.data import load as load_data
 
-    # Pass patterns explicitly to initialization
     return BIDSLayout(
-        derivatives_dir,
-        config=config_files,
-        validate=False,
-        regex_search=True,
-        derivatives=True,
-        patterns=list(patterns) if patterns else None,
+        derivatives_dir, config=[load_data('nipreps.json')], validate=False
     )
 
 
@@ -61,36 +54,39 @@ def collect_derivatives(
     spec: dict | None = None,
     patterns: list[str] | None = None,
 ):
+    """Gather existing derivatives and compose a cache."""
     if spec is None or patterns is None:
         _spec, _patterns = tuple(
             json.loads(load_data.readable('io_spec.json').read_text()).values()
         )
 
-        spec = spec or _spec
-        patterns = patterns or _patterns
+        if spec is None:
+            spec = _spec
+        if patterns is None:
+            patterns = _patterns
 
     derivs_cache = defaultdict(list, {})
-    
-    # Initialize layout correctly with patterns
-    layout = _get_layout(derivatives_dir, tuple(patterns) if patterns else None)
+    layout = _get_layout(derivatives_dir)
 
-    # Now safely query with the correct filters only
+    # search for both petrefs
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
-        suffix = q.get('suffix', entities.get('suffix', ''))
-        derivs_cache[f'{k}_{suffix}'] = item[0] if len(item) == 1 else item
+        derivs_cache[f'{k}_petref'] = item[0] if len(item) == 1 else item
 
     transforms_cache = {}
     for xfm, q in spec['transforms'].items():
+        # Transform extension will often not match provided entities
+        #   (e.g., ".nii.gz" vs ".txt").
+        # And transform suffixes will be "xfm",
+        #   whereas relevant src file will be "bold".
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
         transforms_cache[xfm] = item[0] if len(item) == 1 else item
-
     derivs_cache['transforms'] = transforms_cache
     return derivs_cache
 
@@ -103,9 +99,8 @@ def write_bidsignore(deriv_dir):
         '*_xfm.*',  # Unspecified transform files
         '*.surf.gii',  # Unspecified structural outputs
         # Unspecified functional outputs
-        '*_boldref.nii.gz',
         '*_petref.nii.gz',
-        '*_bold.func.gii',
+        '*_pet.pet.gii',
         '*_mixing.tsv',
         '*_timeseries.tsv',
     )
