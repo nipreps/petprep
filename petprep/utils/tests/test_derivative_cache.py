@@ -17,11 +17,13 @@ def test_baseline_found_as_str(tmp_path: Path, desc: str):
 
     entities = {
         'subject': subject,
-        'suffix': 'petref',
+        'datatype': 'pet', 
+        'suffix': 'petref', 
         'extension': '.nii.gz',
     }
 
     derivs = bids.collect_derivatives(derivatives_dir=tmp_path, entities=entities)
+
     assert dict(derivs) == {f'{desc}_petref': str(to_find), 'transforms': {}}
 
 
