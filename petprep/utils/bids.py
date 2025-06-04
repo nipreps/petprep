@@ -40,11 +40,16 @@ from ..data import load as load_data
 
 
 @cache
-def _get_layout(derivatives_dir: Path) -> BIDSLayout:
+def _get_layout(derivatives_dir: Path, patterns: list[str] | None = None) -> BIDSLayout:
     import niworkflows.data
+    config_files = [niworkflows.data.load('nipreps.json')]
 
+    # explicitly pass patterns if provided
     return BIDSLayout(
-        derivatives_dir, config=[niworkflows.data.load('nipreps.json')], validate=False
+        derivatives_dir, config=config_files, validate=False, 
+        regex_search=True, 
+        derivatives=True,
+        patterns=patterns if patterns else None
     )
 
 
@@ -54,21 +59,17 @@ def collect_derivatives(
     spec: dict | None = None,
     patterns: list[str] | None = None,
 ):
-    """Gather existing derivatives and compose a cache."""
     if spec is None or patterns is None:
         _spec, _patterns = tuple(
             json.loads(load_data.readable('io_spec.json').read_text()).values()
         )
 
-        if spec is None:
-            spec = _spec
-        if patterns is None:
-            patterns = _patterns
+        spec = spec or _spec
+        patterns = patterns or _patterns
 
     derivs_cache = defaultdict(list, {})
-    layout = _get_layout(derivatives_dir)
+    layout = _get_layout(derivatives_dir, patterns)  # <-- Important fix here!
 
-    # search for precomputed references
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
@@ -79,15 +80,12 @@ def collect_derivatives(
 
     transforms_cache = {}
     for xfm, q in spec['transforms'].items():
-        # Transform extension will often not match provided entities
-        #   (e.g., ".nii.gz" vs ".txt").
-        # And transform suffixes will be "xfm",
-        #   whereas relevant src file will be "bold".
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
         transforms_cache[xfm] = item[0] if len(item) == 1 else item
+
     derivs_cache['transforms'] = transforms_cache
     return derivs_cache
 
