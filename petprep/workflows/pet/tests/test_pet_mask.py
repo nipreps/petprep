@@ -21,7 +21,7 @@ def test_pet_mask_flow(bids_root: Path, tmp_path: Path):
     pet_series = [
         str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
     ]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 5)), np.eye(4))
     
     for path in pet_series:
         img.to_filename(path)
