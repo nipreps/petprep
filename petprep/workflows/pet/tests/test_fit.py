@@ -6,7 +6,6 @@ import pytest
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
-from .... import config
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..fit import init_pet_fit_wf, init_pet_native_wf
