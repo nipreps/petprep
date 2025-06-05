@@ -294,7 +294,6 @@ configured with cubic B-spline interpolation.
 
     # Resample to anatomical space
     pet_anat_wf = init_pet_volumetric_resample_wf(
-        metadata=all_metadata[0],
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
         name='pet_anat_wf',

@@ -9,7 +9,6 @@ from ...interfaces.resampling import ResampleSeries
 
 def init_pet_volumetric_resample_wf(
     *,
-    metadata: dict,
     mem_gb: dict[str, float],
     omp_nthreads: int = 1,
     name: str = 'pet_volumetric_resample_wf',
