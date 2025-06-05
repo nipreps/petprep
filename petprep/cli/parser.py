@@ -130,21 +130,6 @@ def _build_parser(**kwargs):
             else:
                 raise parser.error(f'Path does not exist: <{value}>.')
 
-    def _slice_time_ref(value, parser):
-        if value == 'start':
-            value = 0
-        elif value == 'middle':
-            value = 0.5
-        try:
-            value = float(value)
-        except ValueError:
-            raise parser.error(
-                f"Slice time reference must be number, 'start', or 'middle'. Received {value}."
-            ) from None
-        if not 0 <= value <= 1:
-            raise parser.error(f'Slice time reference must be in range 0-1. Received {value}.')
-        return value
-
     def _reference_frame(value, parser):
         if value == 'average':
             return 'average'
