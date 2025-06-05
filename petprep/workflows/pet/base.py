@@ -75,7 +75,7 @@ def init_pet_wf(
 
     Parameters
     ----------
-    pet_file
+    pet_series
         List of paths to NIfTI files.
     precomputed
         Dictionary containing precomputed derivatives to reuse, if possible.
@@ -150,13 +150,13 @@ def init_pet_wf(
 
     if precomputed is None:
         precomputed = {}
-    pet_file = pet_series
+    pet_file = pet_series[0]
 
     petprep_dir = config.execution.petprep_dir
     omp_nthreads = config.nipype.omp_nthreads
     all_metadata = [config.execution.layout.get_metadata(file) for file in pet_series]
 
-    nvols, mem_gb = estimate_pet_mem_usage(pet_file[0])
+    nvols, mem_gb = estimate_pet_mem_usage(pet_file)
     if nvols <= 5 - config.execution.sloppy:
         config.loggers.workflow.warning(
             f'Too short PET series (<= 5 timepoints). Skipping processing of <{pet_file}>.'
@@ -173,7 +173,7 @@ def init_pet_wf(
         mem_gb['largemem'],
     )
 
-    workflow = Workflow(name=_get_wf_name(pet_file[0], 'pet'))
+    workflow = Workflow(name=_get_wf_name(pet_file, 'pet'))
     workflow.__postdesc__ = """\
 All resamplings can be performed with *a single interpolation
 step* by composing all the pertinent transformations (i.e. head-motion
@@ -224,7 +224,7 @@ configured with cubic B-spline interpolation.
     #
 
     pet_fit_wf = init_pet_fit_wf(
-        pet_file=pet_file,
+        pet_series=pet_series,
         precomputed=precomputed,
         omp_nthreads=omp_nthreads,
     )
@@ -254,7 +254,7 @@ configured with cubic B-spline interpolation.
     #
 
     pet_native_wf = init_pet_native_wf(
-        pet_file=pet_file,
+        pet_series=pet_series,
         omp_nthreads=omp_nthreads,
     )
 
@@ -294,6 +294,7 @@ configured with cubic B-spline interpolation.
 
     # Resample to anatomical space
     pet_anat_wf = init_pet_volumetric_resample_wf(
+        metadata=all_metadata[0],
         omp_nthreads=omp_nthreads,
         mem_gb=mem_gb,
         name='pet_anat_wf',
@@ -354,7 +355,7 @@ configured with cubic B-spline interpolation.
             metadata=all_metadata[0],
             name='ds_pet_std_wf',
         )
-        ds_pet_std_wf.inputs.inputnode.source_files = pet_file
+        ds_pet_std_wf.inputs.inputnode.source_files = pet_series
 
         workflow.connect([
             (inputnode, pet_std_wf, [
