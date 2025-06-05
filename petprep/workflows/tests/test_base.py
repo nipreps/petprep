@@ -185,7 +185,7 @@ def test_init_petprep_wf(
         
         with patch.dict('petprep.config.execution.bids_filters', bids_filters):
             with patch('niworkflows.utils.bids.collect_data') as mock_collect_data:
-                mock_collect_data.return_value = collect_data(
+                mock_collect_data = collect_data(
                     config.execution.bids_dir,
                     '01',
                     bids_filters=config.execution.bids_filters,
