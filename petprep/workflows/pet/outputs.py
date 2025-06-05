@@ -37,13 +37,10 @@ from petprep.interfaces.bids import BIDSURI
 
 
 def prepare_timing_parameters(metadata: dict):
-    """Convert initial timing metadata to post-realignment timing metadata
+    """Convert initial timing metadata to derivative timing parameters.
 
-    In particular, SliceTiming metadata is invalid once STC or any realignment is applied,
-    as a matrix of voxels no longer corresponds to an acquisition slice.
-    Therefore, if SliceTiming is present in the metadata dictionary, and a sparse
-    acquisition paradigm is detected, DelayTime or AcquisitionDuration must be derived to
-    preserve the timing interpretation.
+    Slice timing information is ignored and outputs will always indicate that
+    slice timing correction was not performed.
 
     Examples
     --------
@@ -56,15 +53,12 @@ def prepare_timing_parameters(metadata: dict):
         for key in (
             'VolumeTiming',
             'AcquisitionDuration',
-            'SliceTiming',
             'FrameTimesStart',
             'FrameDuration',
         )
         if key in metadata
     }
 
-    # Treat SliceTiming of [] or length 1 as equivalent to missing and remove it in any case
-    slice_timing = timing_parameters.pop('SliceTiming', [])
     frame_times = timing_parameters.pop('FrameTimesStart', None)
     frame_duration = timing_parameters.pop('FrameDuration', None)
 
@@ -77,20 +71,7 @@ def prepare_timing_parameters(metadata: dict):
                 else:
                     timing_parameters.setdefault('AcquisitionDuration', frame_duration)
 
-    run_stc = len(slice_timing) > 1 and 'slicetiming' not in config.workflow.ignore
-    timing_parameters['SliceTimingCorrected'] = run_stc
-
-    if len(slice_timing) > 1:
-        st = sorted(slice_timing)
-        TA = st[-1] + (st[1] - st[0])  # Final slice onset + slice duration
-        if 'VolumeTiming' in timing_parameters:
-            timing_parameters['AcquisitionDuration'] = TA
-
-        if run_stc:
-            first, last = st[0], st[-1]
-            frac = config.workflow.slice_time_ref
-            tzero = np.round(first + frac * (last - first), 3)
-            timing_parameters['StartTime'] = tzero
+    timing_parameters['SliceTimingCorrected'] = False
 
     return timing_parameters
 

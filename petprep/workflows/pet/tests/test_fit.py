@@ -108,12 +108,11 @@ def test_pet_fit_precomputes(
 
 
 @pytest.mark.parametrize('task', ['rest'])
-@pytest.mark.parametrize('run_stc', [True, False])
+
 def test_pet_native_precomputes(
     bids_root: Path,
     tmp_path: Path,
     task: str,
-    run_stc: bool,
 ):
     """Test as many combinations of precomputed files and input
     configurations as possible."""
@@ -132,7 +131,6 @@ def test_pet_native_precomputes(
         img.to_filename(path)
 
     with mock_config(bids_dir=bids_root):
-        config.workflow.ignore = ['slicetiming'] if not run_stc else []
         wf = init_pet_native_wf(
             pet_series=pet_series,
             omp_nthreads=1,
