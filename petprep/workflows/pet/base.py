@@ -165,7 +165,7 @@ def init_pet_wf(
         return
 
     config.loggers.workflow.debug(
-        'Creating pet processing workflow for <%s> (%.2f GB / %d TRs). '
+        'Creating pet processing workflow for <%s> (%.2f GB / %d frames). '
         'Memory resampled/largemem=%.2f/%.2f GB.',
         pet_file,
         mem_gb['filesize'],

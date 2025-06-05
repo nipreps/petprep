@@ -21,8 +21,9 @@ class _GeneratePetCiftiInputSpec(BaseInterfaceInputSpec):
         usedefault=True,
         desc="CIFTI surface target space",
     )
-    grayordinates = traits.Enum("91k", "170k", usedefault=True, desc="Final CIFTI grayordinates")
-    TR = traits.Float(mandatory=True, desc="Repetition time")
+    grayordinates = traits.Enum(
+        "91k", "170k", usedefault=True, desc="Final CIFTI grayordinates"
+    )
     surface_pets = traits.List(
         File(exists=True),
         mandatory=True,
@@ -43,7 +44,7 @@ class GeneratePetCifti(SimpleInterface):
             volume_labels,
             self.inputs.surface_pets,
             surface_labels,
-            self.inputs.TR,
+            1.0,
             metadata,
         )
         metadata_file = Path("pet.dtseries.json").absolute()

@@ -528,22 +528,8 @@ data transformed to {mni_density} mm resolution MNI152NLin6Asym space.
         name='outputnode',
     )
 
-    timing_parameters = prepare_timing_parameters(metadata)
-    tr = timing_parameters.get('RepetitionTime')
-    if tr is None and 'VolumeTiming' in timing_parameters:
-        vt = timing_parameters['VolumeTiming']
-        if len(vt) > 1:
-            diffs = np.diff(vt)
-            if np.allclose(diffs, diffs[0]):
-                tr = float(diffs[0])
-            else:
-                tr = float(np.mean(diffs))
-
     gen_cifti = pe.Node(
-        GeneratePetCifti(
-            TR=tr,
-            grayordinates=grayord_density,
-        ),
+        GeneratePetCifti(grayordinates=grayord_density),
         name='gen_cifti',
         mem_gb=mem_gb,
     )

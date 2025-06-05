@@ -193,11 +193,6 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
     timing_parameters = prepare_timing_parameters(metadata)
-    tr = timing_parameters.get('RepetitionTime')
-    if tr is None and 'VolumeTiming' in timing_parameters:
-        vt = timing_parameters['VolumeTiming']
-        if len(vt) > 1 and np.allclose(np.diff(vt), np.diff(vt)[0]):
-            tr = float(np.diff(vt)[0])
 
     summary = pe.Node(
         FunctionalSummary(
