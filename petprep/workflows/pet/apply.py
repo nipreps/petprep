@@ -9,6 +9,7 @@ from ...interfaces.resampling import ResampleSeries
 
 def init_pet_volumetric_resample_wf(
     *,
+    metadata: dict,
     mem_gb: dict[str, float],
     omp_nthreads: int = 1,
     name: str = 'pet_volumetric_resample_wf',
@@ -27,6 +28,8 @@ def init_pet_volumetric_resample_wf(
 
     Parameters
     ----------
+    metadata
+        BIDS metadata for PET file.
     omp_nthreads
         Maximum number of threads an individual process may use.
     name
