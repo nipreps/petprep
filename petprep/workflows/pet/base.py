@@ -157,7 +157,7 @@ def init_pet_wf(
     all_metadata = [config.execution.layout.get_metadata(file) for file in pet_series]
 
     nvols, mem_gb = estimate_pet_mem_usage(pet_file)
-    if nvols <= 5 - config.execution.sloppy:
+    if nvols <= 1 - config.execution.sloppy:
         config.loggers.workflow.warning(
             f'Too short PET series (<= 5 timepoints). Skipping processing of <{pet_file}>.'
         )
