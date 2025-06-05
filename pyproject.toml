@@ -137,6 +137,10 @@ addopts = [
   "-ra",
   "--strict-config",
   "--strict-markers",
+  "--doctest-modules",
+  "--cov=petprep",
+  "--cov-report=xml",
+  "--cov-config=pyproject.toml",
 ]
 doctest_optionflags = "ALLOW_UNICODE NORMALIZE_WHITESPACE ELLIPSIS"
 
