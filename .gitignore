@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 
 # Coverage reports
 .coverage
@@ -29,3 +31,4 @@ dist/
 
 # Additional
 .ipynb_checkpoints/
+_version.py
