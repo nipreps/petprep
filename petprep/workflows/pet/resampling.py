@@ -112,7 +112,7 @@ def init_pet_surf_wf(
     from niworkflows.interfaces.nitransforms import ConcatenateXFMs
     from niworkflows.interfaces.surf import GiftiSetAnatomicalStructure
 
-    from fmriprep.interfaces import DerivativesDataSink
+    from petprep.interfaces import DerivativesDataSink
 
     timing_parameters = prepare_timing_parameters(metadata)
 

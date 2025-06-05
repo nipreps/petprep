@@ -50,10 +50,10 @@ def test_pet_wf(
 
     img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
 
-
-    pet_series = [
-        str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz'),
-    ]
+    if task == 'rest':
+        pet_series = [
+            str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz'),
+        ]
 
 
     # The workflow will attempt to read file headers
