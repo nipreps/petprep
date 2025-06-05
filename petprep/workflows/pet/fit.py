@@ -48,7 +48,7 @@ from .registration import init_pet_reg_wf
 
 def init_pet_fit_wf(
     *,
-    pet_file: str,
+    pet_series: list[str],
     precomputed: dict = None,
     omp_nthreads: int = 1,
     name: str = 'pet_fit_wf',
@@ -128,6 +128,8 @@ def init_pet_fit_wf(
         precomputed = {}
     layout = config.execution.layout
 
+    pet_file = pet_series[0]
+
     # Get metadata from PET file(s)
     metadata = layout.get_metadata(pet_file)
     orientation = ''.join(nb.aff2axcodes(nb.load(pet_file).affine))
@@ -159,7 +161,7 @@ def init_pet_fit_wf(
         ),
         name='inputnode',
     )
-    inputnode.inputs.pet_file = pet_file
+    inputnode.inputs.pet_file = pet_series
 
     outputnode = pe.Node(
         niu.IdentityInterface(
@@ -402,7 +404,7 @@ def init_pet_fit_wf(
 
 def init_pet_native_wf(
     *,
-    pet_file: str,
+    pet_series: list[str],
     omp_nthreads: int = 1,
     name: str = 'pet_native_wf',
 ) -> pe.Workflow:
@@ -428,8 +430,8 @@ def init_pet_native_wf(
 
     Parameters
     ----------
-    pet_file
-        Path to NIfTI file.
+    pet_series
+        List of paths to NIfTI files.
 
     Inputs
     ------
@@ -457,7 +459,10 @@ def init_pet_native_wf(
 
     layout = config.execution.layout
 
-    metadata = layout.get_metadata(pet_file)
+    all_metadata = [layout.get_metadata(pet_file) for pet_file in pet_series]
+
+    pet_file = pet_series[0]
+    metadata = all_metadata[0]
 
     _, mem_gb = estimate_pet_mem_usage(pet_file)
 
@@ -495,7 +500,7 @@ def init_pet_native_wf(
     # The Select interface requires an index to choose from ``inlist``. Since
     # ``pet_file`` is a single path, explicitly set the index to ``0`` to avoid
     # missing mandatory input errors when the node runs.
-    pet_source = pe.Node(niu.Select(inlist=[pet_file], index=0), name='pet_source')
+    pet_source = pe.Node(niu.Select(inlist=pet_series, index=0), name='pet_source')
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),
