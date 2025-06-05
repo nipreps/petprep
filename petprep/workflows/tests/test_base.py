@@ -12,6 +12,10 @@ from ... import config
 from ..base import init_petprep_wf
 from ..tests import mock_config
 
+from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
+import copy
+from niworkflows.utils.bids import collect_data
+
 BASE_LAYOUT = {
     '01': {
         'anat': [
@@ -31,6 +35,14 @@ BASE_LAYOUT = {
         ],
     },
 }
+
+
+@pytest.fixture(scope='module')
+def custom_queries():
+    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+    queries['pet'] = {'datatype': 'pet', 'suffix': 'pet'}
+    queries['t1w'].pop('datatype', None)
+    return queries
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -133,8 +145,6 @@ def _make_params(
         _make_params(force=['bbr']),
         _make_params(force=['no-bbr']),
         _make_params(pet2anat_init='header', force=['bbr']),
-        # Currently disabled
-        # _make_params(pet2anat_init="header", force=['no-bbr']),
         _make_params(medial_surface_nan=True),
         _make_params(cifti_output='91k'),
         _make_params(cifti_output='91k', run_msmsulc=False),
@@ -143,10 +153,6 @@ def _make_params(
         _make_params(freesurfer=False),
         _make_params(freesurfer=False, force=['bbr']),
         _make_params(freesurfer=False, force=['no-bbr']),
-        # Currently unsupported:
-        # _make_params(freesurfer=False, pet2anat_init="header"),
-        # _make_params(freesurfer=False, pet2anat_init="header", force=['bbr']),
-        # _make_params(freesurfer=False, pet2anat_init="header", force=['no-bbr']),
     ],
 )
 def test_init_petprep_wf(
@@ -163,6 +169,7 @@ def test_init_petprep_wf(
     ignore: list[str],
     force: list[str],
     bids_filters: dict,
+    custom_queries: dict,
 ):
     with mock_config(bids_dir=bids_root):
         config.workflow.level = level
@@ -175,7 +182,16 @@ def test_init_petprep_wf(
         config.workflow.run_reconall = freesurfer
         config.workflow.ignore = ignore
         config.workflow.force = force
+        
         with patch.dict('petprep.config.execution.bids_filters', bids_filters):
-            wf = init_petprep_wf()
+            with patch('petprep.workflows.base.collect_data') as mock_collect_data:
+                mock_collect_data.return_value = collect_data(
+                    config.execution.bids_dir,
+                    '01',
+                    bids_filters=config.execution.bids_filters,
+                    queries=custom_queries,
+                )
+
+                wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())
