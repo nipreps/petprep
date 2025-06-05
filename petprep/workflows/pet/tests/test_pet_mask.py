@@ -6,16 +6,28 @@ from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..base import init_pet_wf
 
-
-def test_pet_mask_flow(tmp_path):
-    bids_dir = tmp_path / 'bids'
+@pytest.fixture(scope='module')
+def bids_root(tmp_path_factory):
+    base = tmp_path_factory.mktemp('petfit')
+    bids_dir = base / 'bids'
     generate_bids_skeleton(bids_dir, BASE_LAYOUT)
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 10)), np.eye(4))
-    pet_file = bids_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz'
-    img.to_filename(pet_file)
+    return bids_dir
 
-    with mock_config(bids_dir=bids_dir):
-        wf = init_pet_wf(pet_series=str(pet_file), precomputed={})
+
+def test_pet_mask_flow(bids_root: Path, tmp_path: Path):
+    pet_series = [
+        str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    ]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    
+    for path in pet_series:
+        img.to_filename(path)
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_wf(
+            pet_series=pet_series, 
+            precomputed={}
+            )
 
     edge = wf._graph.get_edge_data(
         wf.get_node('pet_fit_wf'), wf.get_node('pet_confounds_wf')
