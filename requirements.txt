@@ -245,7 +245,7 @@ nitransforms==24.1.1
     # via
     #   fmriprep (pyproject.toml)
     #   niworkflows
-niworkflows==1.12.2
+niworkflows==1.13.3
     # via
     #   fmriprep (pyproject.toml)
     #   smriprep
