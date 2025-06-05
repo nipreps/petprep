@@ -311,7 +311,7 @@ def init_pet_fsLR_resampling_wf(
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.utility import KeySelect
 
-    from fmriprep.interfaces.workbench import VolumeToSurfaceMapping
+    from petprep.interfaces.workbench import VolumeToSurfaceMapping
 
     fslr_density = '32k' if grayord_density == '91k' else '59k'
 
@@ -505,7 +505,7 @@ def init_pet_grayords_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from fmriprep.interfaces import GeneratePetCifti
+    from petprep.interfaces import GeneratePetCifti
     import numpy as np
 
     workflow = Workflow(name=name)
