@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import patch
+import json
 
 import nibabel as nb
 import numpy as np
@@ -14,20 +15,19 @@ from ..tests import mock_config
 BASE_LAYOUT = {
     '01': {
         'anat': [
-            {'run': 1, 'suffix': 'T1w'},
-            {'run': 2, 'suffix': 'T1w'},
-            {'suffix': 'T2w'},
+            {'suffix': 'T1w'},
+            {'suffix': 'inplaneT2'},
         ],
         'pet': [
-            *(
-                {
-                    'task': 'rest',
-                    'run': i,
-                    'suffix': 'pet',
-                    'metadata': {},
-                }
-                for i in range(1, 3)
-            ),
+            {
+                'suffix': 'pet',
+                'metadata': {},
+            },
+        ],
+        'func': [
+            {'task': 'mixedgamblestask', 'run': 1, 'suffix': 'bold'},
+            {'task': 'mixedgamblestask', 'run': 2, 'suffix': 'bold'},
+            {'task': 'mixedgamblestask', 'run': 3, 'suffix': 'bold'},
         ],
     },
 }
@@ -52,8 +52,31 @@ def bids_root(tmp_path_factory):
 
     img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
 
-    for img_path in bids_dir.glob('sub-01/*/*.nii.gz'):
-        img.to_filename(img_path)
+    # anat files
+    anat_dir = bids_dir / "sub-01" / "anat"
+    anat_dir.mkdir(parents=True, exist_ok=True)
+    img.to_filename(anat_dir / "sub-01_T1w.nii.gz")
+    img.to_filename(anat_dir / "sub-01_inplaneT2.nii.gz")
+
+    # pet file
+    pet_dir = bids_dir / "sub-01" / "pet"
+    pet_dir.mkdir(parents=True, exist_ok=True)
+    pet_path = pet_dir / "sub-01_pet.nii.gz"
+    img.to_filename(pet_path)
+    
+    # Add metadata explicitly
+    metadata = {}
+    json_path = pet_dir / "sub-01_pet.json"
+    json_path.write_text(json.dumps(metadata))
+
+    # func files (optional for PET workflow but included for consistency)
+    func_dir = bids_dir / "sub-01" / "func"
+    func_dir.mkdir(parents=True, exist_ok=True)
+    for run in range(1, 4):
+        func_path = func_dir / f"sub-01_task-mixedgamblestask_run-0{run}_bold.nii.gz"
+        img.to_filename(func_path)
+        events_path = func_dir / f"sub-01_task-mixedgamblestask_run-0{run}_events.tsv"
+        events_path.write_text("onset\tduration\ttrial_type\n")
 
     return bids_dir
 
@@ -82,7 +105,6 @@ def _make_params(
         cifti_output,
         run_msmsulc,
         skull_strip_t1w,
-        use_syn_sdc,
         freesurfer,
         ignore,
         force,
@@ -139,7 +161,6 @@ def test_init_petprep_wf(
     cifti_output: bool | str,
     run_msmsulc: bool,
     skull_strip_t1w: str,
-    use_syn_sdc: str | bool,
     freesurfer: bool,
     ignore: list[str],
     force: list[str],
