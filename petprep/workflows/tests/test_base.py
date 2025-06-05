@@ -182,16 +182,16 @@ def test_init_petprep_wf(
         config.workflow.run_reconall = freesurfer
         config.workflow.ignore = ignore
         config.workflow.force = force
-        
-        with patch.dict('petprep.config.execution.bids_filters', bids_filters):
-            with patch('niworkflows.utils.bids.collect_data') as mock_collect_data:
-                mock_collect_data = collect_data(
-                    config.execution.bids_dir,
-                    '01',
-                    bids_filters=config.execution.bids_filters,
-                    queries=custom_queries,
-                )
 
-                wf = init_petprep_wf()
+        # Set the custom queries explicitly
+        with patch('niworkflows.utils.bids.collect_data') as mock_collect_data:
+            mock_collect_data.return_value = collect_data(
+                config.execution.bids_dir,
+                '01',
+                bids_filters=config.execution.bids_filters,
+                queries=custom_queries,
+            )
+
+            wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())
