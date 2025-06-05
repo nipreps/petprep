@@ -150,6 +150,7 @@ def init_pet_wf(
 
     if precomputed is None:
         precomputed = {}
+    pet_series = listify(pet_series)
     pet_file = pet_series[0]
 
     petprep_dir = config.execution.petprep_dir
