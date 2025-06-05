@@ -183,7 +183,7 @@ def test_petref_report_connections(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(
             pet_series=pet_series, 
             precomputed={}, 
-            mp_nthreads=1)
+            omp_nthreads=1)
 
     petref_buffer = wf.get_node('petref_buffer')
     edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
