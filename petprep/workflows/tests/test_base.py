@@ -14,7 +14,6 @@ from ..tests import mock_config
 
 from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 import copy
-from niworkflows.utils.bids import collect_data
 
 BASE_LAYOUT = {
     '01': {
@@ -182,16 +181,7 @@ def test_init_petprep_wf(
         config.workflow.run_reconall = freesurfer
         config.workflow.ignore = ignore
         config.workflow.force = force
-
-        # Set the custom queries explicitly
-        with patch('niworkflows.utils.bids.collect_data') as mock_collect_data:
-            mock_collect_data.return_value = collect_data(
-                config.execution.bids_dir,
-                '01',
-                bids_filters=config.execution.bids_filters,
-                queries=custom_queries,
-            )
-
+        with patch.dict('petprep.config.execution.bids_filters', bids_filters):
             wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())
