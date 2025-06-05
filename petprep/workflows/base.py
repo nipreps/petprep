@@ -202,23 +202,14 @@ It is released under the [CC0]\
     from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
     import copy
 
-    custom_queries = {
-        't1w': {'datatype': 'anat', 'suffix': 'T1w', 'part': ['mag', None]},
-        't2w': {'datatype': 'anat', 'suffix': 'T2w', 'part': ['mag', None]},
-        'flair': {'datatype': 'anat', 'suffix': 'FLAIR', 'part': ['mag', None]},
-        'bold': {'datatype': 'func', 'suffix': 'bold', 'part': ['mag', None]},
-        'pet': {'datatype': 'pet', 'suffix': 'pet'},
-        'roi': {'datatype': 'anat', 'suffix': 'roi'},
-        'sbref': {'datatype': 'func', 'suffix': 'sbref', 'part': ['mag', None]},
-        'dwi': {'suffix': 'dwi'},
-        'asl': {'datatype': 'perf', 'suffix': 'asl'},
-    }
+    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+    queries['t1w'].pop('datatype', None)
 
     subject_data = collect_data(
         config.execution.bids_dir,
         subject_id,
         bids_filters=config.execution.bids_filters,
-        queries=custom_queries,
+        queries=queries,
     )[0]
 
 

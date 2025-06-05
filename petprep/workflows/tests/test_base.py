@@ -8,9 +8,6 @@ import pytest
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
-from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
-import copy
-
 from ... import config
 from ..base import init_petprep_wf
 from ..tests import mock_config
@@ -34,12 +31,6 @@ BASE_LAYOUT = {
         ],
     },
 }
-
-@pytest.fixture(scope='module')
-def custom_queries():
-    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
-    queries['pet'] = {'datatype': 'pet', 'suffix': 'pet'}
-    return queries
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -172,7 +163,6 @@ def test_init_petprep_wf(
     ignore: list[str],
     force: list[str],
     bids_filters: dict,
-    custom_queries: dict,
 ):
     with mock_config(bids_dir=bids_root):
         config.workflow.level = level
@@ -186,13 +176,6 @@ def test_init_petprep_wf(
         config.workflow.ignore = ignore
         config.workflow.force = force
         with patch.dict('petprep.config.execution.bids_filters', bids_filters):
-            with patch('niworkflows.utils.bids.collect_data') as mock_collect_data:
-                mock_collect_data.return_value = collect_data(
-                    config.execution.bids_dir,
-                    '01',
-                    bids_filters=config.execution.bids_filters,
-                    queries=custom_queries,
-                )
-                wf = init_petprep_wf()
+            wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())
