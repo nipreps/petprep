@@ -204,6 +204,7 @@ It is released under the [CC0]\
 
     queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
     queries['t1w'].pop('datatype', None)
+    queries['pet'] = {'datatype': 'pet', 'suffix': 'pet'}
 
     subject_data = collect_data(
         config.execution.bids_dir,
