@@ -188,6 +188,7 @@ def test_init_petprep_wf(
                 mock_collect_data.return_value = original_collect_data(
                     bids_root,
                     '01',
+                    require_pet=True,
                     bids_filters=bids_filters,
                     queries=custom_queries,
                 )
