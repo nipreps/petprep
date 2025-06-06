@@ -21,7 +21,6 @@
 #     https://www.nipreps.org/community/licensing/
 #
 import nibabel as nb
-import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.header import ValidateImage
@@ -36,8 +35,8 @@ from ...utils.misc import estimate_pet_mem_usage
 from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
-    init_ds_petref_wf,
     init_ds_petmask_wf,
+    init_ds_petref_wf,
     init_ds_registration_wf,
     init_func_fit_reports_wf,
     prepare_timing_parameters,

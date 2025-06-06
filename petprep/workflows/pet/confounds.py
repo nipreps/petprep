@@ -36,13 +36,14 @@ from templateflow.api import get as get_template
 from ...config import DEFAULT_MEMORY_MIN_GB
 from ...interfaces import DerivativesDataSink
 from ...interfaces.confounds import (
-    PETSummary,
     FramewiseDisplacement,
     FSLMotionParams,
     FSLRMSDeviation,
     GatherConfounds,
+    PETSummary,
 )
 from .outputs import prepare_timing_parameters
+
 
 def init_pet_confs_wf(
     mem_gb: float,

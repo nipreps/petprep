@@ -35,7 +35,6 @@ from bids.layout import BIDSLayout
 from bids.utils import listify
 from packaging.version import Version
 
-from .. import config
 from ..data import load as load_data
 
 

@@ -505,8 +505,8 @@ def init_pet_grayords_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+
     from petprep.interfaces import GeneratePetCifti
-    import numpy as np
 
     workflow = Workflow(name=name)
 

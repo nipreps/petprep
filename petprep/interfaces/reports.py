@@ -77,7 +77,7 @@ def get_world_pedir(orientation: str, pe_dir: str) -> str:
         start = _OPPOSITE[letter]
         end = letter
 
-    return f"{_ORI_TO_NAME[start]}-{_ORI_TO_NAME[end]}"
+    return f'{_ORI_TO_NAME[start]}-{_ORI_TO_NAME[end]}'
 
 SUBJECT_TEMPLATE = """\
 \t<ul class="elem-desc">

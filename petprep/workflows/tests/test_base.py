@@ -1,20 +1,19 @@
+import copy
+import json
 from pathlib import Path
 from unittest.mock import patch
-import json
 
 import nibabel as nb
 import numpy as np
 import pytest
 from nipype.pipeline.engine.utils import generate_expanded_graph
+from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
+from niworkflows.utils.bids import collect_data as original_collect_data
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from ... import config
 from ..base import init_petprep_wf
 from ..tests import mock_config
-
-from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
-from niworkflows.utils.bids import collect_data as original_collect_data
-import copy
 
 BASE_LAYOUT = {
     '01': {
@@ -65,30 +64,30 @@ def bids_root(tmp_path_factory):
     img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
 
     # anat files
-    anat_dir = bids_dir / "sub-01" / "anat"
+    anat_dir = bids_dir / 'sub-01' / 'anat'
     anat_dir.mkdir(parents=True, exist_ok=True)
-    img.to_filename(anat_dir / "sub-01_T1w.nii.gz")
-    img.to_filename(anat_dir / "sub-01_inplaneT2.nii.gz")
+    img.to_filename(anat_dir / 'sub-01_T1w.nii.gz')
+    img.to_filename(anat_dir / 'sub-01_inplaneT2.nii.gz')
 
     # pet file
-    pet_dir = bids_dir / "sub-01" / "pet"
+    pet_dir = bids_dir / 'sub-01' / 'pet'
     pet_dir.mkdir(parents=True, exist_ok=True)
-    pet_path = pet_dir / "sub-01_pet.nii.gz"
+    pet_path = pet_dir / 'sub-01_pet.nii.gz'
     img.to_filename(pet_path)
-    
+
     # Add metadata explicitly
     metadata = {}
-    json_path = pet_dir / "sub-01_pet.json"
+    json_path = pet_dir / 'sub-01_pet.json'
     json_path.write_text(json.dumps(metadata))
 
     # func files (optional for PET workflow but included for consistency)
-    func_dir = bids_dir / "sub-01" / "func"
+    func_dir = bids_dir / 'sub-01' / 'func'
     func_dir.mkdir(parents=True, exist_ok=True)
     for run in range(1, 4):
-        func_path = func_dir / f"sub-01_task-mixedgamblestask_run-0{run}_bold.nii.gz"
+        func_path = func_dir / f'sub-01_task-mixedgamblestask_run-0{run}_bold.nii.gz'
         img.to_filename(func_path)
-        events_path = func_dir / f"sub-01_task-mixedgamblestask_run-0{run}_events.tsv"
-        events_path.write_text("onset\tduration\ttrial_type\n")
+        events_path = func_dir / f'sub-01_task-mixedgamblestask_run-0{run}_events.tsv'
+        events_path.write_text('onset\tduration\ttrial_type\n')
 
     return bids_dir
 

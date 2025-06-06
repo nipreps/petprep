@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 
@@ -5,12 +6,11 @@ import pytest
 import templateflow.api as tf
 from nipype.interfaces import fsl
 from packaging.version import Version
-import re
 
 fslversion = fsl.Info.version()
 _fslver_num = None
 if fslversion:
-    match = re.match(r"[0-9.]+", fslversion)
+    match = re.match(r'[0-9.]+', fslversion)
     if match:
         _fslver_num = match.group()
 TEMPLATE = tf.get('MNI152NLin2009cAsym', resolution=2, desc=None, suffix='T1w')

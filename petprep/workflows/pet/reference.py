@@ -20,11 +20,11 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
+from nipype.interfaces import fsl
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.header import ValidateImage
-from nipype.interfaces import fsl
 
 DEFAULT_MEMORY_MIN_GB = 0.01
 

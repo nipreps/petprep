@@ -23,7 +23,6 @@
 """Test parser."""
 
 from argparse import ArgumentError
-from contextlib import nullcontext
 
 import pytest
 from packaging.version import Version

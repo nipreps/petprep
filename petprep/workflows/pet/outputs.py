@@ -24,7 +24,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
