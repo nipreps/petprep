@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from bids.layout import BIDSLayout
 
-from fmriprep.reports.core import generate_reports
+from petprep.reports.core import generate_reports
 
 from ... import config, data
 
@@ -118,19 +118,19 @@ def test_ReportSeparation(
 def test_pet_report(tmp_path, monkeypatch):
     fake_uuid = 'fake_uuid'
 
-    pet_source = data_dir / 'work/reportlets/fmriprep'
+    pet_source = data_dir / 'work/reportlets/petprep'
     sub_dir = tmp_path / 'sub-01' / 'figures'
     sub_dir.mkdir(parents=True)
 
-    shutil.copy2(pet_source / 'sub-001/figures/sub-001_desc-about_T1w.html', sub_dir / 'sub-01_desc-about_T1w.html')
-    shutil.copy2(pet_source / 'sub-001/figures/sub-001_ses-001_task-qct_dir-LR_part-mag_desc-summary_bold.html', sub_dir / 'sub-01_ses-baseline_desc-summary_pet.html')
-    shutil.copy2(pet_source / 'sub-001/figures/sub-001_ses-001_task-qct_dir-LR_part-mag_desc-validation_bold.html', sub_dir / 'sub-01_ses-baseline_desc-validation_pet.html')
-    shutil.copy2(pet_source / 'sub-001/figures/sub-001_ses-001_task-qct_dir-LR_part-mag_desc-carpetplot_bold.svg', sub_dir / 'sub-01_ses-baseline_desc-carpetplot_pet.svg')
-    shutil.copy2(pet_source / 'sub-001/figures/sub-001_ses-001_task-qct_dir-LR_part-mag_desc-confoundcorr_bold.svg', sub_dir / 'sub-01_ses-baseline_desc-confoundcorr_pet.svg')
-    shutil.copy2(pet_source / 'sub-01/func/sub-01_task-mixedgamblestask_run-01_bold_bbr.svg', sub_dir / 'sub-01_ses-baseline_pet.svg')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-about_T1w.html', sub_dir / 'sub-01_desc-about_T1w.html')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-summary_pet.html', sub_dir / 'sub-01_desc-summary_pet.html')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-validation_pet.html', sub_dir / 'sub-01_desc-validation_pet.html')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-carpetplot_pet.svg', sub_dir / 'sub-01_desc-carpetplot_pet.svg')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-confoundcorr_pet.svg', sub_dir / 'sub-01_desc-confoundcorr_pet.svg')
+    shutil.copy2(pet_source / 'sub-01/sub-01_desc-coreg_pet.svg', sub_dir / 'sub-01_desc-coreg_pet.svg')
 
     config.execution.aggr_ses_reports = 4
-    config.execution.layout = BIDSLayout(data_dir / 'pet')
+    config.execution.layout = BIDSLayout(data_dir / 'ds000005')
     monkeypatch.setattr(config.execution, 'bids_filters', {'pet': {'session': ['baseline']}})
 
     failed_reports = generate_reports(['01'], tmp_path, fake_uuid)

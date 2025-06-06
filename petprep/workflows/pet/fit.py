@@ -21,11 +21,10 @@
 #     https://www.nipreps.org/community/licensing/
 #
 import nibabel as nb
-import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.header import ValidateImage
-
+from niworkflows.utils.connections import listify
 
 from ... import config
 from ...interfaces.reports import FunctionalSummary
@@ -36,8 +35,8 @@ from ...utils.misc import estimate_pet_mem_usage
 from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
-    init_ds_petref_wf,
     init_ds_petmask_wf,
+    init_ds_petref_wf,
     init_ds_registration_wf,
     init_func_fit_reports_wf,
     prepare_timing_parameters,
@@ -48,7 +47,7 @@ from .registration import init_pet_reg_wf
 
 def init_pet_fit_wf(
     *,
-    pet_file: str,
+    pet_series: list[str],
     precomputed: dict = None,
     omp_nthreads: int = 1,
     name: str = 'pet_fit_wf',
@@ -126,7 +125,10 @@ def init_pet_fit_wf(
 
     if precomputed is None:
         precomputed = {}
+    pet_series = listify(pet_series)
     layout = config.execution.layout
+
+    pet_file = pet_series[0]
 
     # Get metadata from PET file(s)
     metadata = layout.get_metadata(pet_file)
@@ -159,7 +161,7 @@ def init_pet_fit_wf(
         ),
         name='inputnode',
     )
-    inputnode.inputs.pet_file = pet_file
+    inputnode.inputs.pet_file = pet_series
 
     outputnode = pe.Node(
         niu.IdentityInterface(
@@ -190,11 +192,6 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
     timing_parameters = prepare_timing_parameters(metadata)
-    tr = timing_parameters.get('RepetitionTime')
-    if tr is None and 'VolumeTiming' in timing_parameters:
-        vt = timing_parameters['VolumeTiming']
-        if len(vt) > 1 and np.allclose(np.diff(vt), np.diff(vt)[0]):
-            tr = float(np.diff(vt)[0])
 
     summary = pe.Node(
         FunctionalSummary(
@@ -402,7 +399,7 @@ def init_pet_fit_wf(
 
 def init_pet_native_wf(
     *,
-    pet_file: str,
+    pet_series: list[str],
     omp_nthreads: int = 1,
     name: str = 'pet_native_wf',
 ) -> pe.Workflow:
@@ -428,8 +425,8 @@ def init_pet_native_wf(
 
     Parameters
     ----------
-    pet_file
-        Path to NIfTI file.
+    pet_series
+        List of paths to NIfTI files.
 
     Inputs
     ------
@@ -456,8 +453,12 @@ def init_pet_native_wf(
     """
 
     layout = config.execution.layout
+    pet_series = listify(pet_series)
 
-    metadata = layout.get_metadata(pet_file)
+    all_metadata = [layout.get_metadata(pet_file) for pet_file in pet_series]
+
+    pet_file = pet_series[0]
+    metadata = all_metadata[0]
 
     _, mem_gb = estimate_pet_mem_usage(pet_file)
 
@@ -495,7 +496,7 @@ def init_pet_native_wf(
     # The Select interface requires an index to choose from ``inlist``. Since
     # ``pet_file`` is a single path, explicitly set the index to ``0`` to avoid
     # missing mandatory input errors when the node runs.
-    pet_source = pe.Node(niu.Select(inlist=[pet_file], index=0), name='pet_source')
+    pet_source = pe.Node(niu.Select(inlist=pet_series, index=0), name='pet_source')
     validate_pet = pe.Node(ValidateImage(), name='validate_pet')
     workflow.connect([
         (pet_source, validate_pet, [('out', 'in_file')]),

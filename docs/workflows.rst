@@ -5,9 +5,8 @@ Processing pipeline details
 ===========================
 *PETPrep* adapts its pipeline depending on what data and metadata are
 available and are used as the input.
-For example, slice timing correction will be
-performed only if the ``SliceTiming`` metadata field is found for the input
-dataset.
+Certain processing steps will run only when the required metadata is
+available in the input dataset.
 
 A (very) high-level view of the simplest pipeline (for a single-band dataset with only
 one task, single-run, with no slice-timing information nor fieldmap acquisitions)
@@ -571,7 +570,6 @@ Confounds estimation
         metadata={
             "FrameTimesStart": [0, 2, 4, 6],
             "FrameDuration": [2, 2, 2, 2],
-            "SliceTiming": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
         },
         regressors_all_comps=False,
         regressors_dvars_th=1.5,

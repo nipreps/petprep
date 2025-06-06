@@ -54,7 +54,7 @@ def main():
         tracker.start()
 
     if 'pdb' in config.execution.debug:
-        from fmriprep.utils.debug import setup_exceptionhook
+        from petprep.utils.debug import setup_exceptionhook
 
         setup_exceptionhook()
         config.nipype.plugin = 'Linear'
@@ -97,7 +97,7 @@ def main():
 
     # CRITICAL Load the config from the file. This is necessary because the ``build_workflow``
     # function executed constrained in a process may change the config (and thus the global
-    # state of fMRIPrep).
+    # state of PETPrep).
     config.load(config_file)
 
     if config.execution.reports_only:
@@ -169,7 +169,7 @@ def main():
             if config.environment.exec_env in (
                 'singularity',
                 'docker',
-                'fmriprep-docker',
+                'petprep-docker',
             ):
                 boiler_file = Path('<OUTPUT_PATH>') / boiler_file.relative_to(
                     config.execution.output_dir
@@ -205,7 +205,7 @@ def main():
             config.loggers.workflow.log(25, f'Saving logs at: {config.execution.log_dir}')
             config.loggers.workflow.log(25, f'Carbon emissions: {emissions} kg')
 
-        from fmriprep.reports.core import generate_reports
+        from petprep.reports.core import generate_reports
 
         # Generate reports phase
         session_list = (

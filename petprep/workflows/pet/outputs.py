@@ -24,7 +24,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
@@ -37,70 +36,13 @@ from petprep.interfaces.bids import BIDSURI
 
 
 def prepare_timing_parameters(metadata: dict):
-    """Convert initial timing metadata to post-realignment timing metadata
+    """Convert initial timing metadata to derivative timing parameters.
 
-    In particular, SliceTiming metadata is invalid once STC or any realignment is applied,
-    as a matrix of voxels no longer corresponds to an acquisition slice.
-    Therefore, if SliceTiming is present in the metadata dictionary, and a sparse
-    acquisition paradigm is detected, DelayTime or AcquisitionDuration must be derived to
-    preserve the timing interpretation.
+    Slice timing information is ignored and outputs will always indicate that
+    slice timing correction was not performed.
 
     Examples
     --------
-
-    .. testsetup::
-
-        >>> from unittest import mock
-
-    If SliceTiming metadata is absent, then the only change is to note that
-    STC has not been applied:
-
-    >>> prepare_timing_parameters(dict(RepetitionTime=2))
-    {'RepetitionTime': 2, 'SliceTimingCorrected': False}
-    >>> prepare_timing_parameters(dict(RepetitionTime=2, DelayTime=0.5))
-    {'RepetitionTime': 2, 'DelayTime': 0.5, 'SliceTimingCorrected': False}
-    >>> prepare_timing_parameters(dict(VolumeTiming=[0.0, 1.0, 2.0, 5.0, 6.0, 7.0],
-    ...                                AcquisitionDuration=1.0))  #doctest: +NORMALIZE_WHITESPACE
-    {'VolumeTiming': [0.0, 1.0, 2.0, 5.0, 6.0, 7.0], 'AcquisitionDuration': 1.0,
-     'SliceTimingCorrected': False}
-
-    When SliceTiming is available and used, then ``SliceTimingCorrected`` is ``True``
-    and the ``StartTime`` indicates a series offset.
-
-    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
-    ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0, 0.2, 0.4, 0.6]))
-    {'RepetitionTime': 2, 'SliceTimingCorrected': True, 'DelayTime': 1.2, 'StartTime': 0.3}
-    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
-    ...     prepare_timing_parameters(
-    ...         dict(VolumeTiming=[0.0, 1.0, 2.0, 5.0, 6.0, 7.0],
-    ...              SliceTiming=[0.0, 0.2, 0.4, 0.6, 0.8]))  #doctest: +NORMALIZE_WHITESPACE
-    {'VolumeTiming': [0.0, 1.0, 2.0, 5.0, 6.0, 7.0], 'SliceTimingCorrected': True,
-     'AcquisitionDuration': 1.0, 'StartTime': 0.4}
-
-    When SliceTiming is available and not used, then ``SliceTimingCorrected`` is ``False``
-    and TA is indicated with ``DelayTime`` or ``AcquisitionDuration``.
-
-    >>> with mock.patch("fmriprep.config.workflow.ignore", ["slicetiming"]):
-    ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0, 0.2, 0.4, 0.6]))
-    {'RepetitionTime': 2, 'SliceTimingCorrected': False, 'DelayTime': 1.2}
-    >>> with mock.patch("fmriprep.config.workflow.ignore", ["slicetiming"]):
-    ...     prepare_timing_parameters(
-    ...         dict(VolumeTiming=[0.0, 1.0, 2.0, 5.0, 6.0, 7.0],
-    ...              SliceTiming=[0.0, 0.2, 0.4, 0.6, 0.8]))  #doctest: +NORMALIZE_WHITESPACE
-    {'VolumeTiming': [0.0, 1.0, 2.0, 5.0, 6.0, 7.0], 'SliceTimingCorrected': False,
-     'AcquisitionDuration': 1.0}
-
-    If SliceTiming metadata is present but empty, then treat it as missing:
-
-    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
-    ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[]))
-    {'RepetitionTime': 2, 'SliceTimingCorrected': False}
-    >>> with mock.patch("fmriprep.config.workflow.ignore", []):
-    ...     prepare_timing_parameters(dict(RepetitionTime=2, SliceTiming=[0.0]))
-    {'RepetitionTime': 2, 'SliceTimingCorrected': False}
-
-     If ``RepetitionTime`` is not provided, ``FrameTimesStart`` and
-    ``FrameDuration`` will be used to compute ``VolumeTiming``:
 
     >>> prepare_timing_parameters({'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4]})
     {'VolumeTiming': [0, 2, 6], 'AcquisitionDuration': [2, 4, 4], 'SliceTimingCorrected': False}
@@ -108,19 +50,14 @@ def prepare_timing_parameters(metadata: dict):
     timing_parameters = {
         key: metadata[key]
         for key in (
-            'RepetitionTime',
             'VolumeTiming',
-            'DelayTime',
             'AcquisitionDuration',
-            'SliceTiming',
             'FrameTimesStart',
             'FrameDuration',
         )
         if key in metadata
     }
 
-    # Treat SliceTiming of [] or length 1 as equivalent to missing and remove it in any case
-    slice_timing = timing_parameters.pop('SliceTiming', [])
     frame_times = timing_parameters.pop('FrameTimesStart', None)
     frame_duration = timing_parameters.pop('FrameDuration', None)
 
@@ -133,26 +70,7 @@ def prepare_timing_parameters(metadata: dict):
                 else:
                     timing_parameters.setdefault('AcquisitionDuration', frame_duration)
 
-    run_stc = len(slice_timing) > 1 and 'slicetiming' not in config.workflow.ignore
-    timing_parameters['SliceTimingCorrected'] = run_stc
-
-    if len(slice_timing) > 1:
-        st = sorted(slice_timing)
-        TA = st[-1] + (st[1] - st[0])  # Final slice onset + slice duration
-        # For constant TR paradigms, use DelayTime
-        if 'RepetitionTime' in timing_parameters:
-            TR = timing_parameters['RepetitionTime']
-            if not np.isclose(TR, TA) and TA < TR:
-                timing_parameters['DelayTime'] = TR - TA
-        # For variable TR paradigms, use AcquisitionDuration
-        elif 'VolumeTiming' in timing_parameters:
-            timing_parameters['AcquisitionDuration'] = TA
-
-        if run_stc:
-            first, last = st[0], st[-1]
-            frac = config.workflow.slice_time_ref
-            tzero = np.round(first + frac * (last - first), 3)
-            timing_parameters['StartTime'] = tzero
+    timing_parameters['SliceTimingCorrected'] = False
 
     return timing_parameters
 

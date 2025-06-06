@@ -34,12 +34,14 @@ def bids_root(tmp_path_factory):
 @pytest.mark.parametrize('task', ['rest'])
 @pytest.mark.parametrize('level', ['minimal', 'resampling', 'full'])
 @pytest.mark.parametrize('pet2anat_init', ['t1w', 't2w'])
+@pytest.mark.parametrize('freesurfer', [False, True])
 def test_pet_wf(
     bids_root: Path,
     tmp_path: Path,
     task: str,
     level: str,
     pet2anat_init: str,
+    freesurfer: bool,
 ):
     """Test as many combinations of precomputed files and input
     configurations as possible."""
@@ -53,9 +55,13 @@ def test_pet_wf(
             str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz'),
         ]
 
+
     # The workflow will attempt to read file headers
     for path in pet_series:
         img.to_filename(path)
+
+    # Toggle running recon-all
+    freesurfer = bool(freesurfer)
 
     with mock_config(bids_dir=bids_root):
         config.workflow.pet2anat_init = pet2anat_init

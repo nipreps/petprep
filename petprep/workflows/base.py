@@ -30,15 +30,12 @@ PETPrep base processing workflows
 """
 
 import os
-import re
 import sys
 import warnings
 from copy import deepcopy
 
-import bids
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
-from niworkflows.utils.connections import listify
 from packaging.version import Version
 
 from .. import config
@@ -146,7 +143,7 @@ def init_single_subject_wf(subject_id: str):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.bids import BIDSInfo, BIDSDataGrabber
+    from niworkflows.interfaces.bids import BIDSDataGrabber, BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.utils.bids import collect_data
@@ -199,8 +196,9 @@ It is released under the [CC0]\
 ### References
 
 """
-    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
     import copy
+
+    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 
     queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
     queries['t1w'].pop('datatype', None)
@@ -261,6 +259,7 @@ It is released under the [CC0]\
         BIDSDataGrabber(
             subject_data=subject_data,
             anat_only=config.workflow.anat_only,
+            require_pet=bool(subject_data['pet']),
             subject_id=subject_id,
             anat_derivatives=anatomical_cache if anatomical_cache else None,
         ),

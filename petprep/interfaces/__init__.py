@@ -4,6 +4,7 @@ from niworkflows.interfaces.bids import DerivativesDataSink as _DDSink
 
 from .cifti import GeneratePetCifti
 
+
 class DerivativesDataSink(_DDSink):
     out_path_base = ''
 

@@ -569,7 +569,7 @@ class VolumeToSurfaceMapping(WBCommand, OpenMPCommandMixin):
         intended to be larger than where the cylinder cutoff should have been.
 
     Examples:
-    >>> from fmriprep.interfaces.workbench import VolumeToSurfaceMapping
+    >>> from petprep.interfaces.workbench import VolumeToSurfaceMapping
     >>> vol2surf = VolumeToSurfaceMapping()
     >>> vol2surf.inputs.volume_file = 'bold.nii.gz'
     >>> vol2surf.inputs.surface_file = 'lh.midthickness.surf.gii'
@@ -659,7 +659,7 @@ class MetricMask(WBCommand):
 
     Examples
 
-    >>> from fmriprep.interfaces.workbench import MetricMask
+    >>> from petprep.interfaces.workbench import MetricMask
     >>> metric_mask = MetricMask()
     >>> metric_mask.inputs.in_file = 'lh.bold.func.gii'
     >>> metric_mask.inputs.mask = 'lh.roi.shape.gii'
@@ -725,7 +725,7 @@ class MetricFillHoles(WBCommand):
 
     Examples
 
-    >>> from fmriprep.interfaces.workbench import MetricFillHoles
+    >>> from petprep.interfaces.workbench import MetricFillHoles
     >>> fill_holes = MetricFillHoles()
     >>> fill_holes.inputs.surface_file = 'lh.midthickness.surf.gii'
     >>> fill_holes.inputs.metric_file = 'lh.roi.shape.gii'
@@ -792,7 +792,7 @@ class MetricRemoveIslands(WBCommand):
 
     Examples
 
-    >>> from fmriprep.interfaces.workbench import MetricRemoveIslands
+    >>> from petprep.interfaces.workbench import MetricRemoveIslands
     >>> remove_islands = MetricRemoveIslands()
     >>> remove_islands.inputs.surface_file = 'lh.midthickness.surf.gii'
     >>> remove_islands.inputs.metric_file = 'lh.roi.shape.gii'

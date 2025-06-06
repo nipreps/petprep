@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from nipype.pipeline import engine as pe
 
-from fmriprep.interfaces import confounds
+from petprep.interfaces import confounds
 
 
 def test_RenameACompCor(tmp_path, data_dir):

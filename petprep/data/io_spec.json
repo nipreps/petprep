@@ -2,20 +2,20 @@
   "queries": {
     "baseline": {
       "hmc": {
-        "datatype": "func",
+        "datatype": "pet",
         "space": null,
         "desc": "hmc",
-        "suffix": "boldref",
+        "suffix": "petref",
         "extension": [
           ".nii.gz",
           ".nii"
         ]
       },
       "coreg": {
-        "datatype": "func",
+        "datatype": "pet",
         "space": null,
         "desc": "coreg",
-        "suffix": "boldref",
+        "suffix": "petref",
         "extension": [
           ".nii.gz",
           ".nii"
@@ -24,16 +24,16 @@
     },
     "transforms": {
       "hmc": {
-        "datatype": "func",
+        "datatype": "pet",
         "from": "orig",
-        "to": "boldref",
+        "to": "petref",
         "mode": "image",
         "suffix": "xfm",
         "extension": ".txt"
       },
-      "boldref2anat": {
-        "datatype": "func",
-        "from": "boldref",
+      "petref2anat": {
+        "datatype": "pet",
+        "from": "petref",
         "to": ["anat", "T1w", "T2w"],
         "mode": "image",
         "suffix": "xfm",
@@ -42,9 +42,9 @@
     }
   },
   "patterns": [
-    "sub-{subject}[/ses-{session}]/{datatype<func>|func}/sub-{subject}[_ses-{session}]_task-{task}[_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_res-{res}][_label-{label}][_echo-{echo}][_space-{space}][_desc-{desc}]_{suffix<bold|boldref|dseg|mask>}.{extension<nii|nii.gz|json>|nii.gz}",
-    "sub-{subject}[/ses-{session}]/{datatype<func>|func}/sub-{subject}[_ses-{session}]_task-{task}[_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_run-{run}]_from-{from}_to-{to}_mode-{mode<image|points>|image}_{suffix<xfm>|xfm}.{extension<txt|h5>}",
-    "sub-{subject}[/ses-{session}]/{datatype<func>|func}/sub-{subject}[_ses-{session}]_task-{task}[_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_run-{run}][_part-{part}][_desc-{desc}]_{suffix<timeseries>}.{extension<tsv|json>}",
-    "sub-{subject}[/ses-{session}]/{datatype<func>|func}/sub-{subject}[_ses-{session}]_task-{task}[_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_space-{space}][_res-{res}][_den-{den}][_hemi-{hemi}[_label-{label}][_desc-{desc}]_{suffix<|boldref|dseg|mask>}.{extension<dtseries.nii|dtseries.json>}"
+    "sub-{subject}[/ses-{session}]/{datatype<func|pet>|pet}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_res-{res}][_label-{label}][_echo-{echo}][_space-{space}][_desc-{desc}]_{suffix<bold|boldref|pet|petref|dseg|mask>}.{extension<nii|nii.gz|json>|nii.gz}",
+    "sub-{subject}[/ses-{session}]/{datatype<func|pet>|pet}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_run-{run}]_from-{from}_to-{to}_mode-{mode<image|points>|image}_{suffix<xfm>|xfm}.{extension<txt|h5>}",
+    "sub-{subject}[/ses-{session}]/{datatype<func|pet>|pet}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_run-{run}][_part-{part}][_desc-{desc}]_{suffix<timeseries>}.{extension<tsv|json>}",
+    "sub-{subject}[/ses-{session}]/{datatype<func|pet>|pet}/sub-{subject}[_ses-{session}][_task-{task}][_acq-{acquisition}][_ce-{ceagent}][_rec-{reconstruction}][_space-{space}][_res-{res}][_den-{den}][_hemi-{hemi}[_label-{label}][_desc-{desc}]_{suffix<|boldref|petref|dseg|mask>}.{extension<dtseries.nii|dtseries.json>}"
   ]
 }

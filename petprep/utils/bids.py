@@ -35,16 +35,15 @@ from bids.layout import BIDSLayout
 from bids.utils import listify
 from packaging.version import Version
 
-from .. import config
 from ..data import load as load_data
 
 
 @cache
 def _get_layout(derivatives_dir: Path) -> BIDSLayout:
-    import niworkflows.data
+    from petprep.data import load as load_data
 
     return BIDSLayout(
-        derivatives_dir, config=[niworkflows.data.load('nipreps.json')], validate=False
+        derivatives_dir, config=[load_data('nipreps.json')], validate=False
     )
 
 
@@ -68,13 +67,13 @@ def collect_derivatives(
     derivs_cache = defaultdict(list, {})
     layout = _get_layout(derivatives_dir)
 
-    # search for both boldrefs
+    # search for both petrefs
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
-        derivs_cache[f'{k}_boldref'] = item[0] if len(item) == 1 else item
+        derivs_cache[f'{k}_petref'] = item[0] if len(item) == 1 else item
 
     transforms_cache = {}
     for xfm, q in spec['transforms'].items():
@@ -99,8 +98,8 @@ def write_bidsignore(deriv_dir):
         '*_xfm.*',  # Unspecified transform files
         '*.surf.gii',  # Unspecified structural outputs
         # Unspecified functional outputs
-        '*_boldref.nii.gz',
-        '*_bold.func.gii',
+        '*_petref.nii.gz',
+        '*_pet.pet.gii',
         '*_mixing.tsv',
         '*_timeseries.tsv',
     )
@@ -378,7 +377,7 @@ def _find_nearest_path(path_dict, input_path):
     --------
     >>> from pathlib import Path
     >>> path_dict = {
-    ...     'bids::': Path('/data/derivatives/fmriprep'),
+    ...     'bids::': Path('/data/derivatives/petprep'),
     ...     'bids:raw:': Path('/data'),
     ...     'bids:deriv-0:': Path('/data/derivatives/source-1'),
     ... }
