@@ -48,9 +48,19 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
 
         convert = seg_wf.get_node('convert_gtmseg')
         ds = seg_wf.get_node('ds_gtmseg')
+        dseg_tsv = seg_wf.get_node('ds_gtmdsegtsv')
+        morph_tsv = seg_wf.get_node('ds_gtmmorphtsv')
 
         assert isinstance(convert.interface, MRIConvert)
         assert convert.interface.out_type == 'niigz'
         assert isinstance(ds.interface, DerivativesDataSink)
         assert ds.interface.inputs.desc == 'gtm'
         assert ds.interface.inputs.suffix == 'dseg'
+        assert isinstance(dseg_tsv.interface, DerivativesDataSink)
+        assert dseg_tsv.interface.inputs.desc == 'gtm'
+        assert dseg_tsv.interface.inputs.suffix == 'dseg'
+        assert dseg_tsv.interface.inputs.extension == '.tsv'
+        assert isinstance(morph_tsv.interface, DerivativesDataSink)
+        assert morph_tsv.interface.inputs.desc == 'gtm'
+        assert morph_tsv.interface.inputs.suffix == 'morph'
+        assert morph_tsv.interface.inputs.extension == '.tsv'

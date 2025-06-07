@@ -189,7 +189,8 @@ and ``limbic``.
 
 Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
 ``*_desc-gtm_dseg.nii.gz`` file written to the subject's anatomical derivatives
-directory.
+directory.  It also generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv``
+tables containing segmentation statistics.
 
 Troubleshooting
 ---------------

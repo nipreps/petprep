@@ -10,6 +10,8 @@ from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
 
+from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
+
 
 SEGMENTATION_CMDS = {
     'gtm': 'gtmseg',
@@ -35,13 +37,12 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
         name='inputnode',
     )
-    outputnode = pe.Node(
-        niu.IdentityInterface(fields=['segmentation']), name='outputnode'
-    )
+    outputnode = pe.Node(niu.IdentityInterface(fields=['segmentation']), name='outputnode')
 
     # This node is just a placeholder for the actual FreeSurfer command
     seg_node = (
-        pe.Node(GTMSeg(), name=f'run_{seg}') if seg == 'gtm'
+        pe.Node(GTMSeg(), name=f'run_{seg}')
+        if seg == 'gtm'
         else pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
     )
 
@@ -79,6 +80,45 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
 
+        mk_dseg_tsv = pe.Node(
+            niu.Function(
+                function=gtm_to_dsegtsv,
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['out_file'],
+            ),
+            name='make_gtmdsegtsv',
+        )
+        mk_morph_tsv = pe.Node(
+            niu.Function(
+                function=gtm_stats_to_stats,
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['out_file'],
+            ),
+            name='make_gtmmorphtsv',
+        )
+        ds_dseg_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='gtm',
+                suffix='dseg',
+                extension='.tsv',
+            ),
+            name='ds_gtmdsegtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_morph_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='gtm',
+                suffix='morph',
+                extension='.tsv',
+            ),
+            name='ds_gtmmorphtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
@@ -87,6 +127,22 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
                 (sources, ds_seg, [('out', 'Sources')]),
                 (ds_seg, outputnode, [('out_file', 'segmentation')]),
+                (
+                    inputnode,
+                    mk_dseg_tsv,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (
+                    inputnode,
+                    mk_morph_tsv,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (mk_dseg_tsv, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (mk_morph_tsv, ds_morph_tsv, [('out_file', 'in_file')]),
+                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
+                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
+                (sources, ds_dseg_tsv, [('out', 'Sources')]),
+                (sources, ds_morph_tsv, [('out', 'Sources')]),
             ]
         )
     else:
