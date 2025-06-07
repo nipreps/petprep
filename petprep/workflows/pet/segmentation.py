@@ -21,11 +21,26 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=['t1w_preproc']), name='inputnode')
+    inputnode = pe.Node(
+        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        name='inputnode',
+    )
     outputnode = pe.Node(niu.IdentityInterface(fields=['segmentation']), name='outputnode')
 
     # This node is just a placeholder for the actual FreeSurfer command
-    seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
+    seg_node = pe.Node(
+        niu.IdentityInterface(fields=['segmentation', 'subjects_dir', 'subject_id']),
+        name=f'run_{seg}',
+    )
+
+    workflow.connect(
+        [
+            (inputnode, seg_node, [
+                ('subjects_dir', 'subjects_dir'),
+                ('subject_id', 'subject_id'),
+            ])
+        ]
+    )
 
     workflow.connect([(inputnode, seg_node, [])])
     workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])

@@ -245,7 +245,11 @@ configured with cubic B-spline interpolation.
             ('subject_id', 'inputnode.subject_id'),
             ('fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm'),
         ]),
-        (inputnode, seg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
+        (inputnode, seg_wf, [
+            ('t1w_preproc', 'inputnode.t1w_preproc'),
+            ('subject_id', 'inputnode.subject_id'),
+            ('subjects_dir', 'inputnode.subjects_dir'),
+        ]),
     ])  # fmt:skip
 
     if config.workflow.level == 'minimal':
