@@ -33,4 +33,13 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         config.workflow.seg = seg
         wf = init_pet_wf(pet_series=pet_series, precomputed={})
 
-    assert wf.get_node(f'pet_{seg}_seg_wf') is not None
+    seg_wf = wf.get_node(f'pet_{seg}_seg_wf')
+    assert seg_wf is not None
+
+    if seg == 'gtm':
+        run_gtm = seg_wf.get_node('run_gtm')
+        from nipype.interfaces.freesurfer.petsurfer import GTMSeg
+
+        assert isinstance(run_gtm.interface, GTMSeg)
+        assert hasattr(run_gtm.inputs, 'subject_id')
+        assert hasattr(run_gtm.inputs, 'subjects_dir')
