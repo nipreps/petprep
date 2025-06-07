@@ -1,19 +1,23 @@
+import re
 import shutil
 from pathlib import Path
 
 import pytest
 import templateflow.api as tf
-from looseversion import LooseVersion
 from nipype.interfaces import fsl
+from packaging.version import Version
 
 fslversion = fsl.Info.version()
+_fslver_num = None
+if fslversion:
+    match = re.match(r'[0-9.]+', fslversion)
+    if match:
+        _fslver_num = match.group()
 TEMPLATE = tf.get('MNI152NLin2009cAsym', resolution=2, desc=None, suffix='T1w')
 
 
-@pytest.mark.skipif(fslversion is None, reason='fsl required')
-@pytest.mark.skipif(
-    fslversion and LooseVersion(fslversion) < LooseVersion('6.0.0'), reason='FSL6 test'
-)
+@pytest.mark.skipif(_fslver_num is None, reason='fsl required')
+@pytest.mark.skipif(_fslver_num and Version(_fslver_num) < Version('6.0.0'), reason='FSL6 test')
 @pytest.mark.parametrize(
     ('path_parent', 'filename'),
     [

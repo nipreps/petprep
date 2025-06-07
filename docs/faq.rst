@@ -322,25 +322,3 @@ Note that any discrepancies between the pre-indexed database and
 the BIDS dataset complicate the provenance of PETPrep derivatives.
 If ``--bids-database-dir`` is used, the referenced directory should be
 preserved for the sake of reporting and reproducibility.
-
-Error in slice timing correction: *insufficient length of BOLD data after discarding nonsteady-states*
-------------------------------------------------------------------------------------------------------
-Typically, the scanner will be in a *nonsteady state* during a few initial time points of the acquisition,
-until it stabilizes.
-These *nonsteady states* (also called *dummy* scans) typically show greater T1 contrast and higher average
-intensity, and therefore potentially are detrimental if used in the interpolation of slice timing corrections.
-Hence, *nonsteady states* are discarded by the slice timing correction tool (in this case, AFNI's ``3dTShift``).
-However, ``3dTShift`` requires that at least five (5) time points are present in the target series, after
-dismissing the initial *nonsteady states*.
-
-*PETPrep* estimates the number of *nonsteady states* within the pipeline, unless the parameter is provided
-by the user with the argument ``--dummy-scans <num>``.
-Either way, if the number of *nonsteady states* is, say 4, then the length of the BOLD series must be greater
-than 8.
-If you encounter this error, first check that the number of *nonsteady states* is not suspiciously large
-(it typically ranges from zero to five).
-Next, if the number of *nonsteady states* is reasonable, consider why your BOLD time series are so short
-and whether slice timing correction is appropriate under these conditions.
-Finally, you can either skip the slice-timing correction with the argument ``--ignore slicetiming`` or
-enforce a number of *nonsteady states* lower than the maximum for your data with ``--dummy-scans <num>``.
-Please note that both strategies will apply to all tasks and runs that are to be processed.

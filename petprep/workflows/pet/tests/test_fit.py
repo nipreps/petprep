@@ -6,7 +6,6 @@ import pytest
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
-from .... import config
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..fit import init_pet_fit_wf, init_pet_native_wf
@@ -74,10 +73,13 @@ def test_pet_fit_precomputes(
     img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
 
     if task == 'rest':
-        pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+        pet_series = [
+            str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+        ]
 
     # The workflow will attempt to read file headers
-    img.to_filename(pet_file)
+    for path in pet_series:
+        img.to_filename(path)
 
     dummy_nifti = str(tmp_path / 'dummy.nii')
     dummy_affine = str(tmp_path / 'dummy.txt')
@@ -95,7 +97,7 @@ def test_pet_fit_precomputes(
 
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(
-            pet_file=pet_file,
+            pet_series=pet_series,
             precomputed=precomputed,
             omp_nthreads=1,
         )
@@ -104,13 +106,12 @@ def test_pet_fit_precomputes(
     generate_expanded_graph(flatgraph)
 
 
-@pytest.mark.parametrize('task', ['rest', 'nback'])
-@pytest.mark.parametrize('run_stc', [True, False])
+@pytest.mark.parametrize('task', ['rest'])
+
 def test_pet_native_precomputes(
     bids_root: Path,
     tmp_path: Path,
     task: str,
-    run_stc: bool,
 ):
     """Test as many combinations of precomputed files and input
     configurations as possible."""
@@ -120,15 +121,17 @@ def test_pet_native_precomputes(
     img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
 
     if task == 'rest':
-        pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+        pet_series = [
+            str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+        ]
 
     # The workflow will attempt to read file headers
-    img.to_filename(pet_file)
+    for path in pet_series:
+        img.to_filename(path)
 
     with mock_config(bids_dir=bids_root):
-        config.workflow.ignore = ['slicetiming'] if not run_stc else []
         wf = init_pet_native_wf(
-            pet_file=pet_file,
+            pet_series=pet_series,
             omp_nthreads=1,
         )
 
@@ -138,12 +141,19 @@ def test_pet_native_precomputes(
 
 def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     """Ensure the PET mask is generated and connected correctly."""
-    pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    pet_series = [
+        str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    ]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
-    img.to_filename(pet_file)
+
+    for path in pet_series:
+        img.to_filename(path)
 
     with mock_config(bids_dir=bids_root):
-        wf = init_pet_fit_wf(pet_file=pet_file, precomputed={}, omp_nthreads=1)
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={},
+            omp_nthreads=1)
 
     assert 'merge_mask' in wf.list_node_names()
     assert 'ds_petmask_wf.ds_petmask' in wf.list_node_names()
@@ -158,12 +168,19 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 
 def test_petref_report_connections(bids_root: Path, tmp_path: Path):
     """Ensure the PET reference is passed to the reports workflow."""
-    pet_file = str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    pet_series = [
+        str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    ]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
-    img.to_filename(pet_file)
+
+    for path in pet_series:
+        img.to_filename(path)
 
     with mock_config(bids_dir=bids_root):
-        wf = init_pet_fit_wf(pet_file=pet_file, precomputed={}, omp_nthreads=1)
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={},
+            omp_nthreads=1)
 
     petref_buffer = wf.get_node('petref_buffer')
     edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))

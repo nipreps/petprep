@@ -75,7 +75,7 @@ def init_pet_wf(
 
     Parameters
     ----------
-    pet_file
+    pet_series
         List of paths to NIfTI files.
     precomputed
         Dictionary containing precomputed derivatives to reuse, if possible.
@@ -150,21 +150,22 @@ def init_pet_wf(
 
     if precomputed is None:
         precomputed = {}
-    pet_file = pet_series
+    pet_series = listify(pet_series)
+    pet_file = pet_series[0]
 
     petprep_dir = config.execution.petprep_dir
     omp_nthreads = config.nipype.omp_nthreads
     all_metadata = [config.execution.layout.get_metadata(file) for file in pet_series]
 
     nvols, mem_gb = estimate_pet_mem_usage(pet_file)
-    if nvols <= 5 - config.execution.sloppy:
+    if nvols <= 1 - config.execution.sloppy:
         config.loggers.workflow.warning(
             f'Too short PET series (<= 5 timepoints). Skipping processing of <{pet_file}>.'
         )
         return
 
     config.loggers.workflow.debug(
-        'Creating pet processing workflow for <%s> (%.2f GB / %d TRs). '
+        'Creating pet processing workflow for <%s> (%.2f GB / %d frames). '
         'Memory resampled/largemem=%.2f/%.2f GB.',
         pet_file,
         mem_gb['filesize'],
@@ -224,7 +225,7 @@ configured with cubic B-spline interpolation.
     #
 
     pet_fit_wf = init_pet_fit_wf(
-        pet_file=pet_file,
+        pet_series=pet_series,
         precomputed=precomputed,
         omp_nthreads=omp_nthreads,
     )
@@ -254,7 +255,7 @@ configured with cubic B-spline interpolation.
     #
 
     pet_native_wf = init_pet_native_wf(
-        pet_file=pet_file,
+        pet_series=pet_series,
         omp_nthreads=omp_nthreads,
     )
 
@@ -354,7 +355,7 @@ configured with cubic B-spline interpolation.
             metadata=all_metadata[0],
             name='ds_pet_std_wf',
         )
-        ds_pet_std_wf.inputs.inputnode.source_files = pet_file
+        ds_pet_std_wf.inputs.inputnode.source_files = pet_series
 
         workflow.connect([
             (inputnode, pet_std_wf, [

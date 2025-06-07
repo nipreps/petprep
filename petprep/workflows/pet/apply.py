@@ -27,6 +27,8 @@ def init_pet_volumetric_resample_wf(
 
     Parameters
     ----------
+    metadata
+        BIDS metadata for PET file.
     omp_nthreads
         Maximum number of threads an individual process may use.
     name

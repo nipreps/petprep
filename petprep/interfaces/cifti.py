@@ -1,31 +1,38 @@
+import json
 from pathlib import Path
 
+from nipype.interfaces.base import (
+    BaseInterfaceInputSpec,
+    File,
+    SimpleInterface,
+    traits,
+)
 from niworkflows.interfaces.cifti import (
+    _create_cifti_image,
     _GenerateCiftiOutputSpec,
     _prepare_cifti,
-    _create_cifti_image,
 )
-from nipype.interfaces.base import BaseInterfaceInputSpec, File, SimpleInterface, TraitedSpec, traits
 
 
 class _GeneratePetCiftiInputSpec(BaseInterfaceInputSpec):
-    pet_file = File(mandatory=True, exists=True, desc="input PET file")
+    pet_file = File(mandatory=True, exists=True, desc='input PET file')
     volume_target = traits.Enum(
-        "MNI152NLin6Asym",
+        'MNI152NLin6Asym',
         usedefault=True,
-        desc="CIFTI volumetric output space",
+        desc='CIFTI volumetric output space',
     )
     surface_target = traits.Enum(
-        "fsLR",
+        'fsLR',
         usedefault=True,
-        desc="CIFTI surface target space",
+        desc='CIFTI surface target space',
     )
-    grayordinates = traits.Enum("91k", "170k", usedefault=True, desc="Final CIFTI grayordinates")
-    TR = traits.Float(mandatory=True, desc="Repetition time")
+    grayordinates = traits.Enum(
+        '91k', '170k', usedefault=True, desc='Final CIFTI grayordinates'
+    )
     surface_pets = traits.List(
         File(exists=True),
         mandatory=True,
-        desc="list of surface PET GIFTI files (length 2 with order [L,R])",
+        desc='list of surface PET GIFTI files (length 2 with order [L,R])',
     )
 
 
@@ -37,18 +44,18 @@ class GeneratePetCifti(SimpleInterface):
 
     def _run_interface(self, runtime):
         surface_labels, volume_labels, metadata = _prepare_cifti(self.inputs.grayordinates)
-        self._results["out_file"] = _create_cifti_image(
+        self._results['out_file'] = _create_cifti_image(
             self.inputs.pet_file,
             volume_labels,
             self.inputs.surface_pets,
             surface_labels,
-            self.inputs.TR,
+            1.0,
             metadata,
         )
-        metadata_file = Path("pet.dtseries.json").absolute()
+        metadata_file = Path('pet.dtseries.json').absolute()
         metadata_file.write_text(json.dumps(metadata, indent=2))
-        self._results["out_metadata"] = str(metadata_file)
+        self._results['out_metadata'] = str(metadata_file)
         return runtime
 
 
-__all__ = ("GeneratePetCifti",)
+__all__ = ('GeneratePetCifti',)
