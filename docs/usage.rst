@@ -187,6 +187,10 @@ segmentation routines.  Supported choices are ``gtm`` (default),
 ``brainstem``, ``thalamicNuclei``, ``hippocampusAmygdala``, ``wm``, ``raphe``
 and ``limbic``.
 
+Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
+``gtmseg.mgz``.  This file is
+written to the subject's anatomical derivatives directory.
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the
