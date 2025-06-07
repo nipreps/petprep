@@ -74,6 +74,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 base_directory=config.execution.petprep_dir,
                 desc='gtm',
                 suffix='dseg',
+                compress=True,
             ),
             name='ds_gtmseg',
             run_without_submitting=True,
@@ -122,6 +123,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
+                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),

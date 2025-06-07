@@ -292,7 +292,8 @@ created for the selected routine. For example, ``--seg brainstem`` will produce
 ``desc-brainstem_dseg.nii.gz`` in the anatomical directory.
 ``--seg gtm`` runs FreeSurfer's ``gtmseg`` and saves
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.nii.gz``.
-The segmentation statistics are stored in
+This file is resampled to match the orientation and resolution of the native
+T1-weighted images. The segmentation statistics are stored in
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.tsv`` and
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_morph.tsv``.
 

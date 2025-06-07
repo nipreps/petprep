@@ -56,6 +56,7 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert isinstance(ds.interface, DerivativesDataSink)
         assert ds.interface.inputs.desc == 'gtm'
         assert ds.interface.inputs.suffix == 'dseg'
+        assert ds.interface.inputs.compress is True
         assert isinstance(dseg_tsv.interface, DerivativesDataSink)
         assert dseg_tsv.interface.inputs.desc == 'gtm'
         assert dseg_tsv.interface.inputs.suffix == 'dseg'
@@ -64,3 +65,5 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert morph_tsv.interface.inputs.desc == 'gtm'
         assert morph_tsv.interface.inputs.suffix == 'morph'
         assert morph_tsv.interface.inputs.extension == '.tsv'
+        edge = seg_wf._graph.get_edge_data(seg_wf.get_node('inputnode'), convert)
+        assert ('t1w_preproc', 'reslice_like') in edge['connect']

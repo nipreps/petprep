@@ -188,8 +188,8 @@ segmentation routines.  Supported choices are ``gtm`` (default),
 and ``limbic``.
 
 Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
-``*_desc-gtm_dseg.nii.gz`` file written to the subject's anatomical derivatives
-directory.  It also generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv``
+directory. The segmentation is resampled to match the native anatomical image
+resolution. It also generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv``
 tables containing segmentation statistics.
 
 Troubleshooting
