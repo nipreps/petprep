@@ -1,6 +1,7 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 """Segmentation workflows."""
 from nipype.interfaces import utility as niu
+from nipype.interfaces.freesurfer.petsurfer import GTMSeg
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -17,7 +18,11 @@ SEGMENTATION_CMDS = {
 
 
 def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
-    """Return a minimal segmentation workflow selecting a FreeSurfer command."""
+    """Return a minimal segmentation workflow selecting a FreeSurfer command.
+
+    When ``seg`` is ``'gtm'``, the workflow runs FreeSurfer's ``gtmseg`` utility.
+    In that case, ``subjects_dir`` and ``subject_id`` inputs must be provided.
+    """
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
 
@@ -28,21 +33,17 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     outputnode = pe.Node(niu.IdentityInterface(fields=['segmentation']), name='outputnode')
 
     # This node is just a placeholder for the actual FreeSurfer command
-    seg_node = pe.Node(
-        niu.IdentityInterface(fields=['segmentation', 'subjects_dir', 'subject_id']),
-        name=f'run_{seg}',
+    seg_node = (
+        pe.Node(GTMSeg(), name=f'run_{seg}') if seg == 'gtm'
+        else pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
     )
 
-    workflow.connect(
-        [
-            (inputnode, seg_node, [
-                ('subjects_dir', 'subjects_dir'),
-                ('subject_id', 'subject_id'),
-            ])
-        ]
-    )
-
-    workflow.connect([(inputnode, seg_node, [])])
+    if seg == 'gtm':
+        workflow.connect(
+            [(inputnode, seg_node, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')])]
+        )
+    else:
+        workflow.connect([(inputnode, seg_node, [])])
     workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
 
     return workflow
