@@ -39,7 +39,18 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
     if seg == 'gtm':
         run_gtm = seg_wf.get_node('run_gtm')
         from nipype.interfaces.freesurfer.petsurfer import GTMSeg
+        from nipype.interfaces.freesurfer import MRIConvert
+        from ....interfaces import DerivativesDataSink
 
         assert isinstance(run_gtm.interface, GTMSeg)
         assert hasattr(run_gtm.inputs, 'subject_id')
         assert hasattr(run_gtm.inputs, 'subjects_dir')
+
+        convert = seg_wf.get_node('convert_gtmseg')
+        ds = seg_wf.get_node('ds_gtmseg')
+
+        assert isinstance(convert.interface, MRIConvert)
+        assert convert.interface.out_type == 'niigz'
+        assert isinstance(ds.interface, DerivativesDataSink)
+        assert ds.interface.inputs.desc == 'gtm'
+        assert ds.interface.inputs.suffix == 'dseg'

@@ -188,8 +188,8 @@ segmentation routines.  Supported choices are ``gtm`` (default),
 and ``limbic``.
 
 Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
-``gtmseg.mgz``.  This file is
-written to the subject's anatomical derivatives directory.
+``*_desc-gtm_dseg.nii.gz`` file written to the subject's anatomical derivatives
+directory.
 
 Troubleshooting
 ---------------
