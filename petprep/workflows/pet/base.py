@@ -37,6 +37,7 @@ from niworkflows.utils.connections import listify
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...utils.misc import estimate_pet_mem_usage
+from .segmentation import init_segmentation_wf
 
 # PET workflows
 from .apply import init_pet_volumetric_resample_wf
@@ -230,6 +231,11 @@ configured with cubic B-spline interpolation.
         omp_nthreads=omp_nthreads,
     )
 
+    seg_wf = init_segmentation_wf(
+        seg=config.workflow.seg,
+        name=f'pet_{config.workflow.seg}_seg_wf',
+    )
+
     workflow.connect([
         (inputnode, pet_fit_wf, [
             ('t1w_preproc', 'inputnode.t1w_preproc'),
@@ -239,6 +245,7 @@ configured with cubic B-spline interpolation.
             ('subject_id', 'inputnode.subject_id'),
             ('fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm'),
         ]),
+        (inputnode, seg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
     ])  # fmt:skip
 
     if config.workflow.level == 'minimal':

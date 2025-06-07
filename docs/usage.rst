@@ -180,6 +180,13 @@ This feature has several intended use-cases:
 See also the ``--level`` flag, which can be used to control which derivatives are
 generated.
 
+Segmentation choices
+--------------------
+The ``--seg`` command-line flag allows selecting one of several FreeSurfer
+segmentation routines.  Supported choices are ``gtm`` (default),
+``brainstem``, ``thalamicNuclei``, ``hippocampusAmygdala``, ``wm``, ``raphe``
+and ``limbic``.
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the

@@ -287,6 +287,10 @@ mid-thickness surface mesh::
       sub-<subject_label>_[specifiers]_space-T1w_desc-aseg_dseg.nii.gz
       sub-<subject_label>_[specifiers]_hemi-[LR]_space-<space_label>_bold.func.gii
 
+When the ``--seg`` option is used, additional segmentation derivatives are
+created for the selected routine. For example, ``--seg brainstem`` will produce
+``desc-brainstem_dseg.nii.gz`` in the anatomical directory.
+
 Surface output spaces include ``fsnative`` (full density subject-specific mesh),
 ``fsaverage`` and the down-sampled meshes ``fsaverage6`` (41k vertices) and
 ``fsaverage5`` (10k vertices, default).

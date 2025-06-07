@@ -223,3 +223,27 @@ def test_derivatives(tmp_path):
         parser.parse_args(temp_args)
 
     _reset_config()
+
+
+@pytest.mark.parametrize('seg', [
+    'gtm',
+    'brainstem',
+    'thalamicNuclei',
+    'hippocampusAmygdala',
+    'wm',
+    'raphe',
+    'limbic',
+])
+def test_segmentation_option(tmp_path, minimal_bids, seg):
+    out_dir = tmp_path / 'out'
+    args = [
+        str(minimal_bids),
+        str(out_dir),
+        'participant',
+        '--seg',
+        seg,
+        '--skip-bids-validation',
+    ]
+    opts = _build_parser().parse_args(args)
+    assert opts.seg == seg
+    _reset_config()
