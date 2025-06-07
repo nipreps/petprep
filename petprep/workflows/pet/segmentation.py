@@ -60,7 +60,10 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect([(inputnode, seg_node, [])])
 
     if seg == 'gtm':
-        convert_seg = pe.Node(MRIConvert(out_type='niigz'), name='convert_gtmseg')
+        convert_seg = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_gtmseg',
+        )
         sources = pe.Node(
             BIDSURI(
                 numinputs=1,
@@ -103,6 +106,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 desc='gtm',
                 suffix='dseg',
                 extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
             ),
             name='ds_gtmdsegtsv',
             run_without_submitting=True,
@@ -114,6 +119,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 desc='gtm',
                 suffix='morph',
                 extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
             ),
             name='ds_gtmmorphtsv',
             run_without_submitting=True,

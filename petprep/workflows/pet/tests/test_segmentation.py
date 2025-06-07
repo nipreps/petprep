@@ -61,9 +61,24 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert dseg_tsv.interface.inputs.desc == 'gtm'
         assert dseg_tsv.interface.inputs.suffix == 'dseg'
         assert dseg_tsv.interface.inputs.extension == '.tsv'
+        assert dseg_tsv.interface.inputs.datatype == 'anat'
         assert isinstance(morph_tsv.interface, DerivativesDataSink)
         assert morph_tsv.interface.inputs.desc == 'gtm'
         assert morph_tsv.interface.inputs.suffix == 'morph'
         assert morph_tsv.interface.inputs.extension == '.tsv'
         edge = seg_wf._graph.get_edge_data(seg_wf.get_node('inputnode'), convert)
         assert ('t1w_preproc', 'reslice_like') in edge['connect']
+        assert morph_tsv.interface.inputs.datatype == 'anat'
+
+        tmp_tsv = tmp_path / 'tmp.tsv'
+        tmp_tsv.write_text('index\tval')
+
+        for node in (dseg_tsv, morph_tsv):
+            node.base_dir = tmp_path
+            node.inputs.in_file = str(tmp_tsv)
+            node.inputs.source_file = str(bids_root / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz')
+            node.interface._file_patterns = (
+                'sub-{subject}/anat/sub-{subject}_desc-{desc}_{suffix}{extension}',
+            )
+            result = node.run()
+            assert 'sub-01/anat/sub-01_desc-gtm_' in result.outputs.out_file
