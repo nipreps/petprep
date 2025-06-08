@@ -31,7 +31,7 @@ def _read_stats_table(stats_file: str | Path) -> pd.DataFrame:
 
 
 def gtm_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
-    """Generate a TSV table summarizing GTM segmentation volumes."""
+    """Generate a TSV table describing GTM segmentation labels."""
     from pathlib import Path
 
     import pandas as pd  # noqa: F401
@@ -41,10 +41,9 @@ def gtm_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
     gtm_stats = Path(subjects_dir) / subject_id / 'stats' / 'gtmseg.stats'
     df = _read_stats_table(gtm_stats)
 
-    # Normalize column names to lowercase for easier matching
+    # Normalize column names for ease of access
     df.columns = [col.lower() for col in df.columns]
 
-    # Use the ``segid`` column when present and drop FreeSurfer's ``index``
     if 'segid' in df.columns:
         segid = df.pop('segid')
         if 'index' in df.columns:
@@ -53,13 +52,9 @@ def gtm_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
     elif 'index' not in df.columns:
         raise ValueError('No "segid" or "index" column found in stats table')
 
-    # Determine the column names for the region name and volume
     name_col = 'name' if 'name' in df.columns else 'structname'
-    vol_col = 'volume_mm3' if 'volume_mm3' in df.columns else 'volume'
 
-    df = df[['index', name_col, vol_col]].rename(
-        columns={name_col: 'name', vol_col: 'volume-mm3'}
-    )
+    df = df[['index', name_col]].rename(columns={name_col: 'name'})
 
     out_file = gtm_stats.with_name('gtmseg_dseg.tsv')
     df.to_csv(out_file, sep='\t', index=False)

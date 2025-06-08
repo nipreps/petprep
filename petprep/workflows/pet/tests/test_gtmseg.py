@@ -32,7 +32,8 @@ def test_gtmseg_functions_via_niu(tmp_path: Path):
     res = node.run()
     out_file = Path(res.outputs.out_file)
     assert out_file.exists()
-    assert out_file.read_text().startswith('Index')
+    header1 = out_file.read_text().splitlines()[0]
+    assert header1 == 'index\tname'
 
     node2 = niu.Function(
         function=gtm_stats_to_stats,
