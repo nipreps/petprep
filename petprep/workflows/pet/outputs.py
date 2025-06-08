@@ -47,6 +47,8 @@ def prepare_timing_parameters(metadata: dict):
     >>> prepare_timing_parameters({'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4]})
     {'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4], 'SliceTimingCorrected': False}
     """
+    import numpy as np
+
     timing_parameters = {
         key: metadata[key]
         for key in (
@@ -61,6 +63,13 @@ def prepare_timing_parameters(metadata: dict):
     frame_times = timing_parameters.pop('FrameTimesStart', None)
     volume_timing = timing_parameters.pop('VolumeTiming', None)
     frame_duration = timing_parameters.pop('FrameDuration', None)
+
+    if frame_times is not None and frame_duration is not None:
+        mid_frame_times = (
+            np.asanyarray(frame_times, dtype=float)
+            + np.asanyarray(frame_duration, dtype=float) / 2
+        )
+        timing_parameters['MidFrameTimes'] = mid_frame_times.tolist()
 
     acquisition_duration = timing_parameters.pop('AcquisitionDuration', None)
 

@@ -570,6 +570,7 @@ Confounds estimation
         metadata={
             "FrameTimesStart": [0, 2, 4, 6],
             "FrameDuration": [2, 2, 2, 2],
+            "MidFrameTimes": [1, 3, 5, 7],
         },
         regressors_all_comps=False,
         regressors_dvars_th=1.5,
