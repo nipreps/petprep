@@ -300,6 +300,9 @@ PET resolution. The segmentation statistics are stored in
 ``sub-<subject_label>/pet/sub-<subject_label>_desc-gtm_tacs.tsv`` stores the
 time-activity curves extracted from the GTM regions.
 
+Single-frame (3D) and multi-frame (4D) PET images are supported; a
+single-frame image will produce a table with one row.
+
 Surface output spaces include ``fsnative`` (full density subject-specific mesh),
 ``fsaverage`` and the down-sampled meshes ``fsaverage6`` (41k vertices) and
 ``fsaverage5`` (10k vertices, default).

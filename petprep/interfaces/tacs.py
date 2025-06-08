@@ -12,7 +12,11 @@ from nipype.utils.filemanip import fname_presuffix
 
 
 class ExtractTACsInputSpec(BaseInterfaceInputSpec):
-    pet_file = File(exists=True, mandatory=True, desc='4D PET series')
+    pet_file = File(
+        exists=True,
+        mandatory=True,
+        desc='3D or 4D PET image',
+    )
     segmentation = File(exists=True, mandatory=True, desc='Segmentation in PET space')
     dseg_tsv = File(exists=True, mandatory=True, desc='Segmentation TSV file')
     metadata = traits.Dict(desc='PET metadata')
@@ -24,7 +28,10 @@ class ExtractTACsOutputSpec(TraitedSpec):
 
 
 class ExtractTACs(SimpleInterface):
-    """Extract time-activity curves from a segmentation."""
+    """Extract time-activity curves from a segmentation.
+
+    Both 3D (single-frame) and 4D PET images are accepted.
+    """
 
     input_spec = ExtractTACsInputSpec
     output_spec = ExtractTACsOutputSpec
@@ -34,6 +41,13 @@ class ExtractTACs(SimpleInterface):
         seg_img = nb.load(self.inputs.segmentation)
 
         pet_data = np.asanyarray(pet_img.dataobj)
+        if pet_data.ndim == 3:
+            pet_data = pet_data[..., np.newaxis]
+        if pet_data.ndim != 4:
+            raise RuntimeError(
+                f"Expected a 3D or 4D PET image, got {pet_data.ndim} dimensions"
+            )
+
         seg_data = np.asanyarray(seg_img.dataobj).astype(int)
 
         df_labels = pd.read_csv(self.inputs.dseg_tsv, sep='\t')
@@ -45,13 +59,18 @@ class ExtractTACs(SimpleInterface):
         frame_starts = meta.get('FrameTimesStart')
         frame_durs = meta.get('FrameDuration')
 
+        if not isinstance(frame_starts, (list, tuple)) and frame_starts is not None:
+            frame_starts = [frame_starts]
+        if not isinstance(frame_durs, (list, tuple)) and frame_durs is not None:
+            frame_durs = [frame_durs]
+
         if frame_starts is None:
-            frame_starts = list(range(nframes))
+            frame_starts = [0] if nframes == 1 else list(range(nframes))
         if frame_durs is None:
             frame_durs = [1] * nframes
 
-        frame_starts = frame_starts[:nframes]
-        frame_durs = frame_durs[:nframes]
+        frame_starts = list(frame_starts)[:nframes]
+        frame_durs = list(frame_durs)[:nframes]
         frame_ends = [s + d for s, d in zip(frame_starts, frame_durs, strict=False)]
 
         out_df = pd.DataFrame(

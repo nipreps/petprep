@@ -12,7 +12,8 @@ def test_extract_tacs(tmp_path):
         [
             [[1, 1], [2, 2]],
             [[1, 1], [2, 2]],
-        ]
+        ],
+        dtype=np.int16,
     )
     pet_data[..., 0] = seg
     pet_data[..., 1] = seg * 2
@@ -40,3 +41,35 @@ def test_extract_tacs(tmp_path):
     assert list(out_df.columns) == ['FrameTimeStart', 'FrameTimesEnd', 'region1', 'region2']
     assert np.allclose(out_df['region1'], [1, 2])
     assert np.allclose(out_df['region2'], [2, 4])
+
+
+def test_extract_tacs_single_frame(tmp_path):
+    seg = np.array(
+        [
+            [[1, 1], [2, 2]],
+            [[1, 1], [2, 2]],
+        ],
+        dtype=np.int16,
+    )
+    pet_data = seg.astype(float)
+
+    pet_file = tmp_path / 'pet.nii.gz'
+    seg_file = tmp_path / 'seg.nii.gz'
+    dseg_tsv = tmp_path / 'dseg.tsv'
+
+    nb.Nifti1Image(pet_data, np.eye(4)).to_filename(pet_file)
+    nb.Nifti1Image(seg, np.eye(4)).to_filename(seg_file)
+    pd.DataFrame({'index': [1, 2], 'name': ['region1', 'region2']}).to_csv(
+        dseg_tsv, sep='\t', index=False
+    )
+
+    node = pe.Node(ExtractTACs(), name='tacs', base_dir=tmp_path)
+    node.inputs.pet_file = str(pet_file)
+    node.inputs.segmentation = str(seg_file)
+    node.inputs.dseg_tsv = str(dseg_tsv)
+    res = node.run()
+
+    out_df = pd.read_csv(res.outputs.out_file, sep='\t')
+    assert len(out_df) == 1
+    assert np.allclose(out_df['region1'], [1])
+    assert np.allclose(out_df['region2'], [2])
