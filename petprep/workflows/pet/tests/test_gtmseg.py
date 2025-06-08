@@ -9,7 +9,7 @@ def _make_stats_file(base: Path) -> Path:
     stats_file = base / 'sub-01' / 'stats' / 'gtmseg.stats'
     stats_file.parent.mkdir(parents=True, exist_ok=True)
     stats_file.write_text(
-        '# Dummy stats\n# ColHeaders Index Name Volume\n1 region1 10\n2 region2 20\n'
+        '# Dummy stats\n# ColHeaders Index Name Volume_mm3\n1 region1 10\n2 region2 20\n'
     )
     return stats_file
 
@@ -42,4 +42,5 @@ def test_gtmseg_functions_via_niu(tmp_path: Path):
     res2 = node2.run()
     out_file2 = Path(res2.outputs.out_file)
     assert out_file2.exists()
-    assert out_file2.read_text().startswith('Index')
+    header = out_file2.read_text().splitlines()[0]
+    assert header == 'index\tname\tvolume-mm3'

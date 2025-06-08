@@ -40,6 +40,18 @@ def gtm_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
 
     gtm_stats = Path(subjects_dir) / subject_id / 'stats' / 'gtmseg.stats'
     df = _read_stats_table(gtm_stats)
+
+    # Normalize column names to lowercase for easier matching
+    df.columns = [col.lower() for col in df.columns]
+
+    # Determine the column names for the region name and volume
+    name_col = 'name' if 'name' in df.columns else 'structname'
+    vol_col = 'volume_mm3' if 'volume_mm3' in df.columns else 'volume'
+
+    df = df[['index', name_col, vol_col]].rename(
+        columns={name_col: 'name', vol_col: 'volume-mm3'}
+    )
+
     out_file = gtm_stats.with_name('gtmseg_dseg.tsv')
     df.to_csv(out_file, sep='\t', index=False)
     return str(out_file)
@@ -55,6 +67,18 @@ def gtm_stats_to_stats(subjects_dir: str, subject_id: str) -> str:
 
     gtm_stats = Path(subjects_dir) / subject_id / 'stats' / 'gtmseg.stats'
     df = _read_stats_table(gtm_stats)
+
+    # Normalize column names to lowercase for easier matching
+    df.columns = [col.lower() for col in df.columns]
+
+    # Determine the column names for the region name and volume
+    name_col = 'name' if 'name' in df.columns else 'structname'
+    vol_col = 'volume_mm3' if 'volume_mm3' in df.columns else 'volume'
+
+    df = df[['index', name_col, vol_col]].rename(
+        columns={name_col: 'name', vol_col: 'volume-mm3'}
+    )
+
     out_file = gtm_stats.with_name('gtmseg_morph.tsv')
     df.to_csv(out_file, sep='\t', index=False)
     return str(out_file)
