@@ -16,6 +16,11 @@ def _prep_bids(tmp_path: Path) -> Path:
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for p in bids_dir.rglob('*.nii.gz'):
         img.to_filename(p)
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    pet_dir.mkdir(parents=True, exist_ok=True)
+    pet_path = pet_dir / 'sub-01_task-rest_run-1_pet.nii.gz'
+    img.to_filename(pet_path)
+    (pet_dir / 'sub-01_task-rest_run-1_pet.json').write_text('{}')
     return bids_dir
 
 
@@ -35,12 +40,12 @@ def test_gtm_tacs_wf(tmp_path: Path):
     assert isinstance(ds.interface, DerivativesDataSink)
     assert ds.interface.inputs.datatype == 'pet'
 
-    resample = tacs_wf.get_node('resample_seg')
+    resample = tacs_wf.get_node('resample_pet')
     from nipype.interfaces.freesurfer import MRIConvert
 
     assert isinstance(resample.interface, MRIConvert)
     edge = tacs_wf._graph.get_edge_data(tacs_wf.get_node('inputnode'), resample)
-    assert ('segmentation', 'in_file') in edge['connect']
-    assert ('pet', 'reslice_like') in edge['connect']
+    assert ('pet', 'in_file') in edge['connect']
+    assert ('segmentation', 'reslice_like') in edge['connect']
     edge = tacs_wf._graph.get_edge_data(resample, tacs_wf.get_node('extract_tacs'))
-    assert ('out_file', 'segmentation') in edge['connect']
+    assert ('out_file', 'pet_file') in edge['connect']
