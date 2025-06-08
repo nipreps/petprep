@@ -38,8 +38,9 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
 
     if seg == 'gtm':
         run_gtm = seg_wf.get_node('run_gtm')
-        from nipype.interfaces.freesurfer.petsurfer import GTMSeg
         from nipype.interfaces.freesurfer import MRIConvert
+        from nipype.interfaces.freesurfer.petsurfer import GTMSeg
+
         from ....interfaces import DerivativesDataSink
 
         assert isinstance(run_gtm.interface, GTMSeg)
@@ -62,6 +63,8 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert dseg_tsv.interface.inputs.suffix == 'dseg'
         assert dseg_tsv.interface.inputs.extension == '.tsv'
         assert dseg_tsv.interface.inputs.datatype == 'anat'
+        outnode = seg_wf.get_node('outputnode')
+        assert hasattr(outnode.outputs, 'dseg_tsv')
         assert isinstance(morph_tsv.interface, DerivativesDataSink)
         assert morph_tsv.interface.inputs.desc == 'gtm'
         assert morph_tsv.interface.inputs.suffix == 'morph'

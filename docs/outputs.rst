@@ -296,6 +296,8 @@ This file is resampled to match the orientation and resolution of the native
 T1-weighted images. The segmentation statistics are stored in
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.tsv`` and
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_morph.tsv``.
+``sub-<subject_label>/pet/sub-<subject_label>_desc-gtm_tacs.tsv`` stores the
+time-activity curves extracted from the GTM regions.
 
 Surface output spaces include ``fsnative`` (full density subject-specific mesh),
 ``fsaverage`` and the down-sampled meshes ``fsaverage6`` (41k vertices) and

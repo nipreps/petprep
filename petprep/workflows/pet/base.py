@@ -37,7 +37,6 @@ from niworkflows.utils.connections import listify
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...utils.misc import estimate_pet_mem_usage
-from .segmentation import init_segmentation_wf
 
 # PET workflows
 from .apply import init_pet_volumetric_resample_wf
@@ -49,6 +48,8 @@ from .outputs import (
     prepare_timing_parameters,
 )
 from .resampling import init_pet_surf_wf
+from .segmentation import init_segmentation_wf
+from .tacs import init_gtm_tacs_wf
 
 
 def init_pet_wf(
@@ -324,6 +325,16 @@ configured with cubic B-spline interpolation.
         (pet_native_wf, pet_anat_wf, [
             ('outputnode.pet_minimal', 'inputnode.pet_file'),
             ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+        ]),
+    ])  # fmt:skip
+
+    gtm_tacs_wf = init_gtm_tacs_wf(metadata=all_metadata[0])
+
+    workflow.connect([
+        (pet_anat_wf, gtm_tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
+        (seg_wf, gtm_tacs_wf, [
+            ('outputnode.segmentation', 'inputnode.segmentation'),
+            ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
         ]),
     ])  # fmt:skip
 
