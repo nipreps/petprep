@@ -46,7 +46,7 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert isinstance(run_gtm.interface, GTMSeg)
         assert hasattr(run_gtm.inputs, 'subject_id')
         assert hasattr(run_gtm.inputs, 'subjects_dir')
-        assert run_gtm.inputs.no_xcerseg is True
+        assert run_gtm.inputs.xcerseg is False
 
         convert = seg_wf.get_node('convert_gtmseg')
         ds = seg_wf.get_node('ds_gtmseg')

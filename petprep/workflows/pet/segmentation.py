@@ -43,7 +43,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
     # This node is just a placeholder for the actual FreeSurfer command
     seg_node = (
-        pe.Node(GTMSeg(no_xcerseg=True), name=f'run_{seg}')
+        pe.Node(GTMSeg(xcerseg=False), name=f'run_{seg}')
         if seg == 'gtm'
         else pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
     )
