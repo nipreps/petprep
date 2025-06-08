@@ -27,8 +27,9 @@ class ResampleSeriesInputSpec(TraitedSpec):
     ref_file = File(exists=True, mandatory=True, desc='File to resample in_file to')
     transforms = InputMultiObject(
         File(exists=True),
-        mandatory=True,
         desc='Transform files, from in_file to ref_file (image mode)',
+        usedefault=True,
+        value=[],
     )
     inverse = InputMultiObject(
         traits.Bool,
