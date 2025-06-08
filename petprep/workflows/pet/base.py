@@ -328,7 +328,11 @@ configured with cubic B-spline interpolation.
         ]),
     ])  # fmt:skip
 
-    gtm_tacs_wf = init_gtm_tacs_wf(metadata=all_metadata[0])
+    gtm_tacs_wf = init_gtm_tacs_wf(
+        metadata=all_metadata[0],
+        ref_labels=config.workflow.ref_mask,
+        hb_labels=config.workflow.hb_mask,
+    )
 
     workflow.connect([
         (pet_anat_wf, gtm_tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),

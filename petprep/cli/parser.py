@@ -562,6 +562,23 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         help='Segmentation method to use.',
     )
 
+    g_seg.add_argument(
+        '--ref-mask',
+        dest='ref_mask',
+        action='store',
+        type=int,
+        nargs='+',
+        help='Label indices from the segmentation TSV to define the reference region.',
+    )
+    g_seg.add_argument(
+        '--hb-mask',
+        dest='hb_mask',
+        action='store',
+        type=int,
+        nargs='+',
+        help='Label indices from the segmentation TSV to define the high-binding region.',
+    )
+
     g_carbon = parser.add_argument_group('Options for carbon usage tracking')
     g_carbon.add_argument(
         '--track-carbon',

@@ -194,6 +194,16 @@ generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv`` tables containing
 segmentation statistics. A ``desc-gtm_tacs.tsv`` file with time-activity curves
 is written to the ``pet`` derivatives directory.
 
+Two additional options allow defining composite regions from the GTM
+segmentation indices:
+
+``--ref-mask`` selects the labels that will form a *reference* region, and
+``--hb-mask`` defines a *high-binding* region.  Both expect one or more index
+numbers as listed in the corresponding ``desc-gtm_dseg.tsv`` file. When
+specified, PETPrep will create ``desc-ref_mask.nii.gz`` and
+``desc-ref_tacs.tsv`` (or ``desc-hb_mask.nii.gz`` and ``desc-hb_tacs.tsv``)
+within the ``pet`` derivatives directory.
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the

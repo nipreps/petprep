@@ -599,6 +599,11 @@ class workflow(_Config):
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
+    ref_mask: list[int] | None = None
+    """Segmentation label indices defining the reference region."""
+
+    hb_mask: list[int] | None = None
+    """Segmentation label indices defining the high-binding region."""
 
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""

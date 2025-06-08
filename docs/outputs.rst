@@ -300,6 +300,11 @@ PET resolution. The segmentation statistics are stored in
 ``sub-<subject_label>/pet/sub-<subject_label>_desc-gtm_tacs.tsv`` stores the
 time-activity curves extracted from the GTM regions.
 
+When ``--ref-mask`` or ``--hb-mask`` are provided, masks and TAC tables for
+these composite regions are also stored as ``desc-ref_mask.nii.gz`` with
+``desc-ref_tacs.tsv`` and ``desc-hb_mask.nii.gz`` with ``desc-hb_tacs.tsv`` in
+the PET derivatives directory.
+
 Single-frame (3D) and multi-frame (4D) PET images are supported; a
 single-frame image will produce a table with one row.
 
