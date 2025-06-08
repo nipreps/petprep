@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from nipype.interfaces import utility as niu
+from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -36,6 +37,11 @@ def init_gtm_tacs_wf(metadata: dict, name: str = 'gtm_tacs_wf') -> Workflow:
         name='sources',
     )
 
+    resample_seg = pe.Node(
+        MRIConvert(out_type='niigz', resample_type='nearest'),
+        name='resample_seg',
+    )
+
     extract = pe.Node(
         ExtractTACs(metadata=timing_parameters),
         name='extract_tacs',
@@ -60,13 +66,21 @@ def init_gtm_tacs_wf(metadata: dict, name: str = 'gtm_tacs_wf') -> Workflow:
             (inputnode, sources, [('pet', 'in1')]),
             (
                 inputnode,
+                resample_seg,
+                [
+                    ('segmentation', 'in_file'),
+                    ('pet', 'reslice_like'),
+                ],
+            ),
+            (
+                inputnode,
                 extract,
                 [
                     ('pet', 'pet_file'),
-                    ('segmentation', 'segmentation'),
                     ('dseg_tsv', 'dseg_tsv'),
                 ],
             ),
+            (resample_seg, extract, [('out_file', 'segmentation')]),
             (extract, ds_tacs, [('out_file', 'in_file')]),
             (inputnode, ds_tacs, [('pet', 'source_file')]),
             (sources, ds_tacs, [('out', 'Sources')]),

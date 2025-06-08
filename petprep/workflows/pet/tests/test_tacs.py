@@ -34,3 +34,13 @@ def test_gtm_tacs_wf(tmp_path: Path):
 
     assert isinstance(ds.interface, DerivativesDataSink)
     assert ds.interface.inputs.datatype == 'pet'
+
+    resample = tacs_wf.get_node('resample_seg')
+    from nipype.interfaces.freesurfer import MRIConvert
+
+    assert isinstance(resample.interface, MRIConvert)
+    edge = tacs_wf._graph.get_edge_data(tacs_wf.get_node('inputnode'), resample)
+    assert ('segmentation', 'in_file') in edge['connect']
+    assert ('pet', 'reslice_like') in edge['connect']
+    edge = tacs_wf._graph.get_edge_data(resample, tacs_wf.get_node('extract_tacs'))
+    assert ('out_file', 'segmentation') in edge['connect']

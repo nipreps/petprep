@@ -189,9 +189,10 @@ and ``limbic``.
 
 Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
 directory. The segmentation is resampled to match the native anatomical image
-resolution. It also generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv``
-tables containing segmentation statistics. A ``desc-gtm_tacs.tsv`` file with
-time-activity curves is written to the ``pet`` derivatives directory.
+resolution and again to the PET resolution before extracting TACs. It also
+generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv`` tables containing
+segmentation statistics. A ``desc-gtm_tacs.tsv`` file with time-activity curves
+is written to the ``pet`` derivatives directory.
 
 Troubleshooting
 ---------------
