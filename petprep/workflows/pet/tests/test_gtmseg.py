@@ -9,7 +9,10 @@ def _make_stats_file(base: Path) -> Path:
     stats_file = base / 'sub-01' / 'stats' / 'gtmseg.stats'
     stats_file.parent.mkdir(parents=True, exist_ok=True)
     stats_file.write_text(
-        '# Dummy stats\n# ColHeaders SegId Name Volume_mm3\n1 region1 10\n2 region2 20\n'
+        '# Dummy stats\n'
+        '# ColHeaders Index SegId Name Volume_mm3\n'
+        '1 2 region1 10\n'
+        '2 4 region2 20\n'
     )
     return stats_file
 

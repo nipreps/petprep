@@ -44,9 +44,14 @@ def gtm_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
     # Normalize column names to lowercase for easier matching
     df.columns = [col.lower() for col in df.columns]
 
-    # Map FreeSurfer "segid" to BIDS-compliant "index"
+    # Use the ``segid`` column when present and drop FreeSurfer's ``index``
     if 'segid' in df.columns:
-        df = df.rename(columns={'segid': 'index'})
+        segid = df.pop('segid')
+        if 'index' in df.columns:
+            df = df.drop(columns=['index'])
+        df.insert(0, 'index', segid)
+    elif 'index' not in df.columns:
+        raise ValueError('No "segid" or "index" column found in stats table')
 
     # Determine the column names for the region name and volume
     name_col = 'name' if 'name' in df.columns else 'structname'
@@ -75,9 +80,14 @@ def gtm_stats_to_stats(subjects_dir: str, subject_id: str) -> str:
     # Normalize column names to lowercase for easier matching
     df.columns = [col.lower() for col in df.columns]
 
-    # Map FreeSurfer "segid" to BIDS-compliant "index"
+    # Use the ``segid`` column when present and drop FreeSurfer's ``index``
     if 'segid' in df.columns:
-        df = df.rename(columns={'segid': 'index'})
+        segid = df.pop('segid')
+        if 'index' in df.columns:
+            df = df.drop(columns=['index'])
+        df.insert(0, 'index', segid)
+    elif 'index' not in df.columns:
+        raise ValueError('No "segid" or "index" column found in stats table')
 
     # Determine the column names for the region name and volume
     name_col = 'name' if 'name' in df.columns else 'structname'
