@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from nipype.interfaces import utility as niu
-from nipype.interfaces.freesurfer import MRIConvert
+from ...interfaces.resampling import ResampleSeries
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -115,7 +115,7 @@ def init_gtm_tacs_wf(
     )
 
     resample_pet = pe.Node(
-        MRIConvert(out_type='niigz', resample_type='interpolate'),
+        ResampleSeries(transforms=[]),
         name='resample_pet',
     )
 
@@ -236,7 +236,7 @@ def init_gtm_tacs_wf(
                 resample_pet,
                 [
                     ('pet', 'in_file'),
-                    ('segmentation', 'reslice_like'),
+                    ('segmentation', 'ref_file'),
                 ],
             ),
             (
