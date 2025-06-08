@@ -1,17 +1,16 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 """Segmentation workflows."""
+
 from nipype.interfaces import utility as niu
-from nipype.interfaces.freesurfer.petsurfer import GTMSeg
 from nipype.interfaces.freesurfer import MRIConvert
+from nipype.interfaces.freesurfer.petsurfer import GTMSeg
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
-
 
 SEGMENTATION_CMDS = {
     'gtm': 'gtmseg',
@@ -37,7 +36,10 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
         name='inputnode',
     )
-    outputnode = pe.Node(niu.IdentityInterface(fields=['segmentation']), name='outputnode')
+    outputnode = pe.Node(
+        niu.IdentityInterface(fields=['segmentation', 'dseg_tsv']),
+        name='outputnode',
+    )
 
     # This node is just a placeholder for the actual FreeSurfer command
     seg_node = (
@@ -152,6 +154,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
                 (sources, ds_dseg_tsv, [('out', 'Sources')]),
                 (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
             ]
         )
     else:
