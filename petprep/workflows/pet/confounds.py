@@ -486,7 +486,7 @@ def init_carpetplot_wf(
     timing_parameters = prepare_timing_parameters(metadata)
     conf_plot = pe.Node(
         PETSummary(
-            volume_timing=timing_parameters.get('VolumeTiming'),
+            volume_timing=timing_parameters.get('FrameTimesStart'),
             confounds_list=[
                 ('global_signal', None, 'GS'),
                 ('csf', None, 'CSF'),

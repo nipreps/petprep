@@ -45,7 +45,7 @@ def prepare_timing_parameters(metadata: dict):
     --------
 
     >>> prepare_timing_parameters({'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4]})
-    {'VolumeTiming': [0, 2, 6], 'AcquisitionDuration': [2, 4, 4], 'SliceTimingCorrected': False}
+    {'FrameTimesStart': [0, 2, 6], 'FrameDuration': [2, 4, 4], 'SliceTimingCorrected': False}
     """
     timing_parameters = {
         key: metadata[key]
@@ -59,16 +59,21 @@ def prepare_timing_parameters(metadata: dict):
     }
 
     frame_times = timing_parameters.pop('FrameTimesStart', None)
+    volume_timing = timing_parameters.pop('VolumeTiming', None)
     frame_duration = timing_parameters.pop('FrameDuration', None)
 
-    if 'RepetitionTime' not in timing_parameters and 'VolumeTiming' not in timing_parameters:
-        if frame_times is not None:
-            timing_parameters['VolumeTiming'] = frame_times
-            if frame_duration is not None:
-                if isinstance(frame_duration, list) and len(set(frame_duration)) == 1:
-                    timing_parameters.setdefault('AcquisitionDuration', frame_duration[0])
-                else:
-                    timing_parameters.setdefault('AcquisitionDuration', frame_duration)
+    acquisition_duration = timing_parameters.pop('AcquisitionDuration', None)
+
+    # normalize synonyms (VolumeTiming/FrameTimesStart, AcquisitionDuration/FrameDuration)
+    if frame_times is None:
+        frame_times = volume_timing
+    if frame_duration is None:
+        frame_duration = acquisition_duration
+
+    if frame_times is not None:
+        timing_parameters['FrameTimesStart'] = frame_times
+    if frame_duration is not None:
+        timing_parameters['FrameDuration'] = frame_duration
 
     timing_parameters['SliceTimingCorrected'] = False
 
