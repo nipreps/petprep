@@ -56,6 +56,7 @@ All merged pull requests
 * ENH: Output fsLR meshes on subject surfaces (#3411)
 * ENH: Flexibilize "sophisticated" pepolar to allow monomodal execution (#3393)
 * ENH: Update FSL packages for reported bug fixes (#3374)
+* ENH: Generate time-activity curves from GTM segmentations
 * RF: Calculate RMSD from motion transforms (#3427)
 * RF: Reconstruct motion confounds from minimal derivatives (#3424)
 * RF: Replace deprecated pkgutil.find_loader (#3384)
