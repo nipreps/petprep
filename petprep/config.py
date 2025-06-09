@@ -605,6 +605,9 @@ class workflow(_Config):
     hb_mask: list[int] | None = None
     """Segmentation label indices defining the high-binding region."""
 
+    pvc_psf: float | None = None
+    """Scanner point spread function FWHM in mm for partial volume correction."""
+
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""
 

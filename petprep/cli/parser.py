@@ -578,6 +578,13 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         nargs='+',
         help='Label indices from the segmentation TSV to define the high-binding region.',
     )
+    g_seg.add_argument(
+        '--pvc-psf',
+        dest='pvc_psf',
+        action='store',
+        type=float,
+        help='Scanner point spread function FWHM in mm for partial volume correction.',
+    )
 
     g_carbon = parser.add_argument_group('Options for carbon usage tracking')
     g_carbon.add_argument(

@@ -199,7 +199,7 @@ The segmentation is resampled to the anatomical image resolution and
 accompanied by ``desc-brainstem_dseg.tsv`` and ``desc-brainstem_morph.tsv``
 tables with segmentation statistics.
 
-Two additional options allow defining composite regions from the GTM
+Three additional options allow defining composite regions from the GTM
 segmentation indices:
 
 ``--ref-mask`` selects the labels that will form a *reference* region, and
@@ -208,6 +208,8 @@ numbers as listed in the corresponding ``desc-gtm_dseg.tsv`` file. When
 specified, PETPrep will create ``desc-ref_mask.nii.gz`` and
 ``desc-ref_tacs.tsv`` (or ``desc-hb_mask.nii.gz`` and ``desc-hb_tacs.tsv``)
 within the ``pet`` derivatives directory.
+``--pvc-psf`` specifies the scanner point-spread function (FWHM in mm) used for
+partial volume correction.
 
 Troubleshooting
 ---------------
