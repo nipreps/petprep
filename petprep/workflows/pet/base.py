@@ -361,6 +361,7 @@ configured with cubic B-spline interpolation.
             (pet_native_wf, gtmpvc_wf, [('outputnode.pet_native', 'inputnode.pet')]),
             (seg_wf, gtmpvc_wf, [('outputnode.segmentation', 'inputnode.segmentation')]),
             (gtmpvc_reg_wf, gtmpvc_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
+            (gtmpvc_reg_wf, gtm_tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
         ])  # fmt:skip
 
     # Full derivatives, including resampled PET series

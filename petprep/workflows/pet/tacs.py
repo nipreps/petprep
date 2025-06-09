@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 from nipype.interfaces import utility as niu
-from ...interfaces.resampling import ResampleSeries
+from nipype.interfaces.freesurfer.petsurfer import GTMPVC
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
 from ... import config
 from ...config import DEFAULT_MEMORY_MIN_GB
-from ...interfaces import DerivativesDataSink, ExtractTACs
+from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-from .outputs import prepare_timing_parameters
 
 
 def _make_mask(segmentation: str, labels: list[int]) -> str:
@@ -32,8 +31,8 @@ def _make_mask(segmentation: str, labels: list[int]) -> str:
     return str(out_file)
 
 
-def _extract_mask_tacs(pet_file: str, mask_file: str, metadata: dict, name: str) -> str:
-    """Extract TACs from ``pet_file`` within ``mask_file``."""
+def _tac_dat_to_tsv(dat_file: str, name: str) -> str:
+    """Convert ``mri_gtmpvc`` TAC ``.dat`` file to ``*.tsv``."""
     from pathlib import Path
 
     import nibabel as nb
@@ -95,7 +94,7 @@ def init_gtm_tacs_wf(
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet', 'segmentation', 'dseg_tsv']),
+        niu.IdentityInterface(fields=['pet', 'segmentation', 'dseg_tsv', 'reg_lta']),
         name='inputnode',
     )
     out_fields = ['out_file']
@@ -114,14 +113,21 @@ def init_gtm_tacs_wf(
         name='sources',
     )
 
-    resample_pet = pe.Node(
-        ResampleSeries(transforms=[]),
-        name='resample_pet',
-    )
+    gtmpvc = pe.Node(GTMPVC(no_pvc=True), name='gtmpvc')
+    if getattr(config.workflow, 'pvc_psf', None):
+        psf = config.workflow.pvc_psf
+        if isinstance(psf, (list | tuple)) and len(psf) == 3:
+            gtmpvc.inputs.psf_col, gtmpvc.inputs.psf_row, gtmpvc.inputs.psf_slice = psf
+        else:
+            gtmpvc.inputs.psf = psf
 
-    extract = pe.Node(
-        ExtractTACs(metadata=timing_parameters),
-        name='extract_tacs',
+    tacs_tsv = pe.Node(
+        niu.Function(
+            function=_tac_dat_to_tsv,
+            input_names=['dat_file', 'name'],
+            output_names=['out_file'],
+        ),
+        name='tacs_tsv',
     )
 
     ds_tacs = pe.Node(
@@ -233,22 +239,15 @@ def init_gtm_tacs_wf(
             (inputnode, sources, [('pet', 'in1')]),
             (
                 inputnode,
-                resample_pet,
+                gtmpvc,
                 [
                     ('pet', 'in_file'),
-                    ('segmentation', 'ref_file'),
-                ],
-            ),
-            (
-                inputnode,
-                extract,
-                [
                     ('segmentation', 'segmentation'),
-                    ('dseg_tsv', 'dseg_tsv'),
+                    ('reg_lta', 'reg_file'),
                 ],
             ),
-            (resample_pet, extract, [('out_file', 'pet_file')]),
-            (extract, ds_tacs, [('out_file', 'in_file')]),
+            (gtmpvc, tacs_tsv, [('gtm_stats', 'dat_file')]),
+            (tacs_tsv, ds_tacs, [('out_file', 'in_file')]),
             (inputnode, ds_tacs, [('pet', 'source_file')]),
             (sources, ds_tacs, [('out', 'Sources')]),
             (ds_tacs, outputnode, [('out_file', 'out_file')]),
@@ -259,7 +258,6 @@ def init_gtm_tacs_wf(
         workflow.connect(
             [
                 (inputnode, ref_mask, [('segmentation', 'segmentation')]),
-                (resample_pet, ref_tacs, [('out_file', 'pet_file')]),
                 (ref_mask, ref_tacs, [('out_file', 'mask_file')]),
                 (ref_mask, ds_ref_mask, [('out_file', 'in_file')]),
                 (inputnode, ds_ref_mask, [('pet', 'source_file')]),
@@ -276,7 +274,6 @@ def init_gtm_tacs_wf(
         workflow.connect(
             [
                 (inputnode, hb_mask, [('segmentation', 'segmentation')]),
-                (resample_pet, hb_tacs, [('out_file', 'pet_file')]),
                 (hb_mask, hb_tacs, [('out_file', 'mask_file')]),
                 (hb_mask, ds_hb_mask, [('out_file', 'in_file')]),
                 (inputnode, ds_hb_mask, [('pet', 'source_file')]),
