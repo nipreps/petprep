@@ -4,6 +4,7 @@
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
 from nipype.interfaces.freesurfer.petsurfer import GTMSeg
+from nipype.interfaces.freesurfer import SegStats
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -196,22 +197,35 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
 
-        mk_dseg_tsv = pe.Node(
-            niu.Function(
-                function=brainstem_to_dsegtsv,
-                input_names=['subjects_dir', 'subject_id'],
-                output_names=['out_file'],
+        segstats_bs = pe.Node(
+            SegStats(
+                exclude_id=0,
+                default_color_table=True,
+                avgwf_txt_file="desc-brainstem_tacs.txt",
+                ctab_out_file="desc-brainstem_dseg.ctab",
+                summary_file="desc-brainstem_morph.txt",
             ),
-            name='make_brainstemdsegtsv',
+            name="segstats_bs",
         )
-        mk_morph_tsv = pe.Node(
-            niu.Function(
-                function=brainstem_stats_to_stats,
-                input_names=['subjects_dir', 'subject_id'],
-                output_names=['out_file'],
+
+        create_bs_morphtsv = Node(
+            Function(
+                input_names=["summary_file"],
+                output_names=["out_file"],
+                function=summary_to_morph_tsv,
             ),
-            name='make_brainstemmorphtsv',
+            name="create_bs_morphtsv",
         )
+
+        create_bs_dsegtsv = Node(
+            Function(
+                input_names=["ctab_file"],
+                output_names=["out_file"],
+                function=ctab_to_dseg_tsv,
+            ),
+            name="create_bs_dsegtsv",
+        )
+
         ds_dseg_tsv = pe.Node(
             DerivativesDataSink(
                 base_directory=config.execution.petprep_dir,
@@ -248,18 +262,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
                 (sources, ds_seg, [('out', 'Sources')]),
                 (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (
-                    inputnode,
-                    mk_dseg_tsv,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (
-                    inputnode,
-                    mk_morph_tsv,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (mk_dseg_tsv, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (mk_morph_tsv, ds_morph_tsv, [('out_file', 'in_file')]),
+                (seg_node, segstats_bs, [('out_file', 'segmentation_file')]),
+                (segstats_bs, create_bs_morphtsv, [('summary_file', 'summary_file')]),
+                (segstats_bs, create_bs_dsegtsv, [('ctab_out_file', 'ctab_file')]),
+                (segstats_bs, create_bs_dsegtsv, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (create_bs_morphtsv, ds_morph_tsv, [('out_file', 'in_file')]),
                 (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
                 (sources, ds_dseg_tsv, [('out', 'Sources')]),
@@ -271,3 +278,79 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
 
     return workflow
+
+
+def ctab_to_dseg_tsv(ctab_file):
+    """
+    Convert a `.ctab` file to a `.tsv` file containing segmentation indices and names.
+
+    :param ctab_file: Path to the `.ctab` file to be read.
+    :type ctab_file: str
+    :return: Path to the generated `.tsv` file with segmentation indices and names.
+    :rtype: str
+
+    :notes:
+        This function reads the `.ctab` file into a pandas DataFrame, keeping only the first two columns.
+        The columns are renamed to ``index`` and ``name``. The DataFrame is then written to a `.tsv` file
+        with the same base name as the input `.ctab` file.
+    """
+    import pandas as pd
+
+    # Read the .ctab file into a DataFrame
+    ctab_df = pd.read_csv(
+        ctab_file,
+        header=None,
+        delim_whitespace=True,
+        usecols=[0, 1],
+        names=["index", "name"],
+    )
+
+    # Create the output .tsv file name
+    tsv_file = ctab_file.replace(".ctab", ".tsv")
+
+    # Write the DataFrame to the .tsv file (without the index)
+    ctab_df.to_csv(tsv_file, sep="\t", index=False)
+
+    return tsv_file
+
+def summary_to_morph(summary_file):
+    """
+    This function reads a 'summary.stats' file, transforms the data, and saves it as a '.tsv' file.
+
+    :param summary_file: The path to the input '.stats' file.
+    :type summary_file: str
+
+    :returns: The path to the output '.tsv' file.
+    :rtype: str
+    """
+
+    import pandas as pd
+
+    # Read the 'summary.stats' file into a DataFrame.
+    # We only take the 4th and 5th columns (0-indexed), which we name 'volume_mm3' and 'name'.
+    # Lines starting with '#' are ignored.
+    summary_df = pd.read_csv(
+        summary_file,
+        comment="#",
+        header=None,
+        delim_whitespace=True,
+        usecols=[1, 3, 4],
+        names=["index", "volume_mm3", "name"],
+    )
+
+    # Create a new DataFrame where each row of 'summary_df' is a column.
+    # The column names in the new DataFrame are taken from the 'name' column of 'summary_df',
+    # and the values are taken from the 'volume_mm3' column of 'summary_df'.
+    # summary_df_output = pd.DataFrame([summary_df['volume_mm3'].to_list()], columns=summary_df['name'].to_list())
+
+    # Create the output file name by replacing '.stats' with '.tsv' in the input file name.
+    tsv_file = summary_file.replace(".txt", ".tsv")
+
+    # Write the new DataFrame to the output file.
+    # We use a tab separator, and we don't write the index.
+    summary_df.rename(columns={"volume_mm3": "volume-mm3"}, inplace=True)
+    summary_df = summary_df[["index", "name", "volume-mm3"]]
+    summary_df.to_csv(tsv_file, sep="\t", index=False)
+
+    # Return the output file name.
+    return tsv_file
