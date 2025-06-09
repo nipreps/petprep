@@ -4,7 +4,7 @@
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
 from nipype.interfaces.freesurfer.petsurfer import GTMSeg
-from nipype.interfaces.freesurfer import SegStats
+from ...interfaces.fs_model import SegStats
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -201,7 +201,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             SegStats(
                 exclude_id=0,
                 default_color_table=True,
-                avgwf_txt_file="desc-brainstem_tacs.txt",
                 ctab_out_file="desc-brainstem_dseg.ctab",
                 summary_file="desc-brainstem_morph.txt",
             ),
@@ -209,7 +208,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
 
         create_bs_morphtsv = pe.Node(
-            Function(
+            pe.Function(
                 input_names=["summary_file"],
                 output_names=["out_file"],
                 function=summary_to_morph_tsv,
@@ -218,7 +217,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
 
         create_bs_dsegtsv = pe.Node(
-            Function(
+            pe.Function(
                 input_names=["ctab_file"],
                 output_names=["out_file"],
                 function=ctab_to_dseg_tsv,
