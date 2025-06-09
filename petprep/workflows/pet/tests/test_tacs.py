@@ -34,21 +34,20 @@ def test_gtm_tacs_wf(tmp_path: Path):
     tacs_wf = wf.get_node('gtm_tacs_wf')
     assert tacs_wf is not None
 
-    ds = tacs_wf.get_node('ds_gtmtacs')
-    from ....interfaces import DerivativesDataSink
+    ds = tacs_wf.get_node("ds_gtmtacs")
+    pvc_ds = tacs_wf.get_node("ds_gtmpvctacs")
+    from ....interfaces import DerivativesDataSink, ExtractTACs
 
     assert isinstance(ds.interface, DerivativesDataSink)
-    assert ds.interface.inputs.datatype == 'pet'
+    assert ds.interface.inputs.desc == "gtm"
+    assert isinstance(pvc_ds.interface, DerivativesDataSink)
+    assert pvc_ds.interface.inputs.desc == "gtm_pvc-gtm"
 
-    resample = tacs_wf.get_node('resample_pet')
-    from ....interfaces.resampling import ResampleSeries
-
-    assert isinstance(resample.interface, ResampleSeries)
-    edge = tacs_wf._graph.get_edge_data(tacs_wf.get_node('inputnode'), resample)
-    assert ('pet', 'in_file') in edge['connect']
-    assert ('segmentation', 'ref_file') in edge['connect']
-    edge = tacs_wf._graph.get_edge_data(resample, tacs_wf.get_node('extract_tacs'))
-    assert ('out_file', 'pet_file') in edge['connect']
+    extract = tacs_wf.get_node("extract_nopvc_tacs")
+    assert isinstance(extract.interface, ExtractTACs)
+    gtmpvc = tacs_wf.get_node("gtmpvc")
+    edge = tacs_wf._graph.get_edge_data(gtmpvc, extract)
+    assert ("nopvc_file", "pet_file") in edge["connect"]
 
 
 def test_gtm_tacs_wf_masks(tmp_path: Path):

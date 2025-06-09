@@ -10,8 +10,9 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
 from ... import config
 from ...config import DEFAULT_MEMORY_MIN_GB
-from ...interfaces import DerivativesDataSink
+from ...interfaces import DerivativesDataSink, ExtractTACs
 from ...interfaces.bids import BIDSURI
+from .outputs import prepare_timing_parameters
 
 
 def _make_mask(segmentation: str, labels: list[int]) -> str:
@@ -31,8 +32,10 @@ def _make_mask(segmentation: str, labels: list[int]) -> str:
     return str(out_file)
 
 
-def _tac_dat_to_tsv(dat_file: str, name: str) -> str:
-    """Convert ``mri_gtmpvc`` TAC ``.dat`` file to ``*.tsv``."""
+def _extract_mask_tacs(
+    pet_file: str, mask_file: str, metadata: dict | None, name: str
+) -> str:
+    """Extract mean TACs from ``pet_file`` within ``mask_file``."""
     from pathlib import Path
 
     import nibabel as nb
@@ -121,25 +124,40 @@ def init_gtm_tacs_wf(
         else:
             gtmpvc.inputs.psf = psf
 
-    tacs_tsv = pe.Node(
-        niu.Function(
-            function=_tac_dat_to_tsv,
-            input_names=['dat_file', 'name'],
-            output_names=['out_file'],
-        ),
-        name='tacs_tsv',
+    extract_nopvc_tacs = pe.Node(
+        ExtractTACs(metadata=timing_parameters),
+        name="extract_nopvc_tacs",
+    )
+
+    extract_pvc_tacs = pe.Node(
+        ExtractTACs(metadata=timing_parameters),
+        name="extract_pvc_tacs",
     )
 
     ds_tacs = pe.Node(
         DerivativesDataSink(
             base_directory=config.execution.petprep_dir,
-            desc='gtm',
-            suffix='tacs',
-            extension='.tsv',
-            datatype='pet',
+            desc="gtm",
+            suffix="tacs",
+            extension=".tsv",
+            datatype="pet",
             check_hdr=False,
         ),
-        name='ds_gtmtacs',
+        name="ds_gtmtacs",
+        run_without_submitting=True,
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
+
+    ds_pvc_tacs = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            desc="gtm_pvc-gtm",
+            suffix="tacs",
+            extension=".tsv",
+            datatype="pet",
+            check_hdr=False,
+        ),
+        name="ds_gtmpvctacs",
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
@@ -246,43 +264,58 @@ def init_gtm_tacs_wf(
                     ('reg_lta', 'reg_file'),
                 ],
             ),
-            (gtmpvc, tacs_tsv, [('gtm_stats', 'dat_file')]),
-            (tacs_tsv, ds_tacs, [('out_file', 'in_file')]),
-            (inputnode, ds_tacs, [('pet', 'source_file')]),
-            (sources, ds_tacs, [('out', 'Sources')]),
-            (ds_tacs, outputnode, [('out_file', 'out_file')]),
+            (
+                gtmpvc,
+                extract_nopvc_tacs,
+                [("nopvc_file", "pet_file"), ("seg", "segmentation")],
+            ),
+            (inputnode, extract_nopvc_tacs, [("dseg_tsv", "dseg_tsv")]),
+            (extract_nopvc_tacs, ds_tacs, [("out_file", "in_file")]),
+            (inputnode, ds_tacs, [("pet", "source_file")]),
+            (sources, ds_tacs, [("out", "Sources")]),
+            (ds_tacs, outputnode, [("out_file", "out_file")]),
+            (
+                gtmpvc,
+                extract_pvc_tacs,
+                [("gtm_file", "pet_file"), ("seg", "segmentation")],
+            ),
+            (inputnode, extract_pvc_tacs, [("dseg_tsv", "dseg_tsv")]),
+            (extract_pvc_tacs, ds_pvc_tacs, [("out_file", "in_file")]),
+            (inputnode, ds_pvc_tacs, [("pet", "source_file")]),
+            (sources, ds_pvc_tacs, [("out", "Sources")]),
+            (ds_pvc_tacs, outputnode, [("out_file", "pvc_tacs")]),
         ]
     )
 
     if ref_labels:
         workflow.connect(
             [
-                (inputnode, ref_mask, [('segmentation', 'segmentation')]),
-                (ref_mask, ref_tacs, [('out_file', 'mask_file')]),
-                (ref_mask, ds_ref_mask, [('out_file', 'in_file')]),
-                (inputnode, ds_ref_mask, [('pet', 'source_file')]),
-                (sources, ds_ref_mask, [('out', 'Sources')]),
-                (ref_tacs, ds_ref_tacs, [('out_file', 'in_file')]),
-                (inputnode, ds_ref_tacs, [('pet', 'source_file')]),
-                (sources, ds_ref_tacs, [('out', 'Sources')]),
-                (ds_ref_mask, outputnode, [('out_file', 'ref_mask')]),
-                (ds_ref_tacs, outputnode, [('out_file', 'ref_tacs')]),
+                (inputnode, ref_mask, [("segmentation", "segmentation")]),
+                (ref_mask, ref_tacs, [("out_file", "mask_file")]),
+                (ref_mask, ds_ref_mask, [("out_file", "in_file")]),
+                (inputnode, ds_ref_mask, [("pet", "source_file")]),
+                (sources, ds_ref_mask, [("out", "Sources")]),
+                (ref_tacs, ds_ref_tacs, [("out_file", "in_file")]),
+                (inputnode, ds_ref_tacs, [("pet", "source_file")]),
+                (sources, ds_ref_tacs, [("out", "Sources")]),
+                (ds_ref_mask, outputnode, [("out_file", "ref_mask")]),
+                (ds_ref_tacs, outputnode, [("out_file", "ref_tacs")]),
             ]
         )
 
     if hb_labels:
         workflow.connect(
             [
-                (inputnode, hb_mask, [('segmentation', 'segmentation')]),
-                (hb_mask, hb_tacs, [('out_file', 'mask_file')]),
-                (hb_mask, ds_hb_mask, [('out_file', 'in_file')]),
-                (inputnode, ds_hb_mask, [('pet', 'source_file')]),
-                (sources, ds_hb_mask, [('out', 'Sources')]),
-                (hb_tacs, ds_hb_tacs, [('out_file', 'in_file')]),
-                (inputnode, ds_hb_tacs, [('pet', 'source_file')]),
-                (sources, ds_hb_tacs, [('out', 'Sources')]),
-                (ds_hb_mask, outputnode, [('out_file', 'hb_mask')]),
-                (ds_hb_tacs, outputnode, [('out_file', 'hb_tacs')]),
+                (inputnode, hb_mask, [("segmentation", "segmentation")]),
+                (hb_mask, hb_tacs, [("out_file", "mask_file")]),
+                (hb_mask, ds_hb_mask, [("out_file", "in_file")]),
+                (inputnode, ds_hb_mask, [("pet", "source_file")]),
+                (sources, ds_hb_mask, [("out", "Sources")]),
+                (hb_tacs, ds_hb_tacs, [("out_file", "in_file")]),
+                (inputnode, ds_hb_tacs, [("pet", "source_file")]),
+                (sources, ds_hb_tacs, [("out", "Sources")]),
+                (ds_hb_mask, outputnode, [("out_file", "hb_mask")]),
+                (ds_hb_tacs, outputnode, [("out_file", "hb_tacs")]),
             ]
         )
 
