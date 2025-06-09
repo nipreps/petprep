@@ -61,14 +61,34 @@ def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=["pvc_pet"]), name="outputnode")
 
-    gtmpvc = pe.Node(GTMPVC(
-                default_seg_merge=True,
-                auto_mask=(1, 0.1),
-                no_pvc=True,
-                pvc_dir="nopvc",
-                no_rescale=True,
-                ),
-            name="gtmpvc")
+    method = getattr(config.workflow, 'pvc_method', 'none')
+    pvc_dir = 'nopvc' if method == 'none' else f'pvc-{method}'
+    gtmpvc_opts = {
+        'default_seg_merge': True,
+        'auto_mask': (1, 0.1),
+        'pvc_dir': pvc_dir,
+        'no_rescale': True,
+        'no_reduce_fov': True,
+    }
+    if method == 'none':
+        gtmpvc_opts['no_pvc'] = True
+    elif method == 'rbv':
+        gtmpvc_opts['rbv'] = True
+    elif method == 'mg':
+        gtmpvc_opts['mgx'] = 0.0
+
+    gtmpvc = pe.Node(GTMPVC(**gtmpvc_opts), name='gtmpvc')
+
+    if getattr(config.workflow, 'pvc_psf', None):
+        psf = config.workflow.pvc_psf
+        if isinstance(psf, (list | tuple)) and len(psf) == 4:
+            (
+                gtmpvc.inputs.psf_col,
+                gtmpvc.inputs.psf_row,
+                gtmpvc.inputs.psf_slice,
+            ) = psf
+        else:
+            gtmpvc.inputs.psf = psf
 
     ds_pvc = pe.Node(
         DerivativesDataSink(
