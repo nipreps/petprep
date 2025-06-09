@@ -265,7 +265,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (seg_node, segstats_bs, [('out_file', 'segmentation_file')]),
                 (segstats_bs, create_bs_morphtsv, [('summary_file', 'summary_file')]),
                 (segstats_bs, create_bs_dsegtsv, [('ctab_out_file', 'ctab_file')]),
-                (segstats_bs, create_bs_dsegtsv, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (create_bs_dsegtsv, ds_dseg_tsv, [('out_file', 'in_file')]),
                 (create_bs_morphtsv, ds_morph_tsv, [('out_file', 'in_file')]),
                 (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
