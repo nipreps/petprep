@@ -61,7 +61,15 @@ def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=["pvc_pet"]), name="outputnode")
 
-    gtmpvc = pe.Node(GTMPVC(), name="gtmpvc")
+    gtmpvc = pe.Node(GTMPVC(
+                default_seg_merge=True,
+                auto_mask=(1, 0.1),
+                no_pvc=True,
+                pvc_dir="nopvc",
+                no_rescale=True,
+                ),
+            name="gtmpvc")
+
     ds_pvc = pe.Node(
         DerivativesDataSink(
             base_directory=config.execution.petprep_dir,
