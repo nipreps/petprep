@@ -208,6 +208,8 @@ numbers as listed in the corresponding ``desc-gtm_dseg.tsv`` file. When
 specified, PETPrep will create ``desc-ref_mask.nii.gz`` and
 ``desc-ref_tacs.tsv`` (or ``desc-hb_mask.nii.gz`` and ``desc-hb_tacs.tsv``)
 within the ``pet`` derivatives directory.
+``--pvc-method`` selects the partial volume correction method
+(``'none'`` or ``'gtm'`` or ``'mg'`` or ``'rbv'``).
 ``--pvc-psf`` specifies the scanner point-spread function (FWHM in mm) used for
 partial volume correction.
 

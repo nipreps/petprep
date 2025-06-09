@@ -579,6 +579,14 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         help='Label indices from the segmentation TSV to define the high-binding region.',
     )
     g_seg.add_argument(
+        '--pvc-method',
+        dest='pvc_method',
+        action='store',
+        default='none',
+        choices=['none', 'gtm', 'mg', 'rbv'],
+        help='Partial volume correction method to apply.',
+    )
+    g_seg.add_argument(
         '--pvc-psf',
         dest='pvc_psf',
         action='store',

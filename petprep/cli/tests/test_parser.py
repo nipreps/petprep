@@ -262,3 +262,18 @@ def test_pvc_psf_option(tmp_path, minimal_bids):
     opts = _build_parser().parse_args(args)
     assert opts.pvc_psf == 4.0
     _reset_config()
+
+
+def test_pvc_method_option(tmp_path, minimal_bids):
+    out_dir = tmp_path / 'out'
+    args = [
+        str(minimal_bids),
+        str(out_dir),
+        'participant',
+        '--pvc-method',
+        'gtm',
+        '--skip-bids-validation',
+    ]
+    opts = _build_parser().parse_args(args)
+    assert opts.pvc_method == 'gtm'
+    _reset_config()

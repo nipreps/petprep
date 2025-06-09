@@ -605,6 +605,9 @@ class workflow(_Config):
     hb_mask: list[int] | None = None
     """Segmentation label indices defining the high-binding region."""
 
+    pvc_method: str = 'none'
+    """Partial volume correction method (``'none'`` or ``'gtm'`` or ``'mg'`` or ``'rbv'``)."""
+
     pvc_psf: float | None = None
     """Scanner point spread function FWHM in mm for partial volume correction."""
 
