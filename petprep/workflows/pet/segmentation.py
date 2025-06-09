@@ -313,7 +313,7 @@ def ctab_to_dseg_tsv(ctab_file):
 
     return tsv_file
 
-def summary_to_morph(summary_file):
+def summary_to_morph_tsv(summary_file):
     """
     This function reads a 'summary.stats' file, transforms the data, and saves it as a '.tsv' file.
 
