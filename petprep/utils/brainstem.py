@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-from .gtmseg import _read_stats_table
-
 
 def brainstem_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
     """Generate a TSV table describing brainstem segmentation labels."""
+    from pathlib import Path
+
+    from petprep.utils.gtmseg import _read_stats_table
     stats_file = Path(subjects_dir) / subject_id / 'stats' / 'brainstem.v13.stats'
     df = _read_stats_table(stats_file)
     df.columns = [c.lower() for c in df.columns]
@@ -29,6 +28,9 @@ def brainstem_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
 
 def brainstem_stats_to_stats(subjects_dir: str, subject_id: str) -> str:
     """Generate a TSV table of morphological statistics from ``brainstem.v13.stats``."""
+    from pathlib import Path
+
+    from petprep.utils.gtmseg import _read_stats_table
     stats_file = Path(subjects_dir) / subject_id / 'stats' / 'brainstem.v13.stats'
     df = _read_stats_table(stats_file)
     df.columns = [c.lower() for c in df.columns]

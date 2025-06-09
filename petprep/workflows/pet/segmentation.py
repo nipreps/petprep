@@ -188,6 +188,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 base_directory=config.execution.petprep_dir,
                 desc='brainstem',
                 suffix='dseg',
+                extension='.nii.gz',
                 compress=True,
             ),
             name='ds_brainstemseg',
