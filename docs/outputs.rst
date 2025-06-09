@@ -298,7 +298,9 @@ PET resolution. The segmentation statistics are stored in
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.tsv`` and
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_morph.tsv``.
 ``sub-<subject_label>/pet/sub-<subject_label>_desc-gtm_tacs.tsv`` stores the
-time-activity curves extracted from the GTM regions.
+time-activity curves extracted from the GTM segmentation. When partial volume
+correction is enabled with ``--pvc-method 'method'`` and ``--pvc-psf``, the table is
+named ``sub-<subject_label>_pvc-'method'_desc-gtm_tacs.tsv`` instead.
 
 When ``--ref-mask`` or ``--hb-mask`` are provided, masks and TAC tables for
 these composite regions are also stored as ``desc-ref_mask.nii.gz`` with

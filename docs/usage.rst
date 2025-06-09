@@ -192,7 +192,9 @@ directory. The segmentation is resampled to match the native anatomical image
 resolution and again to the PET resolution before extracting TACs. It also
 generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv`` tables containing
 segmentation statistics. A ``desc-gtm_tacs.tsv`` file with time-activity curves
-is written to the ``pet`` derivatives directory.
+is written to the ``pet`` derivatives directory. When partial volume
+correction is requested with ``--pvc-method 'method'`` and ``--pvc-psf``, the TACs
+table is saved as ``pvc-gtm_desc-'method'_tacs.tsv`` instead.
 
 Using ``--seg brainstem`` runs ``segmentBS.sh`` to label the brainstem.
 The segmentation is resampled to the anatomical image resolution and
