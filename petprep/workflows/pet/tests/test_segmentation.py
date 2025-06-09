@@ -85,3 +85,26 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
             )
             result = node.run()
             assert 'sub-01/anat/sub-01_desc-gtm_' in result.outputs.out_file
+    elif seg == 'brainstem':
+        run_bs = seg_wf.get_node('run_brainstem')
+        from nipype.interfaces.freesurfer import MRIConvert
+
+        from ....interfaces import DerivativesDataSink
+        from ....interfaces.segmentation import SegmentBS
+
+        assert isinstance(run_bs.interface, SegmentBS)
+        convert = seg_wf.get_node('convert_brainstemseg')
+        ds = seg_wf.get_node('ds_brainstemseg')
+        dseg_tsv = seg_wf.get_node('ds_brainstemdsegtsv')
+        morph_tsv = seg_wf.get_node('ds_brainstemmorphtsv')
+        assert isinstance(convert.interface, MRIConvert)
+        assert isinstance(ds.interface, DerivativesDataSink)
+        assert ds.interface.inputs.desc == 'brainstem'
+        assert isinstance(dseg_tsv.interface, DerivativesDataSink)
+        assert dseg_tsv.interface.inputs.desc == 'brainstem'
+        assert isinstance(morph_tsv.interface, DerivativesDataSink)
+        assert morph_tsv.interface.inputs.desc == 'brainstem'
+        outnode = seg_wf.get_node('outputnode')
+        assert hasattr(outnode.outputs, 'dseg_tsv')
+        edge = seg_wf._graph.get_edge_data(seg_wf.get_node('inputnode'), convert)
+        assert ('t1w_preproc', 'reslice_like') in edge['connect']

@@ -194,6 +194,11 @@ generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv`` tables containing
 segmentation statistics. A ``desc-gtm_tacs.tsv`` file with time-activity curves
 is written to the ``pet`` derivatives directory.
 
+Using ``--seg brainstem`` runs ``segmentBS.sh`` to label the brainstem.
+The segmentation is resampled to the anatomical image resolution and
+accompanied by ``desc-brainstem_dseg.tsv`` and ``desc-brainstem_morph.tsv``
+tables with segmentation statistics.
+
 Two additional options allow defining composite regions from the GTM
 segmentation indices:
 

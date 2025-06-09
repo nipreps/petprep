@@ -10,6 +10,8 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
+from ...interfaces.segmentation import SegmentBS
+from ...utils.brainstem import brainstem_stats_to_stats, brainstem_to_dsegtsv
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
 
 SEGMENTATION_CMDS = {
@@ -42,13 +44,24 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     )
 
     # This node is just a placeholder for the actual FreeSurfer command
-    seg_node = (
-        pe.Node(GTMSeg(args='--no-xcerseg'), name=f'run_{seg}')
-        if seg == 'gtm'
-        else pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
-    )
+    if seg == 'gtm':
+        seg_node = pe.Node(GTMSeg(args='--no-xcerseg'), name='run_gtm')
+    elif seg == 'brainstem':
+        seg_node = pe.Node(SegmentBS(), name='run_brainstem')
+    else:
+        seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
 
     if seg == 'gtm':
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    seg_node,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                )
+            ]
+        )
+    elif seg == 'brainstem':
         workflow.connect(
             [
                 (
@@ -125,6 +138,102 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 check_hdr=False,
             ),
             name='ds_gtmmorphtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                (seg_node, convert_seg, [('out_file', 'in_file')]),
+                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
+                (inputnode, sources, [('t1w_preproc', 'in1')]),
+                (convert_seg, ds_seg, [('out_file', 'in_file')]),
+                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
+                (sources, ds_seg, [('out', 'Sources')]),
+                (ds_seg, outputnode, [('out_file', 'segmentation')]),
+                (
+                    inputnode,
+                    mk_dseg_tsv,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (
+                    inputnode,
+                    mk_morph_tsv,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (mk_dseg_tsv, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (mk_morph_tsv, ds_morph_tsv, [('out_file', 'in_file')]),
+                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
+                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
+                (sources, ds_dseg_tsv, [('out', 'Sources')]),
+                (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
+            ]
+        )
+    elif seg == 'brainstem':
+        convert_seg = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_brainstemseg',
+        )
+        sources = pe.Node(
+            BIDSURI(
+                numinputs=1,
+                dataset_links=config.execution.dataset_links,
+                out_dir=str(config.execution.petprep_dir),
+            ),
+            name='sources',
+        )
+        ds_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='brainstem',
+                suffix='dseg',
+                compress=True,
+            ),
+            name='ds_brainstemseg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        mk_dseg_tsv = pe.Node(
+            niu.Function(
+                function=brainstem_to_dsegtsv,
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['out_file'],
+            ),
+            name='make_brainstemdsegtsv',
+        )
+        mk_morph_tsv = pe.Node(
+            niu.Function(
+                function=brainstem_stats_to_stats,
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['out_file'],
+            ),
+            name='make_brainstemmorphtsv',
+        )
+        ds_dseg_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='brainstem',
+                suffix='dseg',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_brainstemdsegtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_morph_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='brainstem',
+                suffix='morph',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_brainstemmorphtsv',
             run_without_submitting=True,
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
