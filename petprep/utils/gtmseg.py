@@ -7,6 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
+def _not_number(token: str) -> bool:
+    try:
+        float(token)
+    except ValueError:
+        return True
+    return False
+
 
 def _read_stats_table(stats_file: str | Path) -> pd.DataFrame:
     from pathlib import Path
@@ -15,18 +22,34 @@ def _read_stats_table(stats_file: str | Path) -> pd.DataFrame:
     stats_file = Path(stats_file)
     headers: list[str] | None = None
     rows: list[list[str]] = []
+    first_row: list[str] | None = None
     with stats_file.open() as f:
         for line in f:
             if line.startswith('#'):
-                if 'ColHeaders' in line:
-                    headers = line.strip('# \n').split()[1:]
+                stripped = line.strip('# \n')
+                if 'ColHeaders' in stripped:
+                    headers = stripped.split()[1:]
+                elif headers is None:
+                    tokens = stripped.split()
+                    if {'Index', 'SegId', 'SegID', 'Name', 'StructName'} & set(tokens):
+                        headers = tokens
                 continue
-            if headers:
-                parts = line.strip().split()
-                if len(parts) == len(headers):
-                    rows.append(parts)
+            tokens = line.strip().split()
+            if headers is None:
+                if tokens and any(_not_number(t) for t in tokens):
+                    headers = tokens
+                else:
+                    first_row = tokens
+                continue
+            if len(tokens) == len(headers):
+                rows.append(tokens)
     if headers is None:
         raise ValueError(f'No table headers found in {stats_file}')
+    if first_row is not None:
+        if len(first_row) == len(headers):
+            rows.insert(0, first_row)
+        else:
+            raise ValueError(f'Cannot parse stats table {stats_file}')
     return pd.DataFrame(rows, columns=headers)
 
 
