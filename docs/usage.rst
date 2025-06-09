@@ -196,10 +196,16 @@ is written to the ``pet`` derivatives directory. When partial volume
 correction is requested with ``--pvc-method 'method'`` and ``--pvc-psf``, the TACs
 table is saved as ``pvc-gtm_desc-'method'_tacs.tsv`` instead.
 
+Regardless of the segmentation method chosen, PETPrep extracts time-activity
+curves for all regions. The resulting table is saved as
+``desc-<seg>_tacs.tsv`` in the ``pet`` derivatives directory where
+``<seg>`` corresponds to the selected segmentation routine.
+
 Using ``--seg brainstem`` runs ``segmentBS.sh`` to label the brainstem.
 The segmentation is resampled to the anatomical image resolution and
 accompanied by ``desc-brainstem_dseg.tsv`` and ``desc-brainstem_morph.tsv``
-tables with segmentation statistics.
+tables with segmentation statistics. A corresponding
+``desc-brainstem_tacs.tsv`` file contains the extracted TACs.
 
 Three additional options allow defining composite regions from the GTM
 segmentation indices:

@@ -302,6 +302,10 @@ time-activity curves extracted from the GTM segmentation. When partial volume
 correction is enabled with ``--pvc-method 'method'`` and ``--pvc-psf``, the table is
 named ``sub-<subject_label>_pvc-'method'_desc-gtm_tacs.tsv`` instead.
 
+For any segmentation option PETPrep outputs
+``sub-<subject_label>/pet/sub-<subject_label>_desc-<seg>_tacs.tsv``
+where ``<seg>`` is the segmentation name.
+
 When ``--ref-mask`` or ``--hb-mask`` are provided, masks and TAC tables for
 these composite regions are also stored as ``desc-ref_mask.nii.gz`` with
 ``desc-ref_tacs.tsv`` and ``desc-hb_mask.nii.gz`` with ``desc-hb_tacs.tsv`` in

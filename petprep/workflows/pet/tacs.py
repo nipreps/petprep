@@ -86,21 +86,31 @@ def _extract_mask_tacs(
     return str(out_file)
 
 
-def init_gtm_tacs_wf(
+def init_tacs_wf(
     metadata: dict,
+    seg_name: str,
+    desc_suffix: str,
     ref_labels: list[int] | None = None,
     hb_labels: list[int] | None = None,
-    name: str = 'gtm_tacs_wf',
+    name: str | None = None,
 ) -> Workflow:
+    """Extract TACs from ``segmentation`` in PET space."""
     timing_parameters = prepare_timing_parameters(metadata)
 
+    name = name or f'{seg_name}_tacs_wf'
     workflow = Workflow(name=name)
 
+    input_fields = ['pet', 'segmentation', 'dseg_tsv']
+    if seg_name == 'gtm':
+        input_fields.append('reg_lta')
+
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet', 'segmentation', 'dseg_tsv', 'reg_lta']),
+        niu.IdentityInterface(fields=input_fields),
         name='inputnode',
     )
     out_fields = ['out_file']
+    if seg_name == 'gtm':
+        out_fields.append('pvc_tacs')
     if ref_labels:
         out_fields += ['ref_mask', 'ref_tacs']
     if hb_labels:
@@ -137,7 +147,7 @@ def init_gtm_tacs_wf(
     ds_tacs = pe.Node(
         DerivativesDataSink(
             base_directory=config.execution.petprep_dir,
-            desc="gtm",
+            desc=seg_name,
             suffix="tacs",
             extension=".tsv",
             datatype="pet",

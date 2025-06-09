@@ -50,7 +50,7 @@ from .outputs import (
 from .pvc import init_gtmpvc_reg_wf, init_gtmpvc_wf
 from .resampling import init_pet_surf_wf
 from .segmentation import init_segmentation_wf
-from .tacs import init_gtm_tacs_wf
+from .tacs import init_tacs_wf
 
 
 def init_pet_wf(
@@ -329,8 +329,10 @@ configured with cubic B-spline interpolation.
         ]),
     ])  # fmt:skip
 
-    gtm_tacs_wf = init_gtm_tacs_wf(
+    tacs_wf = init_tacs_wf(
         metadata=all_metadata[0],
+        seg_name=config.workflow.seg,
+        desc_suffix=config.workflow.seg,
         ref_labels=config.workflow.ref_mask,
         hb_labels=config.workflow.hb_mask,
     )
@@ -341,8 +343,8 @@ configured with cubic B-spline interpolation.
         gtmpvc_wf = init_gtmpvc_wf(metadata=all_metadata[0])
 
     workflow.connect([
-        (pet_anat_wf, gtm_tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
-        (seg_wf, gtm_tacs_wf, [
+        (pet_anat_wf, tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
+        (seg_wf, tacs_wf, [
             ('outputnode.segmentation', 'inputnode.segmentation'),
             ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
         ]),
@@ -361,7 +363,7 @@ configured with cubic B-spline interpolation.
             (pet_native_wf, gtmpvc_wf, [('outputnode.pet_native', 'inputnode.pet')]),
             (seg_wf, gtmpvc_wf, [('outputnode.segmentation', 'inputnode.segmentation')]),
             (gtmpvc_reg_wf, gtmpvc_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
-            (gtmpvc_reg_wf, gtm_tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
+            (gtmpvc_reg_wf, tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
         ])  # fmt:skip
 
     # Full derivatives, including resampled PET series
