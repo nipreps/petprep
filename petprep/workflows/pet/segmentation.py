@@ -208,7 +208,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name="segstats_bs",
         )
 
-        create_bs_morphtsv = Node(
+        create_bs_morphtsv = pe.Node(
             Function(
                 input_names=["summary_file"],
                 output_names=["out_file"],
@@ -217,7 +217,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name="create_bs_morphtsv",
         )
 
-        create_bs_dsegtsv = Node(
+        create_bs_dsegtsv = pe.Node(
             Function(
                 input_names=["ctab_file"],
                 output_names=["out_file"],
