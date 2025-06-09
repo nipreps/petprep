@@ -10,6 +10,17 @@ from ... import config
 from ...config import DEFAULT_MEMORY_MIN_GB
 from ...interfaces import DerivativesDataSink
 
+class LoggingConcatenateXFMs(ConcatenateXFMs):
+        def _run_interface(self, runtime):
+            try:
+                return super()._run_interface(runtime)
+            except TypeError:
+                config.loggers.workflow.error(
+                    "Failed to concatenate transforms:\n%s",
+                    "\n".join(self.inputs.in_xfms),
+                )
+                raise
+
 
 def init_gtmpvc_reg_wf(name: str = "gtmpvc_reg_wf") -> Workflow:
     """Create a registration transform for ``mri_gtmpvc``.
@@ -30,17 +41,6 @@ def init_gtmpvc_reg_wf(name: str = "gtmpvc_reg_wf") -> Workflow:
     outputnode = pe.Node(niu.IdentityInterface(fields=["reg_lta"]), name="outputnode")
 
     merge_xfms = pe.Node(niu.Merge(2), name="merge_xfms", run_without_submitting=True)
-
-    class LoggingConcatenateXFMs(ConcatenateXFMs):
-        def _run_interface(self, runtime):
-            try:
-                return super()._run_interface(runtime)
-            except TypeError:
-                config.loggers.workflow.error(
-                    "Failed to concatenate transforms:\n%s",
-                    "\n".join(self.inputs.in_xfms),
-                )
-                raise
 
     concat_xfm = pe.Node(
         LoggingConcatenateXFMs(out_fmt="fs", inverse=True),
