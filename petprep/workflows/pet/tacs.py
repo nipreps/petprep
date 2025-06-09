@@ -100,16 +100,16 @@ def init_tacs_wf(
     name = name or f'{seg_name}_tacs_wf'
     workflow = Workflow(name=name)
 
-    input_fields = ['pet', 'segmentation', 'dseg_tsv']
-    if seg_name == 'gtm':
-        input_fields.append('reg_lta')
+    input_fields = ['pet', 'segmentation', 'dseg_tsv', 'reg_lta']
 
     inputnode = pe.Node(
         niu.IdentityInterface(fields=input_fields),
         name='inputnode',
     )
+    pvc_method = getattr(config.workflow, 'pvc_method', 'none')
+
     out_fields = ['out_file']
-    if seg_name == 'gtm':
+    if pvc_method != 'none':
         out_fields.append('pvc_tacs')
     if ref_labels:
         out_fields += ['ref_mask', 'ref_tacs']
@@ -139,10 +139,11 @@ def init_tacs_wf(
         name="extract_nopvc_tacs",
     )
 
-    extract_pvc_tacs = pe.Node(
-        ExtractTACs(metadata=timing_parameters),
-        name="extract_pvc_tacs",
-    )
+    if pvc_method != 'none':
+        extract_pvc_tacs = pe.Node(
+            ExtractTACs(metadata=timing_parameters),
+            name="extract_pvc_tacs",
+        )
 
     ds_tacs = pe.Node(
         DerivativesDataSink(
@@ -158,19 +159,20 @@ def init_tacs_wf(
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    ds_pvc_tacs = pe.Node(
-        DerivativesDataSink(
-            base_directory=config.execution.petprep_dir,
-            desc="gtm_pvc-gtm",
-            suffix="tacs",
-            extension=".tsv",
-            datatype="pet",
-            check_hdr=False,
-        ),
-        name="ds_gtmpvctacs",
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
+    if pvc_method != 'none':
+        ds_pvc_tacs = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc=f"{seg_name}_pvc-{pvc_method}",
+                suffix="tacs",
+                extension=".tsv",
+                datatype="pet",
+                check_hdr=False,
+            ),
+            name="ds_gtmpvctacs",
+            run_without_submitting=True,
+            mem_gb=DEFAULT_MEMORY_MIN_GB,
+        )
 
     if ref_labels:
         ref_mask = pe.Node(
@@ -284,18 +286,24 @@ def init_tacs_wf(
             (inputnode, ds_tacs, [("pet", "source_file")]),
             (sources, ds_tacs, [("out", "Sources")]),
             (ds_tacs, outputnode, [("out_file", "out_file")]),
-            (
-                gtmpvc,
-                extract_pvc_tacs,
-                [("gtm_file", "pet_file"), ("seg", "segmentation")],
-            ),
-            (inputnode, extract_pvc_tacs, [("dseg_tsv", "dseg_tsv")]),
-            (extract_pvc_tacs, ds_pvc_tacs, [("out_file", "in_file")]),
-            (inputnode, ds_pvc_tacs, [("pet", "source_file")]),
-            (sources, ds_pvc_tacs, [("out", "Sources")]),
-            (ds_pvc_tacs, outputnode, [("out_file", "pvc_tacs")]),
         ]
     )
+
+    if pvc_method != 'none':
+        workflow.connect(
+            [
+                (
+                    gtmpvc,
+                    extract_pvc_tacs,
+                    [("gtm_file", "pet_file"), ("seg", "segmentation")],
+                ),
+                (inputnode, extract_pvc_tacs, [("dseg_tsv", "dseg_tsv")]),
+                (extract_pvc_tacs, ds_pvc_tacs, [("out_file", "in_file")]),
+                (inputnode, ds_pvc_tacs, [("pet", "source_file")]),
+                (sources, ds_pvc_tacs, [("out", "Sources")]),
+                (ds_pvc_tacs, outputnode, [("out_file", "pvc_tacs")]),
+            ]
+        )
 
     if ref_labels:
         workflow.connect(

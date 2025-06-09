@@ -51,8 +51,18 @@ def init_gtmpvc_reg_wf(name: str = "gtmpvc_reg_wf") -> Workflow:
     return workflow
 
 
-def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
-    """Run FreeSurfer ``mri_gtmpvc``."""
+def init_gtmpvc_wf(*, metadata: dict, method: str, name: str = "gtmpvc_wf") -> Workflow:
+    """Run FreeSurfer ``mri_gtmpvc``.
+
+    Parameters
+    ----------
+    metadata : dict
+        BIDS metadata dictionary associated with the PET series.
+    method : {"gtm", "mg", "rbv"}
+        Partial volume correction method.
+    name : str
+        Workflow name.
+    """
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
@@ -61,18 +71,16 @@ def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=["pvc_pet"]), name="outputnode")
 
-    method = getattr(config.workflow, 'pvc_method', 'none')
-    pvc_dir = 'nopvc' if method == 'none' else f'pvc-{method}'
+    pvc_dir = f"pvc-{method}"
     gtmpvc_opts = {
-        'default_seg_merge': True,
-        'auto_mask': (1, 0.1),
-        'pvc_dir': pvc_dir,
-        'no_rescale': True,
-        'no_reduce_fov': True,
+        "default_seg_merge": True,
+        "auto_mask": (1, 0.1),
+        "pvc_dir": pvc_dir,
+        "no_rescale": True,
+        "no_reduce_fov": True,
+        "no_pvc": False,
     }
-    if method == 'none':
-        gtmpvc_opts['no_pvc'] = True
-    elif method == 'rbv':
+    if method == 'rbv':
         gtmpvc_opts['rbv'] = True
     elif method == 'mg':
         gtmpvc_opts['mgx'] = 0.0
@@ -93,7 +101,7 @@ def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
     ds_pvc = pe.Node(
         DerivativesDataSink(
             base_directory=config.execution.petprep_dir,
-            desc="gtmpvc",
+            desc=f"pvc-{method}",
             suffix="pet",
             datatype="pet",
             compress=True,
@@ -115,7 +123,16 @@ def init_gtmpvc_wf(*, metadata: dict, name: str = "gtmpvc_wf") -> Workflow:
                     ("reg_lta", "reg_file"),
                 ],
             ),
-            (gtmpvc, ds_pvc, [("gtm_file", "in_file")]),
+            (
+                gtmpvc,
+                ds_pvc,
+                [
+                    (
+                        {"gtm": "gtm_file", "mg": "mgx_gm", "rbv": "rbv"}[method],
+                        "in_file",
+                    )
+                ],
+            ),
             (inputnode, ds_pvc, [("pet", "source_file")]),
             (ds_pvc, outputnode, [("out_file", "pvc_pet")]),
         ]

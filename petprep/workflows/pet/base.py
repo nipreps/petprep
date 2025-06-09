@@ -337,10 +337,13 @@ configured with cubic B-spline interpolation.
         hb_labels=config.workflow.hb_mask,
     )
 
-    gtmpvc_reg_wf = gtmpvc_wf = None
-    if config.workflow.seg == "gtm":
-        gtmpvc_reg_wf = init_gtmpvc_reg_wf()
-        gtmpvc_wf = init_gtmpvc_wf(metadata=all_metadata[0])
+    gtmpvc_reg_wf = init_gtmpvc_reg_wf()
+    gtmpvc_wf = None
+    if config.workflow.pvc_method != "none":
+        gtmpvc_wf = init_gtmpvc_wf(
+            metadata=all_metadata[0], 
+            method=config.workflow.pvc_method
+        )
 
     workflow.connect([
         (pet_anat_wf, tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
