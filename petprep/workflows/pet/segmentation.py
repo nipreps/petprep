@@ -6,6 +6,7 @@ from nipype.interfaces.freesurfer import MRIConvert
 from nipype.interfaces.freesurfer.petsurfer import GTMSeg
 from ...interfaces.fs_model import SegStats
 from nipype.pipeline import engine as pe
+from nipype import Function
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
 from ... import config
@@ -208,7 +209,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
 
         create_bs_morphtsv = pe.Node(
-            pe.Function(
+            Function(
                 input_names=["summary_file"],
                 output_names=["out_file"],
                 function=summary_to_morph_tsv,
@@ -217,7 +218,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
 
         create_bs_dsegtsv = pe.Node(
-            pe.Function(
+            Function(
                 input_names=["ctab_file"],
                 output_names=["out_file"],
                 function=ctab_to_dseg_tsv,
