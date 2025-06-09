@@ -47,6 +47,7 @@ from .outputs import (
     init_ds_volumes_wf,
     prepare_timing_parameters,
 )
+from .pvc import init_gtmpvc_reg_wf, init_gtmpvc_wf
 from .resampling import init_pet_surf_wf
 from .segmentation import init_segmentation_wf
 from .tacs import init_gtm_tacs_wf
@@ -334,6 +335,11 @@ configured with cubic B-spline interpolation.
         hb_labels=config.workflow.hb_mask,
     )
 
+    gtmpvc_reg_wf = gtmpvc_wf = None
+    if config.workflow.seg == "gtm":
+        gtmpvc_reg_wf = init_gtmpvc_reg_wf()
+        gtmpvc_wf = init_gtmpvc_wf(metadata=all_metadata[0])
+
     workflow.connect([
         (pet_anat_wf, gtm_tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
         (seg_wf, gtm_tacs_wf, [
@@ -341,6 +347,21 @@ configured with cubic B-spline interpolation.
             ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
         ]),
     ])  # fmt:skip
+
+    if gtmpvc_wf:
+        workflow.connect([
+            (pet_fit_wf, gtmpvc_reg_wf, [
+                ('outputnode.petref', 'inputnode.pet_ref'),
+                ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
+            ]),
+            (pet_native_wf, gtmpvc_reg_wf, [
+                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+            ]),
+            (inputnode, gtmpvc_reg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
+            (pet_native_wf, gtmpvc_wf, [('outputnode.pet_native', 'inputnode.pet')]),
+            (seg_wf, gtmpvc_wf, [('outputnode.segmentation', 'inputnode.segmentation')]),
+            (gtmpvc_reg_wf, gtmpvc_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
+        ])  # fmt:skip
 
     # Full derivatives, including resampled PET series
     if nonstd_spaces.intersection(('anat', 'T1w')):
