@@ -103,6 +103,34 @@ def test_config_spaces():
     _reset_config()
 
 
+def test_parse_args_default_output_spaces(tmp_path):
+    """Ensure T1w is included when --output-spaces is not provided."""
+    from unittest.mock import patch
+
+    from petprep.cli import parser as cli
+
+    with data.load.as_path('tests/ds000005') as bids_dir:
+        out_dir = tmp_path / 'out'
+        out_dir.mkdir()
+
+        def fake_init():
+            config.execution.layout = type('L', (), {'get_subjects': lambda self: ['01']})()
+
+        with patch.object(config.execution, 'init', fake_init):
+            cli.parse_args(
+                [
+                    str(bids_dir),
+                    str(out_dir),
+                    'participant',
+                    '--skip-bids-validation',
+                ]
+            )
+
+    spaces = {ref.fullname for ref in config.execution.output_spaces.references}
+    assert 'T1w' in spaces
+    _reset_config()
+
+
 @pytest.mark.parametrize(
     ('master_seed', 'ants_seed', 'numpy_seed'), [(1, 17612, 8272), (100, 19094, 60232)]
 )

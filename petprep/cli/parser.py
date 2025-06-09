@@ -732,7 +732,10 @@ def parse_args(args=None, namespace=None):
     # Initialize --output-spaces if not defined
     if config.execution.output_spaces is None:
         config.execution.output_spaces = SpatialReferences(
-            [Reference('MNI152NLin2009cAsym', {'res': 'native'})]
+            [
+                Reference('MNI152NLin2009cAsym', {'res': 'native'}),
+                Reference('T1w'),
+            ]
         )
 
     # Retrieve logging level

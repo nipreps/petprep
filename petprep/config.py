@@ -561,9 +561,9 @@ class workflow(_Config):
     fs_no_resume = None
     """Adjust pipeline to reuse base template of existing longitudinal freesurfer"""
     ignore = None
-    """Ignore particular steps for *fMRIPrep*."""
+    """Ignore particular steps for *PETPrep*."""
     force = None
-    """Force particular steps for *fMRIPrep*."""
+    """Force particular steps for *PETPrep*."""
     level = None
     """Level of preprocessing to complete. One of ['minimal', 'resampling', 'full']."""
     longitudinal = False

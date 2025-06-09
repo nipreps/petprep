@@ -37,7 +37,8 @@ stereotactic coordinate system.
 The most extended standard space for fMRI analyses is generally referred to MNI.
 For instance, to instruct *PETPrep* to use the MNI template brain distributed with
 FSL as coordinate reference the option will read as follows: ``--output-spaces MNI152NLin6Asym``.
-By default, *PETPrep* uses ``MNI152NLin2009cAsym`` as spatial-standardization reference.
+By default, *PETPrep* produces outputs in the subject's anatomical space
+(``T1w``/``anat``) and the ``MNI152NLin2009cAsym`` standard space.
 Valid template identifiers (``MNI152NLin6Asym``, ``MNI152NLin2009cAsym``, etc.) come from
 the `TemplateFlow repository <https://github.com/templateflow/templateflow>`__.
 
