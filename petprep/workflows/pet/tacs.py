@@ -160,10 +160,11 @@ def init_tacs_wf(
     )
 
     if pvc_method != 'none':
+        pvc_desc = f"{seg_name}_pvc-{pvc_method}"
         ds_pvc_tacs = pe.Node(
             DerivativesDataSink(
                 base_directory=config.execution.petprep_dir,
-                desc=f"{seg_name}_pvc-{pvc_method}",
+                desc=pvc_desc,
                 suffix="tacs",
                 extension=".tsv",
                 datatype="pet",

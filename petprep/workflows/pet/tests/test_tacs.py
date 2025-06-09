@@ -2,6 +2,7 @@ from pathlib import Path
 
 import nibabel as nb
 import numpy as np
+import pytest
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from .... import config
@@ -64,3 +65,24 @@ def test_gtm_tacs_wf_masks(tmp_path: Path):
     assert tacs_wf.get_node('ds_ref_tacs') is not None
     assert tacs_wf.get_node('ds_hb_mask') is not None
     assert tacs_wf.get_node('ds_hb_tacs') is not None
+
+
+@pytest.mark.parametrize(
+    "seg,pvc_method",
+    [
+        ("gtm", "gtm"),
+        ("brainstem", "rbv"),
+    ],
+)
+def test_pvc_tacs_desc(tmp_path: Path, seg: str, pvc_method: str):
+    bids_dir = _prep_bids(tmp_path)
+    pet_series = [str(bids_dir / "sub-01" / "pet" / "sub-01_task-rest_run-1_pet.nii.gz")]
+    with mock_config(bids_dir=bids_dir):
+        config.workflow.seg = seg
+        config.workflow.pvc_method = pvc_method
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    tacs_wf = wf.get_node(f"{seg}_tacs_wf")
+    pvc_ds = tacs_wf.get_node("ds_gtmpvctacs")
+
+    assert pvc_ds.interface.inputs.desc == f"{seg}_pvc-{pvc_method}"
