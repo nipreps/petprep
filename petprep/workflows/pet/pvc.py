@@ -43,7 +43,6 @@ def init_gtmpvc_reg_wf(name: str = "gtmpvc_reg_wf") -> Workflow:
                 raise
 
     concat_xfm = pe.Node(
-        ConcatenateXFMs(out_fmt="fs", inverse=True),
         LoggingConcatenateXFMs(out_fmt="fs", inverse=True),
         name="concat_xfm",
         run_without_submitting=True,
