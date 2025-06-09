@@ -9,7 +9,12 @@ def brainstem_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
     from pathlib import Path
 
     from petprep.utils.gtmseg import _read_stats_table
-    stats_file = Path(subjects_dir) / subject_id / 'stats' / 'brainstem.v13.stats'
+    stats_file = (
+        Path(subjects_dir)
+        / subject_id
+        / 'mri'
+        / 'brainstemSsVolumes.v13.txt'
+    )
     df = _read_stats_table(stats_file)
     df.columns = [c.lower() for c in df.columns]
 
@@ -30,11 +35,16 @@ def brainstem_to_dsegtsv(subjects_dir: str, subject_id: str) -> str:
 
 
 def brainstem_stats_to_stats(subjects_dir: str, subject_id: str) -> str:
-    """Generate a TSV table of morphological statistics from ``brainstem.v13.stats``."""
+    """Generate a TSV table of morphological statistics from ``brainstemSsVolumes.v13.txt``."""
     from pathlib import Path
 
     from petprep.utils.gtmseg import _read_stats_table
-    stats_file = Path(subjects_dir) / subject_id / 'stats' / 'brainstem.v13.stats'
+    stats_file = (
+        Path(subjects_dir)
+        / subject_id
+        / 'mri'
+        / 'brainstemSsVolumes.v13.txt'
+    )
     df = _read_stats_table(stats_file)
     df.columns = [c.lower() for c in df.columns]
 
