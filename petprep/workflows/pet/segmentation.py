@@ -12,7 +12,7 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei, SegmentWM, SegmentHA_T1
+from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei, SegmentWM, SegmentHA_T1, MRISclimbicSeg
 from ...utils.brainstem import brainstem_stats_to_stats, brainstem_to_dsegtsv
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
 from ...utils.thalamic import ctab_to_dsegtsv, summary_to_stats
@@ -47,7 +47,7 @@ SEGMENTATION_CMDS = {
     'thalamicNuclei': 'SegmentThalamicNuclei',
     'hippocampusAmygdala': 'SegmentHA_T1',
     'wm': 'SegmentWM',
-    'raphe': 'SegmentBS',
+    'raphe': 'MRISclimbicSeg',
     'limbic': 'SegmentHA_T1',
 }
 
@@ -81,6 +81,21 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         seg_node = pe.Node(SegmentHA_T1(), name='run_hippocampusamygdala')
     elif seg == 'wm':
         seg_node = pe.Node(SegmentWM(), name='run_wm')
+    elif seg == 'raphe':
+        try:
+            from importlib.resources import files as ir_files
+        except ImportError:  # PY<3.9
+            from importlib_resources import files as ir_files
+
+        data = ir_files('petprep.data.segmentation')
+        seg_node = pe.Node(
+            MRISclimbicSeg(
+                model=str(data / 'raphe+pons.n21.d114.h5'),
+                ctab=str(data / 'raphe+pons.ctab'),
+                out_file='raphe_seg.mgz',
+            ),
+            name='run_raphe',
+        )
     else:
         seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
 
@@ -124,6 +139,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 )
             ]
         )
+    elif seg == 'raphe':
+        workflow.connect([(inputnode, seg_node, [('t1w_preproc', 'in_file')])])
     elif seg == 'wm':
         workflow.connect(
             [
@@ -548,6 +565,108 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (segstats_bs, create_bs_dsegtsv, [('ctab_out_file', 'ctab_file')]),
                 (create_bs_dsegtsv, ds_dseg_tsv, [('out_file', 'in_file')]),
                 (create_bs_morphtsv, ds_morph_tsv, [('out_file', 'in_file')]),
+                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
+                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
+                (sources, ds_dseg_tsv, [('out', 'Sources')]),
+                (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
+            ]
+        )
+    elif seg == 'raphe':
+        convert_seg = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_rapheseg',
+        )
+        sources = pe.Node(
+            BIDSURI(
+                numinputs=1,
+                dataset_links=config.execution.dataset_links,
+                out_dir=str(config.execution.petprep_dir),
+            ),
+            name='sources',
+        )
+        ds_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='raphe',
+                suffix='dseg',
+                extension='.nii.gz',
+                compress=True,
+            ),
+            name='ds_rapheseg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        segstats_raphe = pe.Node(
+            SegStats(
+                exclude_id=0,
+                color_table_file=str(data / 'raphe+pons.ctab'),
+                ctab_out_file='desc-raphe_dseg.ctab',
+                summary_file='desc-raphe_morph.txt',
+            ),
+            name='segstats_raphe',
+        )
+
+        create_raphe_morph = pe.Node(
+            Function(
+                input_names=['summary_file'],
+                output_names=['out_file'],
+                function=summary_to_stats,
+            ),
+            name='create_raphe_morphtsv',
+        )
+
+        create_raphe_dseg = pe.Node(
+            Function(
+                input_names=['ctab_file'],
+                output_names=['out_file'],
+                function=ctab_to_dsegtsv,
+            ),
+            name='create_raphe_dsegtsv',
+        )
+
+        ds_dseg_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='raphe',
+                suffix='dseg',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_raphedsegtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_morph_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='raphe',
+                suffix='morph',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_raphemorphtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                (seg_node, convert_seg, [('out_file', 'in_file')]),
+                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
+                (inputnode, sources, [('t1w_preproc', 'in1')]),
+                (convert_seg, ds_seg, [('out_file', 'in_file')]),
+                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
+                (sources, ds_seg, [('out', 'Sources')]),
+                (ds_seg, outputnode, [('out_file', 'segmentation')]),
+                (seg_node, segstats_raphe, [('out_file', 'segmentation_file')]),
+                (segstats_raphe, create_raphe_morph, [('summary_file', 'summary_file')]),
+                (segstats_raphe, create_raphe_dseg, [('ctab_out_file', 'ctab_file')]),
+                (create_raphe_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (create_raphe_morph, ds_morph_tsv, [('out_file', 'in_file')]),
                 (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
                 (sources, ds_dseg_tsv, [('out', 'Sources')]),
