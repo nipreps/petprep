@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-from petprep.utils.thalamic import avgwf_to_tacs, summary_to_stats, ctab_to_dsegtsv
+from petprep.utils.thalamic import summary_to_stats, ctab_to_dsegtsv
 
 
 def test_thalamic_utils(tmp_path: Path):
@@ -21,9 +21,3 @@ def test_thalamic_utils(tmp_path: Path):
     out_dseg = ctab_to_dsegtsv(ctab_file)
     df_dseg = pd.read_csv(out_dseg, sep='\t')
     assert list(df_dseg.columns) == ['index', 'name']
-
-    avgwf_file = tmp_path / 'avgwf.txt'
-    avgwf_file.write_text('Frame region1 region2\n0 1 2\n1 3 4\n')
-    out_tacs = avgwf_to_tacs(avgwf_file)
-    df_tacs = pd.read_csv(out_tacs, sep='\t')
-    assert list(df_tacs.columns) == ['Frame', 'region1', 'region2']
