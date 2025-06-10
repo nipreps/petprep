@@ -12,10 +12,34 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei, SegmentWM
+from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei, SegmentWM, SegmentHA_T1
 from ...utils.brainstem import brainstem_stats_to_stats, brainstem_to_dsegtsv
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
 from ...utils.thalamic import ctab_to_dsegtsv, summary_to_stats
+
+
+def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
+    """Combine left and right hippocampus/amygdala label volumes."""
+    from pathlib import Path
+    import numpy as np
+    import nibabel as nb
+
+    lh_img = nb.load(lh_file)
+    rh_img = nb.load(rh_file)
+
+    if not np.allclose(lh_img.affine, rh_img.affine) or lh_img.shape != rh_img.shape:
+        raise ValueError('Hemisphere segmentations do not align')
+
+    lh_data = np.asanyarray(lh_img.dataobj)
+    rh_data = np.asanyarray(rh_img.dataobj)
+    data = np.where(rh_data > 0, rh_data, lh_data)
+
+    out_img = lh_img.__class__(data, lh_img.affine, lh_img.header)
+    out_img.set_data_dtype('int16')
+    out_file = Path('hippocampusAmygdala_dseg.nii.gz').absolute()
+    out_img.to_filename(out_file)
+    return str(out_file)
+
 
 SEGMENTATION_CMDS = {
     'gtm': 'gtmseg',
@@ -53,6 +77,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         seg_node = pe.Node(SegmentThalamicNuclei(), name='run_thalamicnuclei')
     elif seg == 'brainstem':
         seg_node = pe.Node(SegmentBS(), name='run_brainstem')
+    elif seg == 'hippocampusAmygdala':
+        seg_node = pe.Node(SegmentHA_T1(), name='run_hippocampusamygdala')
     elif seg == 'wm':
         seg_node = pe.Node(SegmentWM(), name='run_wm')
     else:
@@ -69,6 +95,16 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             ]
         )
     elif seg == 'brainstem':
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    seg_node,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                )
+            ]
+        )
+    elif seg == 'hippocampusAmygdala':
         workflow.connect(
             [
                 (
@@ -296,6 +332,124 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
                 (sources, ds_dseg_tsv, [('out', 'Sources')]),
                 (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
+            ]
+        )
+    elif seg == 'hippocampusAmygdala':
+        convert_lh = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_ha_lh',
+        )
+        convert_rh = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_ha_rh',
+        )
+        merge_seg = pe.Node(
+            Function(
+                input_names=['lh_file', 'rh_file'],
+                output_names=['out_file'],
+                function=_merge_ha_labels,
+            ),
+            name='merge_ha_seg',
+        )
+        sources = pe.Node(
+            BIDSURI(
+                numinputs=1,
+                dataset_links=config.execution.dataset_links,
+                out_dir=str(config.execution.petprep_dir),
+            ),
+            name='sources',
+        )
+        ds_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='hippocampusAmygdala',
+                suffix='dseg',
+                extension='.nii.gz',
+                compress=True,
+            ),
+            name='ds_hippoamygseg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        segstats_ha = pe.Node(
+            SegStats(
+                exclude_id=0,
+                default_color_table=True,
+                ctab_out_file='desc-hippocampusAmygdala_dseg.ctab',
+                summary_file='desc-hippocampusAmygdala_morph.txt',
+            ),
+            name='segstats_ha',
+        )
+
+        create_ha_morph = pe.Node(
+            Function(
+                input_names=['summary_file'],
+                output_names=['out_file'],
+                function=summary_to_stats,
+            ),
+            name='create_ha_morphtsv',
+        )
+
+        create_ha_dseg = pe.Node(
+            Function(
+                input_names=['ctab_file'],
+                output_names=['out_file'],
+                function=ctab_to_dsegtsv,
+            ),
+            name='create_ha_dsegtsv',
+        )
+
+        ds_dseg_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='hippocampusAmygdala',
+                suffix='dseg',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_hippoamygdsegtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_morph_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='hippocampusAmygdala',
+                suffix='morph',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_hippoamygmorphtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                (seg_node, convert_lh, [('lh_hippoAmygLabels', 'in_file')]),
+                (seg_node, convert_rh, [('rh_hippoAmygLabels', 'in_file')]),
+                (inputnode, convert_lh, [('t1w_preproc', 'reslice_like')]),
+                (inputnode, convert_rh, [('t1w_preproc', 'reslice_like')]),
+                (convert_lh, merge_seg, [('out_file', 'lh_file')]),
+                (convert_rh, merge_seg, [('out_file', 'rh_file')]),
+                (merge_seg, ds_seg, [('out_file', 'in_file')]),
+                (merge_seg, segstats_ha, [('out_file', 'segmentation_file')]),
+                (inputnode, sources, [('t1w_preproc', 'in1')]),
+                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
+                (sources, ds_seg, [('out', 'Sources')]),
+                (segstats_ha, create_ha_morph, [('summary_file', 'summary_file')]),
+                (segstats_ha, create_ha_dseg, [('ctab_out_file', 'ctab_file')]),
+                (create_ha_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (create_ha_morph, ds_morph_tsv, [('out_file', 'in_file')]),
+                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
+                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
+                (sources, ds_dseg_tsv, [('out', 'Sources')]),
+                (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_seg, outputnode, [('out_file', 'segmentation')]),
                 (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
             ]
         )
