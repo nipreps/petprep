@@ -71,6 +71,29 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
         assert morph_tsv.interface.inputs.extension == '.tsv'
         edge = seg_wf._graph.get_edge_data(seg_wf.get_node('inputnode'), convert)
         assert ('t1w_preproc', 'reslice_like') in edge['connect']
+    elif seg == 'limbic':
+        run_limbic = seg_wf.get_node('run_limbic')
+        from nipype.interfaces.freesurfer import MRIConvert
+
+        from ....interfaces import DerivativesDataSink
+        from ....interfaces.segmentation import MRISclimbicSeg
+
+        assert isinstance(run_limbic.interface, MRISclimbicSeg)
+        convert = seg_wf.get_node('convert_limbicseg')
+        ds = seg_wf.get_node('ds_limbicseg')
+        dseg_tsv = seg_wf.get_node('ds_limbicdsegtsv')
+        morph_tsv = seg_wf.get_node('ds_limbicmorphtsv')
+        assert isinstance(convert.interface, MRIConvert)
+        assert isinstance(ds.interface, DerivativesDataSink)
+        assert ds.interface.inputs.desc == 'limbic'
+        assert isinstance(dseg_tsv.interface, DerivativesDataSink)
+        assert dseg_tsv.interface.inputs.desc == 'limbic'
+        assert isinstance(morph_tsv.interface, DerivativesDataSink)
+        assert morph_tsv.interface.inputs.desc == 'limbic'
+        outnode = seg_wf.get_node('outputnode')
+        assert hasattr(outnode.outputs, 'dseg_tsv')
+        edge = seg_wf._graph.get_edge_data(seg_wf.get_node('inputnode'), convert)
+        assert ('t1w_preproc', 'reslice_like') in edge['connect']
         assert morph_tsv.interface.inputs.datatype == 'anat'
 
         tmp_tsv = tmp_path / 'tmp.tsv'
