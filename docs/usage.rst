@@ -207,6 +207,12 @@ accompanied by ``desc-brainstem_dseg.tsv`` and ``desc-brainstem_morph.tsv``
 tables with segmentation statistics. A corresponding
 ``desc-brainstem_tacs.tsv`` file contains the extracted TACs.
 
+Using ``--seg thalamicNuclei`` runs ``segmentThalamicNuclei.sh`` to label the
+thalamic nuclei. The segmentation is produced in anatomical space and
+accompanied by ``desc-thalamus_dseg.tsv`` and ``desc-thalamus_morph.tsv`` tables
+with segmentation statistics. A corresponding ``desc-thalamus_tacs.tsv`` file
+contains the extracted TACs.
+
 Three additional options allow defining composite regions from the GTM
 segmentation indices:
 
