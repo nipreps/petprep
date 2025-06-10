@@ -36,3 +36,13 @@ Workflows
 .. automodule:: petprep.workflows.base
 .. automodule:: petprep.workflows.pet
 .. automodule:: petprep.workflows.pet.fit
+.. automodule:: petprep.workflows.pet.apply
+.. automodule:: petprep.workflows.pet.confounds
+.. automodule:: petprep.workflows.pet.hmc
+.. automodule:: petprep.workflows.pet.outputs
+.. automodule:: petprep.workflows.pet.pvc
+.. automodule:: petprep.workflows.pet.reference
+.. automodule:: petprep.workflows.pet.registration
+.. automodule:: petprep.workflows.pet.resampling
+.. automodule:: petprep.workflows.pet.segmentation
+.. automodule:: petprep.workflows.pet.tacs
