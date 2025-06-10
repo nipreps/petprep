@@ -311,3 +311,44 @@ class SegmentThalamicNuclei(BaseInterface):
             fs_path, "ThalamicNuclei.v13.T1.volumes.txt"
         )
         return outputs
+
+
+class SegmentWMInputSpec(BaseInterfaceInputSpec):
+    subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
+    subject_id = traits.Str(mandatory=True, desc='Subject identifier')
+
+
+class SegmentWMOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='White-matter parcellation')
+
+
+class SegmentWM(SimpleInterface):
+    """Run ``mri_wmparc`` if ``wmparc.mgz`` is missing."""
+
+    input_spec = SegmentWMInputSpec
+    output_spec = SegmentWMOutputSpec
+
+    def _run_interface(self, runtime):
+        subj_dir = Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri'
+        out_file = subj_dir / 'wmparc.mgz'
+
+        if not out_file.exists():
+            cmd = [
+                'mri_wmparc',
+                '--s',
+                self.inputs.subject_id,
+                '--sd',
+                str(self.inputs.subjects_dir),
+            ]
+            self._results['stdout'], self._results['stderr'] = self._run_command(cmd)
+        else:
+            runtime.returncode = 0
+
+        self._results['out_file'] = str(out_file)
+        return runtime
+
+    def _run_command(self, cmd):
+        import subprocess
+
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        return proc.stdout, proc.stderr
