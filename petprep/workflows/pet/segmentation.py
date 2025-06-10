@@ -12,7 +12,7 @@ from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from ... import config
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-from ...interfaces.segmentation import SegmentBS
+from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei
 from ...utils.brainstem import brainstem_stats_to_stats, brainstem_to_dsegtsv
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
 
@@ -48,6 +48,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     # This node is just a placeholder for the actual FreeSurfer command
     if seg == 'gtm':
         seg_node = pe.Node(GTMSeg(args='--no-xcerseg'), name='run_gtm')
+    elif seg == 'thalamicNuclei':
+        seg_node = pe.Node(SegmentThalamicNuclei(), name='run_thalamicnuclei')
     elif seg == 'brainstem':
         seg_node = pe.Node(SegmentBS(), name='run_brainstem')
     else:
@@ -64,6 +66,16 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             ]
         )
     elif seg == 'brainstem':
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    seg_node,
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                )
+            ]
+        )
+    elif seg == 'thalamicNuclei':
         workflow.connect(
             [
                 (
@@ -165,6 +177,109 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 ),
                 (mk_dseg_tsv, ds_dseg_tsv, [('out_file', 'in_file')]),
                 (mk_morph_tsv, ds_morph_tsv, [('out_file', 'in_file')]),
+                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
+                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
+                (sources, ds_dseg_tsv, [('out', 'Sources')]),
+                (sources, ds_morph_tsv, [('out', 'Sources')]),
+                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
+            ]
+        )
+    elif seg == 'thalamicNuclei':
+        convert_seg = pe.Node(
+            MRIConvert(out_type='niigz', resample_type='nearest'),
+            name='convert_thalamicseg',
+        )
+        sources = pe.Node(
+            BIDSURI(
+                numinputs=1,
+                dataset_links=config.execution.dataset_links,
+                out_dir=str(config.execution.petprep_dir),
+            ),
+            name='sources',
+        )
+        ds_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='thalamus',
+                suffix='dseg',
+                extension='.nii.gz',
+                compress=True,
+            ),
+            name='ds_thalamicseg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        segstats_thal = pe.Node(
+            SegStats(
+                exclude_id=0,
+                default_color_table=True,
+                ctab_out_file='desc-thalamus_dseg.ctab',
+                summary_file='desc-thalamus_morph.txt',
+                avgwf_txt_file='desc-thalamus_avgwf.txt',
+            ),
+            name='segstats_thal',
+        )
+
+        create_thal_morph = pe.Node(
+            Function(
+                input_names=['summary_file'],
+                output_names=['out_file'],
+                function=thal_summary_to_stats,
+            ),
+            name='create_thal_morphtsv',
+        )
+
+        create_thal_dseg = pe.Node(
+            Function(
+                input_names=['ctab_file'],
+                output_names=['out_file'],
+                function=thal_ctab_to_dsegtsv,
+            ),
+            name='create_thal_dsegtsv',
+        )
+
+        ds_dseg_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='thalamus',
+                suffix='dseg',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_thalamusdsegtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_morph_tsv = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='thalamus',
+                suffix='morph',
+                extension='.tsv',
+                datatype='anat',
+                check_hdr=False,
+            ),
+            name='ds_thalamusmorphtsv',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                (seg_node, convert_seg, [('thalamic_labels_voxel', 'in_file')]),
+                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
+                (inputnode, sources, [('t1w_preproc', 'in1')]),
+                (convert_seg, ds_seg, [('out_file', 'in_file')]),
+                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
+                (sources, ds_seg, [('out', 'Sources')]),
+                (ds_seg, outputnode, [('out_file', 'segmentation')]),
+                (seg_node, segstats_thal, [('thalamic_labels_voxel', 'segmentation_file')]),
+                (segstats_thal, create_thal_morph, [('summary_file', 'summary_file')]),
+                (segstats_thal, create_thal_dseg, [('ctab_out_file', 'ctab_file')]),
+                (create_thal_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
+                (create_thal_morph, ds_morph_tsv, [('out_file', 'in_file')]),
                 (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
                 (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
                 (sources, ds_dseg_tsv, [('out', 'Sources')]),
