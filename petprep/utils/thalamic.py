@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .gtmseg import _read_stats_table
 
-
-def summary_to_stats(summary_file: str | Path) -> str:
+def summary_to_stats(summary_file: str) -> str:
     """Convert a ``summary.stats`` file from ``mri_segstats`` to TSV."""
     from pathlib import Path
+
+    from petprep.utils.gtmseg import _read_stats_table
 
     summary_file = Path(summary_file)
     df = _read_stats_table(summary_file)
@@ -31,7 +31,7 @@ def summary_to_stats(summary_file: str | Path) -> str:
     return str(out_file)
 
 
-def ctab_to_dsegtsv(ctab_file: str | Path) -> str:
+def ctab_to_dsegtsv(ctab_file: str) -> str:
     """Convert a FreeSurfer ``ctab`` file to a TSV label table."""
     from pathlib import Path
     import pandas as pd
