@@ -217,7 +217,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 default_color_table=True,
                 ctab_out_file='desc-thalamus_dseg.ctab',
                 summary_file='desc-thalamus_morph.txt',
-                avgwf_txt_file='desc-thalamus_avgwf.txt',
             ),
             name='segstats_thal',
         )
