@@ -337,7 +337,6 @@ configured with cubic B-spline interpolation.
         hb_labels=config.workflow.hb_mask,
     )
 
-    gtmpvc_reg_wf = init_gtmpvc_reg_wf()
     pvc_enabled = (
         config.workflow.pvc_method != "none"
         and getattr(config.workflow, "pvc_psf", None)
