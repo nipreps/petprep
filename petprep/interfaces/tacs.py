@@ -17,7 +17,11 @@ class ExtractTACsInputSpec(BaseInterfaceInputSpec):
         mandatory=True,
         desc='3D or 4D PET image',
     )
-    segmentation = File(exists=True, mandatory=True, desc='Segmentation in PET space')
+    segmentation = File(
+        exists=True,
+        mandatory=True,
+        desc='Segmentation in anatomical space',
+    )
     dseg_tsv = File(exists=True, mandatory=True, desc='Segmentation TSV file')
     metadata = traits.Dict(desc='PET metadata')
     out_file = File(desc='Output TSV file')
