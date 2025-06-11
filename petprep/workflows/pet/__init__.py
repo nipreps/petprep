@@ -17,7 +17,7 @@ Pre-processing PET workflows
 
 from .confounds import init_pet_confs_wf
 from .hmc import init_pet_hmc_wf
-from .pvc import init_gtmpvc_reg_wf, init_gtmpvc_wf
+from .pvc import init_gtmpvc_wf
 from .registration import init_pet_reg_wf
 from .resampling import init_pet_surf_wf
 
@@ -26,6 +26,5 @@ __all__ = [
     'init_pet_hmc_wf',
     'init_pet_reg_wf',
     'init_pet_surf_wf',
-    'init_gtmpvc_reg_wf',
     'init_gtmpvc_wf',
 ]
