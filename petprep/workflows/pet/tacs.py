@@ -1,10 +1,14 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
-"""Workflow to extract time-activity curves."""
+"""Workflow to extract time-activity curves.
+
+The input segmentation is expected to be in anatomical (T1w) space. The PET
+series is resampled to match this segmentation before TAC extraction.
+"""
 
 from __future__ import annotations
 
 from nipype.interfaces import utility as niu
-from nipype.interfaces.freesurfer.petsurfer import GTMPVC
+from ...interfaces.resampling import ResampleSeries
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -126,13 +130,7 @@ def init_tacs_wf(
         name='sources',
     )
 
-    gtmpvc = pe.Node(GTMPVC(no_pvc=True), name='gtmpvc')
-    if getattr(config.workflow, 'pvc_psf', None):
-        psf = config.workflow.pvc_psf
-        if isinstance(psf, (list | tuple)) and len(psf) == 3:
-            gtmpvc.inputs.psf_col, gtmpvc.inputs.psf_row, gtmpvc.inputs.psf_slice = psf
-        else:
-            gtmpvc.inputs.psf = psf
+    resample = pe.Node(ResampleSeries(), name='resample')
 
     extract_nopvc_tacs = pe.Node(
         ExtractTACs(metadata=timing_parameters),
@@ -265,24 +263,33 @@ def init_tacs_wf(
             mem_gb=DEFAULT_MEMORY_MIN_GB,
         )
 
+    resample.inputs.inverse = [True]
+
     workflow.connect(
         [
             (inputnode, sources, [('pet', 'in1')]),
             (
                 inputnode,
-                gtmpvc,
+                resample,
                 [
                     ('pet', 'in_file'),
-                    ('segmentation', 'segmentation'),
-                    ('reg_lta', 'reg_file'),
+                    ('segmentation', 'ref_file'),
+                    ('reg_lta', 'transforms'),
                 ],
             ),
             (
-                gtmpvc,
+                resample,
                 extract_nopvc_tacs,
-                [("nopvc_file", "pet_file"), ("seg", "segmentation")],
+                [('out_file', 'pet_file')],
             ),
-            (inputnode, extract_nopvc_tacs, [("dseg_tsv", "dseg_tsv")]),
+            (
+                inputnode,
+                extract_nopvc_tacs,
+                [
+                    ('segmentation', 'segmentation'),
+                    ('dseg_tsv', 'dseg_tsv'),
+                ],
+            ),
             (extract_nopvc_tacs, ds_tacs, [("out_file", "in_file")]),
             (inputnode, ds_tacs, [("pet", "source_file")]),
             (sources, ds_tacs, [("out", "Sources")]),
@@ -294,15 +301,22 @@ def init_tacs_wf(
         workflow.connect(
             [
                 (
-                    gtmpvc,
+                    resample,
                     extract_pvc_tacs,
-                    [("gtm_file", "pet_file"), ("seg", "segmentation")],
+                    [('out_file', 'pet_file')],
                 ),
-                (inputnode, extract_pvc_tacs, [("dseg_tsv", "dseg_tsv")]),
-                (extract_pvc_tacs, ds_pvc_tacs, [("out_file", "in_file")]),
-                (inputnode, ds_pvc_tacs, [("pet", "source_file")]),
-                (sources, ds_pvc_tacs, [("out", "Sources")]),
-                (ds_pvc_tacs, outputnode, [("out_file", "pvc_tacs")]),
+                (
+                    inputnode,
+                    extract_pvc_tacs,
+                    [
+                        ('segmentation', 'segmentation'),
+                        ('dseg_tsv', 'dseg_tsv'),
+                    ],
+                ),
+                (extract_pvc_tacs, ds_pvc_tacs, [('out_file', 'in_file')]),
+                (inputnode, ds_pvc_tacs, [('pet', 'source_file')]),
+                (sources, ds_pvc_tacs, [('out', 'Sources')]),
+                (ds_pvc_tacs, outputnode, [('out_file', 'pvc_tacs')]),
             ]
         )
 

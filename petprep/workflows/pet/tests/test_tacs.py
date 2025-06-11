@@ -46,9 +46,9 @@ def test_gtm_tacs_wf(tmp_path: Path):
 
     extract = tacs_wf.get_node("extract_nopvc_tacs")
     assert isinstance(extract.interface, ExtractTACs)
-    gtmpvc = tacs_wf.get_node("gtmpvc")
-    edge = tacs_wf._graph.get_edge_data(gtmpvc, extract)
-    assert ("nopvc_file", "pet_file") in edge["connect"]
+    resample = tacs_wf.get_node("resample")
+    edge = tacs_wf._graph.get_edge_data(resample, extract)
+    assert ("out_file", "pet_file") in edge["connect"]
 
 
 def test_gtm_tacs_wf_masks(tmp_path: Path):
