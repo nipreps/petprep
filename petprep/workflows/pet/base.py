@@ -47,7 +47,7 @@ from .outputs import (
     init_ds_volumes_wf,
     prepare_timing_parameters,
 )
-from .pvc import init_gtmpvc_reg_wf, init_gtmpvc_wf
+from .pvc import init_gtmpvc_wf
 from .resampling import init_pet_surf_wf
 from .segmentation import init_segmentation_wf
 from .tacs import init_tacs_wf
