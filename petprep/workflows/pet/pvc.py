@@ -22,53 +22,6 @@ class LoggingConcatenateXFMs(ConcatenateXFMs):
                 raise
 
 
-def init_gtmpvc_reg_wf(name: str = "gtmpvc_reg_wf") -> Workflow:
-    """Create a registration transform for ``mri_gtmpvc``.
-
-    The motion-correction and registration transforms are concatenated
-    with :class:`niworkflows.interfaces.nitransforms.ConcatenateXFMs`. If
-    that step fails with a ``TypeError`` the paths to the transforms being
-    merged are logged to help locate the issue.
-    """
-    workflow = Workflow(name=name)
-
-    inputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=["motion_xfm", "petref2anat_xfm", "pet_ref", "t1w_preproc"]
-        ),
-        name="inputnode",
-    )
-    outputnode = pe.Node(niu.IdentityInterface(fields=["reg_lta"]), name="outputnode")
-
-    merge_xfms = pe.Node(niu.Merge(2), name="merge_xfms", run_without_submitting=True)
-
-    concat_xfm = pe.Node(
-        LoggingConcatenateXFMs(out_fmt="fs", inverse=True),
-        name="concat_xfm",
-        run_without_submitting=True,
-        mem_gb=DEFAULT_MEMORY_MIN_GB,
-    )
-
-    workflow.connect(
-        [
-            (
-                inputnode,
-                merge_xfms,
-                [("motion_xfm", "in1"), ("petref2anat_xfm", "in2")],
-            ),
-            (merge_xfms, concat_xfm, [("out", "in_xfms")]),
-            (
-                inputnode,
-                concat_xfm,
-                [("t1w_preproc", "reference"), ("pet_ref", "moving")],
-            ),
-            (concat_xfm, outputnode, [("out_inv", "reg_lta")]),
-        ]
-    )
-
-    return workflow
-
-
 def init_gtmpvc_wf(*, metadata: dict, method: str, name: str = "gtmpvc_wf") -> Workflow:
     """Run FreeSurfer ``mri_gtmpvc``.
 
