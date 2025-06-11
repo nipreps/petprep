@@ -31,6 +31,8 @@ def test_gtmpvc_wf(tmp_path: Path):
     ]
     with mock_config(bids_dir=bids_dir):
         config.workflow.seg = "gtm"
+        config.workflow.pvc_method = "gtm"
+        config.workflow.pvc_psf = 4.0
         wf = init_pet_wf(pet_series=pet_series, precomputed={})
 
     pvc_wf = wf.get_node("gtmpvc_wf")

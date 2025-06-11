@@ -338,10 +338,14 @@ configured with cubic B-spline interpolation.
     )
 
     gtmpvc_reg_wf = init_gtmpvc_reg_wf()
+    pvc_enabled = (
+        config.workflow.pvc_method != "none"
+        and getattr(config.workflow, "pvc_psf", None)
+    )
     gtmpvc_wf = None
-    if config.workflow.pvc_method != "none":
+    if pvc_enabled:
         gtmpvc_wf = init_gtmpvc_wf(
-            metadata=all_metadata[0], 
+            metadata=all_metadata[0],
             method=config.workflow.pvc_method
         )
 
@@ -351,22 +355,22 @@ configured with cubic B-spline interpolation.
             ('outputnode.segmentation', 'inputnode.segmentation'),
             ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
         ]),
+        (pet_fit_wf, gtmpvc_reg_wf, [
+            ('outputnode.petref', 'inputnode.pet_ref'),
+            ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
+        ]),
+        (pet_native_wf, gtmpvc_reg_wf, [
+            ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
+        ]),
+        (inputnode, gtmpvc_reg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
+        (gtmpvc_reg_wf, tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
     ])  # fmt:skip
 
     if gtmpvc_wf:
         workflow.connect([
-            (pet_fit_wf, gtmpvc_reg_wf, [
-                ('outputnode.petref', 'inputnode.pet_ref'),
-                ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
-            ]),
-            (pet_native_wf, gtmpvc_reg_wf, [
-                ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
-            ]),
-            (inputnode, gtmpvc_reg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
-            (pet_native_wf, gtmpvc_wf, [('outputnode.pet_native', 'inputnode.pet')]),
+            (pet_anat_wf, gtmpvc_wf, [('outputnode.pet_file', 'inputnode.pet')]),
             (seg_wf, gtmpvc_wf, [('outputnode.segmentation', 'inputnode.segmentation')]),
             (gtmpvc_reg_wf, gtmpvc_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
-            (gtmpvc_reg_wf, tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
         ])  # fmt:skip
 
     # Full derivatives, including resampled PET series

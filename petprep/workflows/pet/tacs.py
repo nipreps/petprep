@@ -111,9 +111,11 @@ def init_tacs_wf(
         name='inputnode',
     )
     pvc_method = getattr(config.workflow, 'pvc_method', 'none')
+    pvc_psf = getattr(config.workflow, 'pvc_psf', None)
 
     out_fields = ['out_file']
-    if pvc_method != 'none':
+    pvc_enabled = pvc_method != 'none' and pvc_psf is not None
+    if pvc_enabled:
         out_fields.append('pvc_tacs')
     if ref_labels:
         out_fields += ['ref_mask', 'ref_tacs']
@@ -137,7 +139,7 @@ def init_tacs_wf(
         name="extract_nopvc_tacs",
     )
 
-    if pvc_method != 'none':
+    if pvc_enabled:
         extract_pvc_tacs = pe.Node(
             ExtractTACs(metadata=timing_parameters),
             name="extract_pvc_tacs",
@@ -157,7 +159,7 @@ def init_tacs_wf(
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    if pvc_method != 'none':
+    if pvc_enabled:
         pvc_desc = f"{seg_name}_pvc-{pvc_method}"
         ds_pvc_tacs = pe.Node(
             DerivativesDataSink(
@@ -297,7 +299,7 @@ def init_tacs_wf(
         ]
     )
 
-    if pvc_method != 'none':
+    if pvc_enabled:
         workflow.connect(
             [
                 (

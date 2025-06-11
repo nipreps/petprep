@@ -36,13 +36,12 @@ def test_gtm_tacs_wf(tmp_path: Path):
     assert tacs_wf is not None
 
     ds = tacs_wf.get_node("ds_gtmtacs")
-    pvc_ds = tacs_wf.get_node("ds_gtmpvctacs")
+    with pytest.raises(KeyError):
+        tacs_wf.get_node("ds_gtmpvctacs")
     from ....interfaces import DerivativesDataSink, ExtractTACs
 
     assert isinstance(ds.interface, DerivativesDataSink)
     assert ds.interface.inputs.desc == "gtm"
-    assert isinstance(pvc_ds.interface, DerivativesDataSink)
-    assert pvc_ds.interface.inputs.desc == "gtm_pvc-gtm"
 
     extract = tacs_wf.get_node("extract_nopvc_tacs")
     assert isinstance(extract.interface, ExtractTACs)
@@ -80,6 +79,7 @@ def test_pvc_tacs_desc(tmp_path: Path, seg: str, pvc_method: str):
     with mock_config(bids_dir=bids_dir):
         config.workflow.seg = seg
         config.workflow.pvc_method = pvc_method
+        config.workflow.pvc_psf = 4.0
         wf = init_pet_wf(pet_series=pet_series, precomputed={})
 
     tacs_wf = wf.get_node(f"{seg}_tacs_wf")
