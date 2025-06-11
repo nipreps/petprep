@@ -293,8 +293,8 @@ created for the selected routine. For example, ``--seg brainstem`` will produce
 ``--seg gtm`` runs FreeSurfer's ``gtmseg`` and saves
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.nii.gz``.
 This file is resampled to match the orientation and resolution of the native
-T1-weighted images. Before extracting TACs, the segmentation is resampled to the
-PET resolution. The segmentation statistics are stored in
+T1-weighted images. PET volumes are resampled to this segmentation grid before
+TACs are extracted. The segmentation statistics are stored in
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_dseg.tsv`` and
 ``sub-<subject_label>/anat/sub-<subject_label>_desc-gtm_morph.tsv``.
 ``sub-<subject_label>/pet/sub-<subject_label>_desc-gtm_tacs.tsv`` stores the

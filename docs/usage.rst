@@ -188,8 +188,7 @@ segmentation routines.  Supported choices are ``gtm`` (default),
 and ``limbic``.
 
 Using ``--seg gtm`` runs FreeSurfer's ``gtmseg`` command to create a
-directory. The segmentation is resampled to match the native anatomical image
-resolution and again to the PET resolution before extracting TACs. It also
+directory. PET volumes are then resampled to this grid before extracting TACs. It also
 generates ``desc-gtm_dseg.tsv`` and ``desc-gtm_morph.tsv`` tables containing
 segmentation statistics. A ``desc-gtm_tacs.tsv`` file with time-activity curves
 is written to the ``pet`` derivatives directory. When partial volume
@@ -208,20 +207,28 @@ tables with segmentation statistics. A corresponding
 ``desc-brainstem_tacs.tsv`` file contains the extracted TACs.
 
 Using ``--seg thalamicNuclei`` runs ``segmentThalamicNuclei.sh`` to label the
-thalamic nuclei. The segmentation is produced in anatomical space and
-accompanied by ``desc-thalamus_dseg.tsv`` and ``desc-thalamus_morph.tsv`` tables
-with segmentation statistics. A corresponding ``desc-thalamus_tacs.tsv`` file
+thalamic nuclei. The segmentation is produced in anatomical space, and PET
+volumes are resampled to this grid before TAC extraction. The segmentation
+statistics are stored in ``desc-thalamus_dseg.tsv`` and
+``desc-thalamus_morph.tsv``. A corresponding ``desc-thalamus_tacs.tsv`` file
 contains the extracted TACs.
 
-Three additional options allow defining composite regions from the GTM
+Two additional options allow defining composite regions from the chosen
 segmentation indices:
 
 ``--ref-mask`` selects the labels that will form a *reference* region, and
 ``--hb-mask`` defines a *high-binding* region.  Both expect one or more index
-numbers as listed in the corresponding ``desc-gtm_dseg.tsv`` file. When
+numbers as listed in the corresponding ``desc-'seg'_dseg.tsv`` file. When
 specified, PETPrep will create ``desc-ref_mask.nii.gz`` and
 ``desc-ref_tacs.tsv`` (or ``desc-hb_mask.nii.gz`` and ``desc-hb_tacs.tsv``)
 within the ``pet`` derivatives directory.
+
+Partial Volume Correction (PVC)
+-----------------------------
+PETPrep supports partial volume correction (PVC) for PET data.
+To enable PVC, use the ``--pvc-method`` and ``--pvc-psf`` command-line flags.
+The ``--pvc-method`` flag allows you to select the PVC method to use.
+
 ``--pvc-method`` selects the partial volume correction method
 (``'none'`` or ``'gtm'`` or ``'mg'`` or ``'rbv'``).
 ``--pvc-psf`` specifies the scanner point-spread function (FWHM in mm) used for
