@@ -176,7 +176,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
     if seg == 'gtm':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_gtmseg',
         )
         sources = pe.Node(
@@ -245,7 +245,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
@@ -272,7 +271,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'thalamicNuclei':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_thalamicseg',
         )
         sources = pe.Node(
@@ -354,7 +353,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('thalamic_labels_voxel', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
@@ -374,11 +372,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'hippocampusAmygdala':
         convert_lh = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_ha_lh',
         )
         convert_rh = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_ha_rh',
         )
         merge_seg = pe.Node(
@@ -469,8 +467,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             [
                 (seg_node, convert_lh, [('lh_hippoAmygLabels', 'in_file')]),
                 (seg_node, convert_rh, [('rh_hippoAmygLabels', 'in_file')]),
-                (inputnode, convert_lh, [('t1w_preproc', 'reslice_like')]),
-                (inputnode, convert_rh, [('t1w_preproc', 'reslice_like')]),
                 (convert_lh, merge_seg, [('out_file', 'lh_file')]),
                 (convert_rh, merge_seg, [('out_file', 'rh_file')]),
                 (merge_seg, ds_seg, [('out_file', 'in_file')]),
@@ -492,7 +488,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'brainstem':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_brainstemseg',
         )
         sources = pe.Node(
@@ -574,7 +570,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
@@ -594,7 +589,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'raphe':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_rapheseg',
         )
         sources = pe.Node(
@@ -676,7 +671,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
@@ -696,7 +690,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'wm':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_wmseg',
         )
         sources = pe.Node(
@@ -778,7 +772,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
@@ -798,7 +791,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
     elif seg == 'limbic':
         convert_seg = pe.Node(
-            MRIConvert(out_type='niigz', resample_type='nearest'),
+            MRIConvert(out_type='niigz'),
             name='convert_limbicseg',
         )
         sources = pe.Node(
@@ -880,7 +873,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, convert_seg, [('t1w_preproc', 'reslice_like')]),
                 (inputnode, sources, [('t1w_preproc', 'in1')]),
                 (convert_seg, ds_seg, [('out_file', 'in_file')]),
                 (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
