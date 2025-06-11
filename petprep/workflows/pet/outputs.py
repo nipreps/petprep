@@ -619,9 +619,11 @@ def init_ds_volumes_wf(
             float=True,
             interpolation='LanczosWindowedSinc',
         ),
-        name='resample_ref',
+        name="resample_ref",
     )
-    resample_mask = pe.Node(ApplyTransforms(interpolation='MultiLabel'), name='resample_mask')
+    resample_mask = pe.Node(
+        ApplyTransforms(interpolation="MultiLabel"), name="resample_mask"
+    )
     resamplers = [resample_ref, resample_mask]
 
     workflow.connect([
@@ -675,6 +677,59 @@ def init_ds_volumes_wf(
         ] + [
             (resampler, datasink, [('output_image', 'in_file')])
             for resampler, datasink in zip(resamplers, datasinks, strict=False)
+        ]
+    )  # fmt:skip
+
+    return workflow
+
+
+def init_ds_seg_std_wf(*, output_dir: str, name: str = "ds_seg_std_wf") -> pe.Workflow:
+    workflow = pe.Workflow(name=name)
+
+    inputnode = pe.Node(
+        niu.IdentityInterface(
+            fields=["source_files", "segmentation", "space", "cohort", "resolution"]
+        ),
+        name="inputnode",
+    )
+    outputnode = pe.Node(
+        niu.IdentityInterface(fields=["segmentation"]), name="outputnode"
+    )
+
+    sources = pe.Node(
+        BIDSURI(
+            numinputs=1,
+            dataset_links=config.execution.dataset_links,
+            out_dir=str(output_dir),
+        ),
+        name="sources",
+    )
+
+    ds_seg = pe.Node(
+        DerivativesDataSink(
+            base_directory=output_dir,
+            desc=config.workflow.seg,
+            suffix="dseg",
+            datatype="pet",
+            compress=True,
+        ),
+        name="ds_seg",
+        run_without_submitting=True,
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
+
+    workflow.connect(
+        [
+            (inputnode, sources, [('source_files', 'in1')]),
+            (inputnode, ds_seg, [
+                ('segmentation', 'in_file'),
+                ('source_files', 'source_file'),
+                ('space', 'space'),
+                ('cohort', 'cohort'),
+                ('resolution', 'resolution'),
+            ]),
+            (sources, ds_seg, [('out', 'Sources')]),
+            (ds_seg, outputnode, [('out_file', 'segmentation')]),
         ]
     )  # fmt:skip
 

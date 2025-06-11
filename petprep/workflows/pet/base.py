@@ -33,6 +33,7 @@ Orchestrating the PET-preprocessing workflow
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from niworkflows.utils.connections import listify
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 
 from ... import config
 from ...interfaces import DerivativesDataSink
@@ -45,6 +46,7 @@ from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
     init_ds_pet_native_wf,
     init_ds_volumes_wf,
+    init_ds_seg_std_wf,
     prepare_timing_parameters,
 )
 from .pvc import init_gtmpvc_wf
@@ -445,6 +447,34 @@ configured with cubic B-spline interpolation.
                 ('outputnode.pet_file', 'inputnode.pet'),
                 ('outputnode.resampling_reference', 'inputnode.ref_file'),
             ]),
+        ])  # fmt:skip
+
+        seg_std = pe.Node(
+            ApplyTransforms(interpolation="MultiLabel"),
+            name="seg_std",
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        seg_xfms = pe.Node(niu.Merge(2), name="seg_xfms", run_without_submitting=True)
+
+        ds_seg_std_wf = init_ds_seg_std_wf(output_dir=petprep_dir, name="ds_seg_std_wf")
+        ds_seg_std_wf.inputs.inputnode.source_files = pet_series
+
+        workflow.connect([
+            (inputnode, seg_xfms, [
+                ('anat2std_xfm', 'in1'),
+            ]),
+            (pet_fit_wf, seg_xfms, [
+                ('outputnode.petref2anat_xfm', 'in2'),
+            ]),
+            (seg_wf, seg_std, [('outputnode.segmentation', 'input_image')]),
+            (pet_std_wf, seg_std, [('outputnode.resampling_reference', 'reference_image')]),
+            (seg_xfms, seg_std, [('out', 'transforms')]),
+            (inputnode, ds_seg_std_wf, [
+                ('std_space', 'inputnode.space'),
+                ('std_resolution', 'inputnode.resolution'),
+                ('std_cohort', 'inputnode.cohort'),
+            ]),
+            (seg_std, ds_seg_std_wf, [('output_image', 'inputnode.segmentation')]),
         ])  # fmt:skip
 
     if config.workflow.run_reconall and freesurfer_spaces:
