@@ -30,50 +30,79 @@ Head-Motion Estimation and Correction (HMC) of PET images
 
 from nipype.interfaces import fsl, freesurfer as fs
 from nipype.interfaces import utility as niu
+from nipype.interfaces.base import (
+    BaseInterfaceInputSpec,
+    File,
+    InputMultiObject,
+    SimpleInterface,
+    TraitedSpec,
+)
 from nipype.pipeline import engine as pe
 import numpy as np
 import nibabel as nb
 import nitransforms as nt
+import json
+from pathlib import Path
 
 
-def get_min_frame(in_files: list[str]) -> int:
-    """Return index of the frame with minimum mean intensity."""
-    means = []
-    for f in in_files:
-        data = nb.load(f).get_fdata(dtype='float32')
-        means.append(np.mean(data))
-    return int(np.argmin(means))
+def get_start_frame(pet_file: str, start_time: float) -> int:
+    """Return the index of the first frame whose midpoint exceeds ``start_time``.
+
+    Parameters
+    ----------
+    pet_file
+        Path to a 4D PET NIfTI file.
+    start_time
+        Time in seconds defining the onset of motion estimation.
+    """
+
+    pet_file = Path(pet_file)
+    if pet_file.suffix == '.gz':
+        sidecar = pet_file.with_suffix('').with_suffix('.json')
+    else:
+        sidecar = pet_file.with_suffix('.json')
+
+    metadata = json.loads(sidecar.read_text())
+    durations = np.array(metadata.get('FrameDuration', []), dtype=float)
+    if durations.size == 0:
+        return 0
+
+    midpoints = np.cumsum(durations) - durations / 2.0
+    idxs = np.where(midpoints > start_time)[0]
+    return int(idxs[0]) if idxs.size > 0 else int(len(midpoints) - 1)
 
 
 def update_list_frames(frames: list[str], idx: int) -> list[str]:
-    """Move selected frame to the first position."""
+    """Clamp all frames prior to ``idx`` to the frame at ``idx``."""
     frames = list(frames)
     if 0 <= idx < len(frames):
-        frame = frames.pop(idx)
-        frames.insert(0, frame)
+        rep = frames[idx]
+        for i in range(idx):
+            frames[i] = rep
     return frames
 
 
 def update_list_transforms(xforms: list[str], idx: int) -> list[str]:
-    """Move selected transform to the first position."""
+    """Clamp all transforms prior to ``idx`` to the transform at ``idx``."""
     xforms = list(xforms)
     if 0 <= idx < len(xforms):
-        xfm = xforms.pop(idx)
-        xforms.insert(0, xfm)
+        rep = xforms[idx]
+        for i in range(idx):
+            xforms[i] = rep
     return xforms
 
 
-class _LTAList2ITKInputSpec(niu.BaseInterfaceInputSpec):
-    in_xforms = niu.InputMultiObject(niu.File(exists=True), mandatory=True)
-    in_reference = niu.File(exists=True, mandatory=True)
-    in_source = niu.InputMultiObject(niu.File(exists=True), mandatory=True)
+class _LTAList2ITKInputSpec(BaseInterfaceInputSpec):
+    in_xforms = InputMultiObject(File(exists=True), mandatory=True)
+    in_reference = File(exists=True, mandatory=True)
+    in_source = InputMultiObject(File(exists=True), mandatory=True)
 
 
-class _LTAList2ITKOutputSpec(niu.TraitedSpec):
-    out_file = niu.File(desc='output ITK transform list')
+class _LTAList2ITKOutputSpec(TraitedSpec):
+    out_file = File(desc='output ITK transform list')
 
 
-class LTAList2ITK(niu.SimpleInterface):
+class LTAList2ITK(SimpleInterface):
     input_spec = _LTAList2ITKInputSpec
     output_spec = _LTAList2ITKOutputSpec
 
@@ -130,7 +159,7 @@ def init_pet_hmc_wf(
     fwhm : :obj:`float`
         FWHM in millimeters for Gaussian smoothing prior to motion estimation
     start_time : :obj:`float`
-        Time point (in seconds) defining the reference frame for motion estimation
+        Earliest time point (in seconds) used for motion estimation.
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -171,7 +200,7 @@ FreeSurfer's ``mri_robust_template``.
         name='smooth',
         iterfield=['in_file'],
     )
-    thresh = pe.MapNode(fsl.maths.Threshold(thresh=0.0), name='thresh', iterfield=['in_file'])
+    thresh = pe.MapNode(fsl.maths.Threshold(thresh=20), name='thresh', iterfield=['in_file'])
 
     # Select reference frame
     get_ref = pe.Node(niu.Function(function=get_min_frame), name='get_min_frame')
