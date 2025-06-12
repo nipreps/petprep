@@ -1,5 +1,5 @@
-package: fmriprep
-title: Anatomical report for participant '{subject}' - fMRIPrep
+package: petprep
+title: Anatomical report for participant '{subject}' - PETPrep
 sections:
 - name: Summary
   reportlets:

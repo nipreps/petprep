@@ -1,5 +1,5 @@
-package: fmriprep
-title: PET report for participant '{subject}', session '{session}' - fMRIPrep
+package: petprep
+title: PET report for participant '{subject}', session '{session}' - PETPrep
 sections:
 - name: PET
   ordering: session
