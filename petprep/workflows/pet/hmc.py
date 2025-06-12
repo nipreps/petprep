@@ -46,6 +46,8 @@ from nipype.interfaces.base import (
 )
 from nipype.pipeline import engine as pe
 
+from pathlib import Path
+
 
 def get_start_frame(
     durations,
@@ -82,13 +84,19 @@ def get_start_frame(
 
 
 def update_list_transforms(xforms: list[str], idx: int) -> list[str]:
-    """Clamp all transforms prior to ``idx`` to the transform at ``idx``."""
-    xforms = list(xforms)
-    if 0 <= idx < len(xforms):
-        rep = xforms[idx]
-        for i in range(idx):
-            xforms[i] = rep
-    return xforms
+    """
+    Left-pad `xforms` by repeating the first transform `idx` times at the beginning.
+    """
+    if not xforms:
+        raise ValueError("The input xforms list cannot be empty.")
+    
+    padded_xforms = [xforms[0]] * idx + xforms
+    return padded_xforms
+
+
+def lta_list(in_file):
+    lta_list = [ext.replace(".nii.gz", ".lta") for ext in in_file]
+    return lta_list
 
 
 class _LTAList2ITKInputSpec(BaseInterfaceInputSpec):
@@ -115,7 +123,7 @@ class LTAList2ITK(SimpleInterface):
         affarray = nt.io.itk.ITKLinearTransformArray.from_ras(
             np.stack([a.matrix for a in affines], axis=0)
         )
-        out_file = runtime.cwd / 'lta2itk.txt'
+        out_file = Path(runtime.cwd) / 'lta2itk.txt'
         affarray.to_filename(str(out_file))
         self._results['out_file'] = str(out_file)
         return runtime
@@ -251,6 +259,15 @@ FreeSurfer's ``mri_robust_template``.
                             )
     start_frame.inputs.start_time = start_time
 
+    transform_outputs = pe.Node(
+        niu.Function(
+            input_names=["in_file"],
+            output_names=["lta_list"],
+            function=lta_list,
+        ),
+        name="lta_list",
+    )
+
     # Motion estimation
     robtemp = pe.Node(
         fs.RobustTemplate(auto_detect_sensitivity=True,
@@ -260,7 +277,11 @@ FreeSurfer's ``mri_robust_template``.
                           num_threads=omp_nthreads),
         name='robust_template',
     )
-    upd_xfm = pe.Node(niu.Function(function=update_list_transforms), name='update_list_transforms')
+    upd_xfm = pe.Node(niu.Function(
+            input_names=['xforms', 'idx'],
+            output_names=['updated_xforms'],
+            function=update_list_transforms),
+        name='update_list_transforms')
 
     # Convert to ITK
     lta2itk = pe.Node(LTAList2ITK(), name='lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
@@ -277,12 +298,14 @@ FreeSurfer's ``mri_robust_template``.
         (split, select_frames, [('out_file', 'inlist')]),
         (select_frames, smooth, [('out', 'in_file')]),
         (smooth, thresh, [('smoothed_file', 'in_file')]),
+        (thresh, transform_outputs, [('out_file', 'in_file')]),
+        (transform_outputs, robtemp, [('lta_list', 'transform_outputs')]),
         (thresh, robtemp, [('out_file', 'in_files')]),
         (robtemp, upd_xfm, [('transform_outputs', 'xforms')]),
         (start_frame, upd_xfm, [('start_frame_idx', 'idx')]),
-        (upd_xfm, lta2itk, [('out', 'in_xforms')]),
+        (upd_xfm, lta2itk, [('updated_xforms', 'in_xforms')]),
         (robtemp, lta2itk, [('out_file', 'in_reference')]),
-        (inputnode, lta2itk, [('pet_file', 'in_source')]),
+        (split, lta2itk, [('out_file', 'in_source')]),
         (lta2itk, outputnode, [('out_file', 'xforms')]),
         (robtemp, outputnode, [('out_file', 'petref'),
         ]),
