@@ -379,12 +379,13 @@ Head-motion estimation
         omp_nthreads=1)
 
 Using the previously :ref:`estimated reference scan <pet_ref>`,
-FSL ``mcflirt`` is used to estimate head-motion.
-As a result, one rigid-body transform with respect to
-the reference image is written for each :abbr:`PET (positron emission tomography)`
-time-step.
-Additionally, a list of 6-parameters (three rotations,
-three translations) per time-step is written and fed to the
+a robust-template approach estimates head motion.
+All frames are aligned to one another with FreeSurfer's
+``mri_robust_template`` and ``mri_robust_register`` to create a
+within-run template and compute rigid-body transforms for every
+:abbr:`PET (positron emission tomography)` volume.
+The resulting transforms and the six rotation and translation
+parameters for each time-step are passed on to the
 :ref:`confounds workflow <pet_confounds>`.
 
 The smoothing kernel width and onset of motion estimation can be
@@ -581,7 +582,7 @@ Confounds estimation
         regressors_fd_th=0.5,
     )
 
-Given a motion-corrected fMRI, a brain mask, ``mcflirt`` movement parameters and a
+Given a motion-corrected PET, a brain mask, estimated motion parameters and a
 segmentation, the `discover_wf` sub-workflow calculates potential
 confounds per volume.
 
