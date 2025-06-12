@@ -314,10 +314,10 @@ def init_pet_fit_wf(
 
         workflow.connect([
             (petref_buffer, pet_hmc_wf, [
-                ('petref', 'inputnode.raw_ref_image'),
                 ('pet_file', 'inputnode.pet_file'),
             ]),
             (pet_hmc_wf, ds_hmc_wf, [('outputnode.xforms', 'inputnode.xforms')]),
+            (pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')]),
             (ds_hmc_wf, hmc_buffer, [('outputnode.xforms', 'hmc_xforms')]),
         ])  # fmt:skip
     else:

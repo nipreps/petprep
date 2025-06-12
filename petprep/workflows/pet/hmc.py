@@ -182,8 +182,6 @@ def init_pet_hmc_wf(
     ------
     pet_file
         PET series NIfTI file
-    raw_ref_image
-        Reference image to which PET series is motion corrected
     frame_durations
         Duration of each PET frame, in seconds.
     frame_start_times
@@ -193,6 +191,8 @@ def init_pet_hmc_wf(
     -------
     xforms
         ITKTransform file aligning each volume to ``ref_image``
+    petref
+        PET reference image generated during motion estimation
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
@@ -211,7 +211,7 @@ FreeSurfer's ``mri_robust_template``.
         ),
         name='inputnode',
     )
-    outputnode = pe.Node(niu.IdentityInterface(fields=['xforms']), name='outputnode')
+    outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
 
     # Split frames
     split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
@@ -307,8 +307,7 @@ FreeSurfer's ``mri_robust_template``.
         (robtemp, lta2itk, [('out_file', 'in_reference')]),
         (split, lta2itk, [('out_file', 'in_source')]),
         (lta2itk, outputnode, [('out_file', 'xforms')]),
-        (robtemp, outputnode, [('out_file', 'petref'),
-        ]),
+        (robtemp, outputnode, [('out_file', 'petref')]),
     ])  # fmt:skip
 
     return workflow
