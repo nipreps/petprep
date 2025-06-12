@@ -93,7 +93,14 @@ class LTAList2ITK(niu.SimpleInterface):
         return runtime
 
 
-def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
+def init_pet_hmc_wf(
+    mem_gb: float,
+    omp_nthreads: int,
+    *,
+    fwhm: float = 10.0,
+    start_time: float = 120.0,
+    name: str = 'pet_hmc_wf',
+):
     """
     Build a workflow to estimate head-motion parameters.
 
@@ -106,10 +113,13 @@ def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
             :graph2use: orig
             :simple_form: yes
 
-            from fmriprep.workflows.pet import init_pet_hmc_wf
+            from petprep.workflows.pet import init_pet_hmc_wf
             wf = init_pet_hmc_wf(
                 mem_gb=3,
-                omp_nthreads=1)
+                omp_nthreads=1,
+                fwhm=10.0,
+                start_time=120.0,
+            )
 
     Parameters
     ----------
@@ -117,6 +127,10 @@ def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
         Size of PET file in GB
     omp_nthreads : :obj:`int`
         Maximum number of threads an individual process may use
+    fwhm : :obj:`float`
+        FWHM in millimeters for Gaussian smoothing prior to motion estimation
+    start_time : :obj:`float`
+        Time point (in seconds) defining the reference frame for motion estimation
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -161,7 +175,11 @@ FreeSurfer's ``mri_robust_template``.
 
     # Motion estimation
     robtemp = pe.Node(
-        fs.RobustTemplate(auto_detect_sensitivity=True, num_threads=omp_nthreads),
+        fs.RobustTemplate(auto_detect_sensitivity=True,
+                          intensity_scaling=True,
+                          average_metric="mean",
+                          args=f"--cras",
+                          num_threads=omp_nthreads),
         name='robust_template',
     )
     upd_xfm = pe.Node(niu.Function(function=update_list_transforms), name='update_list_transforms')

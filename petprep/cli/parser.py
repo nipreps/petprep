@@ -384,6 +384,20 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         ),
     )
     g_conf.add_argument(
+        '--hmc-fwhm',
+        action='store',
+        default=10,
+        type=float,
+        help='FWHM for Gaussian smoothing applied during head-motion estimation.',
+    )
+    g_conf.add_argument(
+        '--hmc-start-time',
+        action='store',
+        default=120,
+        type=float,
+        help='Time (in seconds) after which head-motion estimation is performed.',
+    )
+    g_conf.add_argument(
         '--random-seed',
         dest='_random_seed',
         action='store',

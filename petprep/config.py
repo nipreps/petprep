@@ -596,6 +596,12 @@ class workflow(_Config):
     """Selected frame index for PET reference generation.
 
     ``None`` or ``'average'`` retains the current averaging behavior."""
+    hmc_fwhm: float = 10.0
+    """FWHM for Gaussian smoothing prior to head-motion estimation."""
+
+    hmc_start_time: float = 120.0
+    """Time point (in seconds) at which head-motion estimation starts."""
+
 
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""

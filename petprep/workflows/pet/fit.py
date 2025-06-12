@@ -299,7 +299,11 @@ def init_pet_fit_wf(
     if not hmc_xforms:
         config.loggers.workflow.info('Stage 2: Adding motion correction workflow')
         pet_hmc_wf = init_pet_hmc_wf(
-            name='pet_hmc_wf', mem_gb=mem_gb['filesize'], omp_nthreads=omp_nthreads
+            name='pet_hmc_wf',
+            mem_gb=mem_gb['filesize'],
+            omp_nthreads=omp_nthreads,
+            fwhm=config.workflow.hmc_fwhm,
+            start_time=config.workflow.hmc_start_time,
         )
 
         ds_hmc_wf = init_ds_hmc_wf(
