@@ -28,9 +28,69 @@ Head-Motion Estimation and Correction (HMC) of PET images
 
 """
 
-from nipype.interfaces import fsl
+from nipype.interfaces import fsl, freesurfer as fs
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
+import numpy as np
+import nibabel as nb
+import nitransforms as nt
+
+
+def get_min_frame(in_files: list[str]) -> int:
+    """Return index of the frame with minimum mean intensity."""
+    means = []
+    for f in in_files:
+        data = nb.load(f).get_fdata(dtype='float32')
+        means.append(np.mean(data))
+    return int(np.argmin(means))
+
+
+def update_list_frames(frames: list[str], idx: int) -> list[str]:
+    """Move selected frame to the first position."""
+    frames = list(frames)
+    if 0 <= idx < len(frames):
+        frame = frames.pop(idx)
+        frames.insert(0, frame)
+    return frames
+
+
+def update_list_transforms(xforms: list[str], idx: int) -> list[str]:
+    """Move selected transform to the first position."""
+    xforms = list(xforms)
+    if 0 <= idx < len(xforms):
+        xfm = xforms.pop(idx)
+        xforms.insert(0, xfm)
+    return xforms
+
+
+class _LTAList2ITKInputSpec(niu.BaseInterfaceInputSpec):
+    in_xforms = niu.InputMultiObject(niu.File(exists=True), mandatory=True)
+    in_reference = niu.File(exists=True, mandatory=True)
+    in_source = niu.InputMultiObject(niu.File(exists=True), mandatory=True)
+
+
+class _LTAList2ITKOutputSpec(niu.TraitedSpec):
+    out_file = niu.File(desc='output ITK transform list')
+
+
+class LTAList2ITK(niu.SimpleInterface):
+    input_spec = _LTAList2ITKInputSpec
+    output_spec = _LTAList2ITKOutputSpec
+
+    def _run_interface(self, runtime):
+        reference = nb.load(self.inputs.in_reference)
+        sources = [nb.load(f) for f in self.inputs.in_source]
+        affines = [
+            nt.linear.load(xf, fmt='fs', reference=reference, moving=src)
+            for xf, src in zip(self.inputs.in_xforms, sources, strict=False)
+        ]
+        affarray = nt.io.itk.ITKLinearTransformArray.from_ras(
+            np.stack([a.matrix for a in affines], axis=0)
+        )
+        out_file = runtime.cwd / 'lta2itk.txt'
+        affarray.to_filename(str(out_file))
+        self._results['out_file'] = str(out_file)
+        return runtime
 
 
 def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
@@ -74,33 +134,55 @@ def init_pet_hmc_wf(mem_gb: float, omp_nthreads: int, name: str = 'pet_hmc_wf'):
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
-    from niworkflows.interfaces.itk import MCFLIRT2ITK
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
 Head-motion parameters with respect to the PET reference
 (transformation matrices, and six corresponding rotation and translation
 parameters) are estimated before any spatiotemporal filtering using
-`mcflirt` [FSL {fsl_ver}, @mcflirt].
-""".format(fsl_ver=fsl.Info().version() or '<ver>')
+FreeSurfer's ``mri_robust_template``.
+"""
 
     inputnode = pe.Node(
         niu.IdentityInterface(fields=['pet_file', 'raw_ref_image']), name='inputnode'
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms']), name='outputnode')
 
-    # Head motion correction (hmc)
-    mcflirt = pe.Node(fsl.MCFLIRT(save_mats=True), name='mcflirt', mem_gb=mem_gb * 3)
+    # Split frames
+    split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
 
-    fsl2itk = pe.Node(MCFLIRT2ITK(), name='fsl2itk', mem_gb=0.05, n_procs=omp_nthreads)
+    # Smooth and threshold frames
+    smooth = pe.MapNode(fsl.Smooth(fwhm=4.0), name='smooth', iterfield=['in_file'])
+    thresh = pe.MapNode(fsl.maths.Threshold(thresh=0.0), name='thresh', iterfield=['in_file'])
+
+    # Select reference frame
+    get_ref = pe.Node(niu.Function(function=get_min_frame), name='get_min_frame')
+    upd_frames = pe.Node(niu.Function(function=update_list_frames), name='update_list_frames')
+
+    # Motion estimation
+    robtemp = pe.Node(
+        fs.RobustTemplate(auto_detect_sensitivity=True, num_threads=omp_nthreads),
+        name='robust_template',
+    )
+    upd_xfm = pe.Node(niu.Function(function=update_list_transforms), name='update_list_transforms')
+
+    # Convert to ITK
+    lta2itk = pe.Node(LTAList2ITK(), name='lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
 
     workflow.connect([
-        (inputnode, mcflirt, [('raw_ref_image', 'ref_file'),
-                              ('pet_file', 'in_file')]),
-        (inputnode, fsl2itk, [('raw_ref_image', 'in_source'),
-                              ('raw_ref_image', 'in_reference')]),
-        (mcflirt, fsl2itk, [('mat_file', 'in_files')]),
-        (fsl2itk, outputnode, [('out_file', 'xforms')]),
+        (inputnode, split, [('pet_file', 'in_file')]),
+        (split, smooth, [('out_file', 'in_file')]),
+        (smooth, thresh, [('out_file', 'in_file')]),
+        (thresh, get_ref, [('out_file', 'in_files')]),
+        (split, upd_frames, [('out_file', 'frames')]),
+        (get_ref, upd_frames, [('out', 'idx')]),
+        (upd_frames, robtemp, [('out', 'in_files')]),
+        (robtemp, upd_xfm, [('transform_outputs', 'xforms')]),
+        (get_ref, upd_xfm, [('out', 'idx')]),
+        (upd_xfm, lta2itk, [('out', 'in_xforms')]),
+        (upd_frames, lta2itk, [('out', 'in_source')]),
+        (robtemp, lta2itk, [('out_file', 'in_reference')]),
+        (lta2itk, outputnode, [('out_file', 'xforms')]),
     ])  # fmt:skip
 
     return workflow
