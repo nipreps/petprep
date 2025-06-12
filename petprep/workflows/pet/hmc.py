@@ -28,7 +28,13 @@ Head-Motion Estimation and Correction (HMC) of PET images
 
 """
 
-from nipype.interfaces import fsl, freesurfer as fs
+from collections.abc import Sequence
+
+import nibabel as nb
+import nitransforms as nt
+import numpy as np
+from nipype.interfaces import freesurfer as fs
+from nipype.interfaces import fsl
 from nipype.interfaces import utility as niu
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
@@ -38,48 +44,37 @@ from nipype.interfaces.base import (
     TraitedSpec,
 )
 from nipype.pipeline import engine as pe
-import numpy as np
-import nibabel as nb
-import nitransforms as nt
-import json
-from pathlib import Path
 
 
-def get_start_frame(pet_file: str, start_time: float) -> int:
+def get_start_frame(
+    durations: Sequence[float],
+    start_time: float,
+    frame_starts: Sequence[float] | None = None,
+) -> int:
     """Return the index of the first frame whose midpoint exceeds ``start_time``.
 
     Parameters
     ----------
-    pet_file
-        Path to a 4D PET NIfTI file.
+    durations
+        Sequence of frame durations in seconds.
     start_time
         Time in seconds defining the onset of motion estimation.
+    frame_starts
+        Optional sequence specifying the start time of each frame.
+        If omitted, cumulative ``durations`` will be used.
     """
 
-    pet_file = Path(pet_file)
-    if pet_file.suffix == '.gz':
-        sidecar = pet_file.with_suffix('').with_suffix('.json')
-    else:
-        sidecar = pet_file.with_suffix('.json')
-
-    metadata = json.loads(sidecar.read_text())
-    durations = np.array(metadata.get('FrameDuration', []), dtype=float)
+    durations = np.asarray(durations, dtype=float)
     if durations.size == 0:
         return 0
 
-    midpoints = np.cumsum(durations) - durations / 2.0
+    if frame_starts is None:
+        midpoints = np.cumsum(durations) - durations / 2.0
+    else:
+        midpoints = np.asarray(frame_starts, dtype=float) + durations / 2.0
+
     idxs = np.where(midpoints > start_time)[0]
     return int(idxs[0]) if idxs.size > 0 else int(len(midpoints) - 1)
-
-
-def update_list_frames(frames: list[str], idx: int) -> list[str]:
-    """Clamp all frames prior to ``idx`` to the frame at ``idx``."""
-    frames = list(frames)
-    if 0 <= idx < len(frames):
-        rep = frames[idx]
-        for i in range(idx):
-            frames[i] = rep
-    return frames
 
 
 def update_list_transforms(xforms: list[str], idx: int) -> list[str]:
@@ -128,6 +123,8 @@ def init_pet_hmc_wf(
     *,
     fwhm: float = 10.0,
     start_time: float = 120.0,
+    frame_durations: Sequence[float] | None = None,
+    frame_start_times: Sequence[float] | None = None,
     name: str = 'pet_hmc_wf',
 ):
     """
@@ -160,6 +157,12 @@ def init_pet_hmc_wf(
         FWHM in millimeters for Gaussian smoothing prior to motion estimation
     start_time : :obj:`float`
         Earliest time point (in seconds) used for motion estimation.
+    frame_durations : :class:`~typing.Sequence`\[:obj:`float`] or ``None``
+        Duration of each frame in seconds. If not provided, start-time clamping
+        will be skipped.
+    frame_start_times : :class:`~typing.Sequence`\[:obj:`float`] or ``None``
+        Optional list of frame onset times used together with
+        ``frame_durations`` to locate the start frame.
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -169,6 +172,10 @@ def init_pet_hmc_wf(
         PET series NIfTI file
     raw_ref_image
         Reference image to which PET series is motion corrected
+    frame_durations
+        Duration of each PET frame, in seconds.
+    frame_start_times
+        Optional onset time of each PET frame.
 
     Outputs
     -------
@@ -187,7 +194,10 @@ FreeSurfer's ``mri_robust_template``.
 """
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'raw_ref_image']), name='inputnode'
+        niu.IdentityInterface(
+            fields=['pet_file', 'raw_ref_image', 'frame_durations', 'frame_start_times']
+        ),
+        name='inputnode',
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms']), name='outputnode')
 
@@ -203,8 +213,14 @@ FreeSurfer's ``mri_robust_template``.
     thresh = pe.MapNode(fsl.maths.Threshold(thresh=20), name='thresh', iterfield=['in_file'])
 
     # Select reference frame
-    get_ref = pe.Node(niu.Function(function=get_min_frame), name='get_min_frame')
-    upd_frames = pe.Node(niu.Function(function=update_list_frames), name='update_list_frames')
+    start_frame = pe.Node(niu.Function(
+                                    input_names=['durations', 'frame_starts'],
+                                    output_names=['start_frame_idx'],
+                                    function=get_start_frame,
+                                ),
+                                name='get_start_frame',
+                            )
+    start_frame.inputs.start_time = start_time
 
     # Motion estimation
     robtemp = pe.Node(
@@ -222,18 +238,20 @@ FreeSurfer's ``mri_robust_template``.
 
     workflow.connect([
         (inputnode, split, [('pet_file', 'in_file')]),
+        (inputnode, start_frame, [('frame_durations', 'durations'),
+                                  ('frame_start_times', 'frame_starts')]),
+        (start_frame, split, [('start_frame_idx', 'drop_n')])
         (split, smooth, [('out_file', 'in_file')]),
         (smooth, thresh, [('out_file', 'in_file')]),
-        (thresh, get_ref, [('out_file', 'in_files')]),
-        (split, upd_frames, [('out_file', 'frames')]),
-        (get_ref, upd_frames, [('out', 'idx')]),
-        (upd_frames, robtemp, [('out', 'in_files')]),
+        (thresh, robtemp, [('out', 'in_files')]),
         (robtemp, upd_xfm, [('transform_outputs', 'xforms')]),
-        (get_ref, upd_xfm, [('out', 'idx')]),
+        (start_frame, upd_xfm, [('start_frame_idx', 'idx')]),
         (upd_xfm, lta2itk, [('out', 'in_xforms')]),
-        (upd_frames, lta2itk, [('out', 'in_source')]),
         (robtemp, lta2itk, [('out_file', 'in_reference')]),
+        (inputnode, lta2itk, [('pet_file', 'in_source')]),
         (lta2itk, outputnode, [('out_file', 'xforms')]),
+        (robtemp, outputnode, [('out_file', 'petref'),
+        ]),
     ])  # fmt:skip
 
     return workflow
