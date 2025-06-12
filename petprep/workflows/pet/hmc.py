@@ -29,6 +29,7 @@ Head-Motion Estimation and Correction (HMC) of PET images
 """
 
 from collections.abc import Sequence
+from nipype.interfaces.utility import Select
 
 import nibabel as nb
 import nitransforms as nt
@@ -47,9 +48,9 @@ from nipype.pipeline import engine as pe
 
 
 def get_start_frame(
-    durations: Sequence[float],
-    start_time: float,
-    frame_starts: Sequence[float] | None = None,
+    durations,
+    start_time,
+    frame_starts=None,
 ) -> int:
     """Return the index of the first frame whose midpoint exceeds ``start_time``.
 
@@ -63,6 +64,9 @@ def get_start_frame(
         Optional sequence specifying the start time of each frame.
         If omitted, cumulative ``durations`` will be used.
     """
+
+    from collections.abc import Sequence
+    import numpy as np
 
     durations = np.asarray(durations, dtype=float)
     if durations.size == 0:
@@ -195,7 +199,7 @@ FreeSurfer's ``mri_robust_template``.
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['pet_file', 'raw_ref_image', 'frame_durations', 'frame_start_times']
+            fields=['pet_file', 'start_time', 'frame_durations', 'frame_start_times']
         ),
         name='inputnode',
     )
@@ -203,6 +207,31 @@ FreeSurfer's ``mri_robust_template``.
 
     # Split frames
     split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
+
+    # After splitting, explicitly select frames
+    select_frames = pe.Node(Select(), name='select_frames')
+
+    # Define a function to create the correct indices
+    def get_frame_indices(total_frames, start_idx):
+        return list(range(start_idx, total_frames))
+    
+    # Explicit function for Nipype connection
+    def num_files(filelist):
+        return len(filelist)
+
+    num_files_node = pe.Node(
+        niu.Function(input_names=['filelist'], output_names=['length'], function=num_files),
+        name='num_files_node',
+    )
+
+    select_idx = pe.Node(
+        niu.Function(
+            input_names=['total_frames', 'start_idx'],
+            output_names=['indices'],
+            function=get_frame_indices,
+        ),
+        name='select_indices',
+    )
 
     # Smooth and threshold frames
     smooth = pe.MapNode(
@@ -214,7 +243,7 @@ FreeSurfer's ``mri_robust_template``.
 
     # Select reference frame
     start_frame = pe.Node(niu.Function(
-                                    input_names=['durations', 'frame_starts'],
+                                    input_names=['durations', 'start_time', 'frame_starts'],
                                     output_names=['start_frame_idx'],
                                     function=get_start_frame,
                                 ),
@@ -239,11 +268,16 @@ FreeSurfer's ``mri_robust_template``.
     workflow.connect([
         (inputnode, split, [('pet_file', 'in_file')]),
         (inputnode, start_frame, [('frame_durations', 'durations'),
-                                  ('frame_start_times', 'frame_starts')]),
-        (start_frame, split, [('start_frame_idx', 'drop_n')])
-        (split, smooth, [('out_file', 'in_file')]),
-        (smooth, thresh, [('out_file', 'in_file')]),
-        (thresh, robtemp, [('out', 'in_files')]),
+                                  ('frame_start_times', 'frame_starts'),
+                                  ('start_time', 'start_time')]),
+        (split, num_files_node, [('out_file', 'filelist')]),
+        (num_files_node, select_idx, [('length', 'total_frames')]),
+        (start_frame, select_idx, [('start_frame_idx', 'start_idx')]),
+        (select_idx, select_frames, [('indices', 'index')]),
+        (split, select_frames, [('out_file', 'inlist')]),
+        (select_frames, smooth, [('out', 'in_file')]),
+        (smooth, thresh, [('smoothed_file', 'in_file')]),
+        (thresh, robtemp, [('out_file', 'in_files')]),
         (robtemp, upd_xfm, [('transform_outputs', 'xforms')]),
         (start_frame, upd_xfm, [('start_frame_idx', 'idx')]),
         (upd_xfm, lta2itk, [('out', 'in_xforms')]),
