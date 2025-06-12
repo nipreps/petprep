@@ -166,7 +166,11 @@ FreeSurfer's ``mri_robust_template``.
     split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
 
     # Smooth and threshold frames
-    smooth = pe.MapNode(fsl.Smooth(fwhm=4.0), name='smooth', iterfield=['in_file'])
+    smooth = pe.MapNode(
+        fsl.Smooth(fwhm=fwhm),
+        name='smooth',
+        iterfield=['in_file'],
+    )
     thresh = pe.MapNode(fsl.maths.Threshold(thresh=0.0), name='thresh', iterfield=['in_file'])
 
     # Select reference frame
