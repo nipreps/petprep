@@ -282,6 +282,7 @@ def init_pet_fit_wf(
 
         ])  # fmt:skip
         val_pet.inputs.in_file = pet_file
+        petref_buffer.inputs.petref = petref
 
     # Stage 2: Coregistration
     if not petref2anat_xform:
