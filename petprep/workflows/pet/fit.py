@@ -256,62 +256,30 @@ def init_pet_fit_wf(
         )
         ds_petref_wf.inputs.inputnode.source_files = [pet_file]
 
-        petref_buffer = pe.Node(
-            niu.IdentityInterface(fields=['pet_file', 'petref']),
-            name='petref_buffer',
-        )
-
-        petref_source_buffer = pe.Node(
-            niu.IdentityInterface(fields=['in_file']),
-            name='petref_source_buffer',
-        )
-
         # Validation node for the original PET file
         val_pet = pe.Node(ValidateImage(), name='val_pet')
         val_pet.inputs.in_file = pet_file
 
-        # Ensure all workflows/nodes are created
-        stage1_nodes = [
-            pet_hmc_wf,
-            ds_hmc_wf,
-            ds_petref_wf,
-            petref_buffer,
-            petref_source_buffer,
-            func_fit_reports_wf,
-            val_pet,
-        ]
-        if any(node is None for node in stage1_nodes):
-            raise RuntimeError(
-                'Stage 1 workflows could not be built - check inputs and configuration.'
-            )
-
         workflow.connect([
             (val_pet, petref_buffer, [('out_file', 'pet_file')]),
             (val_pet, func_fit_reports_wf, [('out_report', 'inputnode.validation_report')]),
-            (petref_buffer, pet_hmc_wf, [
-                ('pet_file', 'inputnode.pet_file'),
+            (val_pet, pet_hmc_wf, [
+                ('out_file', 'inputnode.pet_file'),
             ]),
             (pet_hmc_wf, ds_hmc_wf, [('outputnode.xforms', 'inputnode.xforms')]),
             (ds_hmc_wf, hmc_buffer, [('outputnode.xforms', 'hmc_xforms')]),
             (pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')]),
             (pet_hmc_wf, ds_petref_wf, [('outputnode.petref', 'inputnode.petref')]),
-            (petref_buffer, ds_petref_wf, [('petref', 'inputnode.petref')]),
-            (ds_petref_wf, petref_source_buffer, [('outputnode.petref', 'in_file')]),
-            (pet_hmc_wf, func_fit_reports_wf, [('outputnode.petref', 'inputnode.petref')]),
         ])  # fmt:skip
     else:
         config.loggers.workflow.info('Found head motion correction transforms and petref - skipping Stage 1')
-        petref_source_buffer = pe.Node(
-            niu.IdentityInterface(fields=['in_file']),
-            name='petref_source_buffer',
-        )
 
         val_pet = pe.Node(ValidateImage(), name='val_pet')
 
         workflow.connect([
             (val_pet, petref_buffer, [('out_file', 'pet_file')]),
             (val_pet, func_fit_reports_wf, [('out_report', 'inputnode.validation_report')]),
-            (petref_buffer, petref_source_buffer, [('petref', 'in_file')]),
+
         ])  # fmt:skip
         val_pet.inputs.in_file = pet_file
 
