@@ -243,6 +243,8 @@ def init_pet_fit_wf(
             omp_nthreads=omp_nthreads,
             fwhm=config.workflow.hmc_fwhm,
             start_time=config.workflow.hmc_start_time,
+            frame_durations=timing_parameters['FrameDuration'],
+            frame_starts=timing_parameters['FrameTimesStart'],
         )
 
         ds_hmc_wf = init_ds_hmc_wf(
