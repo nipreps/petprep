@@ -114,6 +114,7 @@ class _LTAList2ITKOutputSpec(TraitedSpec):
 class LTAList2ITK(SimpleInterface):
     input_spec = _LTAList2ITKInputSpec
     output_spec = _LTAList2ITKOutputSpec
+    """Convert FreeSurfer LTA transforms into an ITK transform list."""
 
     def _run_interface(self, runtime):
         reference = nb.load(self.inputs.in_reference)
@@ -265,7 +266,7 @@ FreeSurfer's ``mri_robust_template``.
     )
     start_frame.inputs.start_time = start_time
 
-    transform_outputs = pe.Node(
+    make_lta_list = pe.Node(
         niu.Function(
             input_names=["in_file"],
             output_names=["lta_list"],
@@ -275,7 +276,7 @@ FreeSurfer's ``mri_robust_template``.
     )
 
     # Motion estimation
-    robtemp = pe.Node(
+    robust_template = pe.Node(
         fs.RobustTemplate(
             auto_detect_sensitivity=True,
             intensity_scaling=True,
@@ -297,7 +298,7 @@ FreeSurfer's ``mri_robust_template``.
     # Convert to ITK
     lta2itk = pe.Node(LTAList2ITK(), name='convert_lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
 
-    convert_mgz_nii = pe.Node(fs.MRIConvert(out_type='niigz'), name='convert_ref')
+    ref_to_nii = pe.Node(fs.MRIConvert(out_type='niigz'), name='convert_ref')
 
     workflow.connect([
         (inputnode, split, [('pet_file', 'in_file')]),
@@ -311,17 +312,17 @@ FreeSurfer's ``mri_robust_template``.
         (split, select_frames, [('out_file', 'inlist')]),
         (select_frames, smooth, [('out', 'in_file')]),
         (smooth, thresh, [('smoothed_file', 'in_file')]),
-        (thresh, transform_outputs, [('out_file', 'in_file')]),
-        (transform_outputs, robtemp, [('lta_list', 'transform_outputs')]),
-        (thresh, robtemp, [('out_file', 'in_files')]),
-        (robtemp, upd_xfm, [('transform_outputs', 'xforms')]),
+        (thresh, make_lta_list, [('out_file', 'in_file')]),
+        (make_lta_list, robust_template, [('lta_list', 'transform_outputs')]),
+        (thresh, robust_template, [('out_file', 'in_files')]),
+        (robust_template, upd_xfm, [('transform_outputs', 'xforms')]),
         (start_frame, upd_xfm, [('start_frame_idx', 'idx')]),
         (upd_xfm, lta2itk, [('updated_xforms', 'in_xforms')]),
-        (robtemp, lta2itk, [('out_file', 'in_reference')]),
+        (robust_template, lta2itk, [('out_file', 'in_reference')]),
         (split, lta2itk, [('out_file', 'in_source')]),
         (lta2itk, outputnode, [('out_file', 'xforms')]),
-        (robtemp, convert_mgz_nii, [('out_file', 'in_file')]),
-        (convert_mgz_nii, outputnode, [('out_file', 'petref')]),
+        (robust_template, ref_to_nii, [('out_file', 'in_file')]),
+        (ref_to_nii, outputnode, [('out_file', 'petref')]),
     ])  # fmt:skip
 
     return workflow
