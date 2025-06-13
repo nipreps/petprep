@@ -130,16 +130,6 @@ def _build_parser(**kwargs):
             else:
                 raise parser.error(f'Path does not exist: <{value}>.')
 
-    def _reference_frame(value, parser):
-        if value == 'average':
-            return 'average'
-        try:
-            return int(value)
-        except ValueError:
-            raise parser.error(
-                "Reference frame must be an integer index or 'average'."
-            ) from None
-
     verstr = f'PETPrep v{config.environment.version}'
     currentv = Version(config.environment.version)
     is_release = not any((currentv.is_devrelease, currentv.is_prerelease, currentv.is_postrelease))
@@ -153,7 +143,6 @@ def _build_parser(**kwargs):
     IsFile = partial(_is_file, parser=parser)
     PositiveInt = partial(_min_one, parser=parser)
     BIDSFilter = partial(_bids_filter, parser=parser)
-    ReferenceFrame = partial(_reference_frame, parser=parser)
 
     # Arguments as specified by BIDS-Apps
     # required, positional arguments
@@ -371,17 +360,6 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         '--force-no-bbr',
         action=DeprecatedAction,
         help='Deprecated - use `--force no-bbr` instead.',
-    )
-    g_conf.add_argument(
-        '--reference-frame',
-        action='store',
-        dest='reference_frame',
-        type=ReferenceFrame,
-        default='average',
-        help=(
-            "Reference frame index (0-based) for PET preprocessing. "
-            "Use 'average' to compute the standard averaged reference."
-        ),
     )
     g_conf.add_argument(
         '--hmc-fwhm',
