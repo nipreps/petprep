@@ -297,6 +297,8 @@ FreeSurfer's ``mri_robust_template``.
     # Convert to ITK
     lta2itk = pe.Node(LTAList2ITK(), name='lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
 
+    convert_mgz_nii = pe.Node(fs.MRIConvert(out_type='niigz'), name='convert_ref')
+
     workflow.connect([
         (inputnode, split, [('pet_file', 'in_file')]),
         (inputnode, start_frame, [('frame_durations', 'durations'),
@@ -318,7 +320,8 @@ FreeSurfer's ``mri_robust_template``.
         (robtemp, lta2itk, [('out_file', 'in_reference')]),
         (split, lta2itk, [('out_file', 'in_source')]),
         (lta2itk, outputnode, [('out_file', 'xforms')]),
-        (robtemp, outputnode, [('out_file', 'petref')]),
+        (robtemp, convert_mgz_nii, [('out_file', 'in_file')]),
+        (convert_mgz_nii, outputnode, [('out_file', 'petref')]),
     ])  # fmt:skip
 
     return workflow
