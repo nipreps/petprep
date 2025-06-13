@@ -193,6 +193,14 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
     timing_parameters = prepare_timing_parameters(metadata)
+    frame_durations = timing_parameters.get('AcquisitionDuration')
+    frame_start_times = timing_parameters.get('VolumeTiming')
+
+    if frame_durations is None or frame_start_times is None:
+        raise ValueError(
+            "Metadata is missing required frame timing information: 'FrameDuration' or 'FrameTimesStart'. "
+            "Please check your BIDS JSON sidecar."
+        )
 
     summary = pe.Node(
         FunctionalSummary(
@@ -243,8 +251,8 @@ def init_pet_fit_wf(
             omp_nthreads=omp_nthreads,
             fwhm=config.workflow.hmc_fwhm,
             start_time=config.workflow.hmc_start_time,
-            frame_durations=timing_parameters['FrameDuration'],
-            frame_starts=timing_parameters['FrameTimesStart'],
+            frame_durations=frame_durations,
+            frame_start_times=frame_start_times,
         )
 
         ds_hmc_wf = init_ds_hmc_wf(
