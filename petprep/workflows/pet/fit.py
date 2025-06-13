@@ -142,6 +142,9 @@ def init_pet_fit_wf(
     hmc_xforms = transforms.get('hmc')
     petref2anat_xform = transforms.get('petref2anat')
 
+    if (petref is None) ^ (hmc_xforms is None):
+        raise ValueError("Both 'petref' and 'hmc' transforms must be provided together.")
+
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
@@ -309,8 +312,7 @@ def init_pet_fit_wf(
                 ('t1w_mask', 'inputnode.anat_mask'),
             ]),
             (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
-            # Incomplete sources
-            (petref_buffer, ds_petreg_wf, [('petref', 'inputnode.source_files')]),
+            (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
             (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
             (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
         ])  # fmt:skip
