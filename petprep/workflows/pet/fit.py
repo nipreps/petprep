@@ -233,7 +233,7 @@ def init_pet_fit_wf(
 
     # Stage 1: Estimate head motion and reference image
     if not hmc_xforms:
-        config.loggers.workflow.info('Stage 1: Adding motion correction workflow')
+        config.loggers.workflow.info('Stage 1: Adding motion correction workflow and petref estimation')
         pet_hmc_wf = init_pet_hmc_wf(
             name='pet_hmc_wf',
             mem_gb=mem_gb['filesize'],
