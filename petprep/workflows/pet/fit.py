@@ -36,12 +36,11 @@ from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
     init_ds_petmask_wf,
-    init_ds_petref_wf,
     init_ds_registration_wf,
+    init_ds_petref_wf,
     init_func_fit_reports_wf,
     prepare_timing_parameters,
 )
-from .reference import init_raw_petref_wf
 from .registration import init_pet_reg_wf
 
 
@@ -111,7 +110,6 @@ def init_pet_fit_wf(
     See Also
     --------
 
-    * :py:func:`~fmriprep.workflows.pet.reference.init_raw_petref_wf`
     * :py:func:`~fmriprep.workflows.pet.hmc.init_pet_hmc_wf`
     * :py:func:`~fmriprep.workflows.pet.registration.init_pet_reg_wf`
     * :py:func:`~fmriprep.workflows.pet.outputs.init_ds_petref_wf`
@@ -143,6 +141,9 @@ def init_pet_fit_wf(
     transforms = precomputed.get('transforms', {})
     hmc_xforms = transforms.get('hmc')
     petref2anat_xform = transforms.get('petref2anat')
+
+    if (petref is None) ^ (hmc_xforms is None):
+        raise ValueError("Both 'petref' and 'hmc' transforms must be provided together.")
 
     workflow = Workflow(name=name)
 
@@ -192,6 +193,14 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug('Reusing motion correction transforms: %s', hmc_xforms)
 
     timing_parameters = prepare_timing_parameters(metadata)
+    frame_durations = timing_parameters.get('AcquisitionDuration')
+    frame_start_times = timing_parameters.get('VolumeTiming')
+
+    if frame_durations is None or frame_start_times is None:
+        raise ValueError(
+            "Metadata is missing required frame timing information: 'FrameDuration' or 'FrameTimesStart'. "
+            "Please check your BIDS JSON sidecar."
+        )
 
     summary = pe.Node(
         FunctionalSummary(
@@ -233,19 +242,24 @@ def init_pet_fit_wf(
         (summary, func_fit_reports_wf, [('out_report', 'inputnode.summary_report')]),
     ])  # fmt:skip
 
-    # Stage 1: Generate motion correction petref
-    # XXX: This stage should maybe also do masking?
-    petref_source_buffer = pe.Node(
-        niu.IdentityInterface(fields=['in_file']),
-        name='petref_source_buffer',
-    )
-    if not petref:
-        config.loggers.workflow.info('Stage 1: Adding PET reference workflow')
-        petref_wf = init_raw_petref_wf(
-            name='petref_wf',
-            pet_file=pet_file,
-            reference_frame=config.workflow.reference_frame,
+    # Stage 1: Estimate head motion and reference image
+    if not hmc_xforms:
+        config.loggers.workflow.info('Stage 1: Adding motion correction workflow and petref estimation')
+        pet_hmc_wf = init_pet_hmc_wf(
+            name='pet_hmc_wf',
+            mem_gb=mem_gb['filesize'],
+            omp_nthreads=omp_nthreads,
+            fwhm=config.workflow.hmc_fwhm,
+            start_time=config.workflow.hmc_start_time,
+            frame_durations=frame_durations,
+            frame_start_times=frame_start_times,
         )
+
+        ds_hmc_wf = init_ds_hmc_wf(
+            bids_root=layout.root,
+            output_dir=config.execution.petprep_dir,
+        )
+        ds_hmc_wf.inputs.inputnode.source_files = [pet_file]
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
@@ -255,73 +269,37 @@ def init_pet_fit_wf(
         )
         ds_petref_wf.inputs.inputnode.source_files = [pet_file]
 
-        # Ensure all stage-1 workflows were created successfully before
-        # attempting to connect them. Nipype's ``connect`` call will fail
-        # with a ``NoneType`` error if any node is undefined.
-        stage1_nodes = [
-            petref_wf,
-            petref_buffer,
-            ds_petref_wf,
-            func_fit_reports_wf,
-            petref_source_buffer,
-        ]
-        if any(node is None for node in stage1_nodes):
-            raise RuntimeError(
-                'PET reference stage could not be built - check inputs and configuration.'
-            )
+        # Validation node for the original PET file
+        val_pet = pe.Node(ValidateImage(), name='val_pet')
+        val_pet.inputs.in_file = pet_file
 
         workflow.connect([
-            (petref_wf, petref_buffer, [
-                ('outputnode.pet_file', 'pet_file'),
-                ('outputnode.petref', 'petref'),
+            (val_pet, petref_buffer, [('out_file', 'pet_file')]),
+            (val_pet, func_fit_reports_wf, [('out_report', 'inputnode.validation_report')]),
+            (val_pet, pet_hmc_wf, [
+                ('out_file', 'inputnode.pet_file'),
             ]),
-            (petref_buffer, ds_petref_wf, [('petref', 'inputnode.petref')]),
-            (petref_wf, func_fit_reports_wf, [
-                ('outputnode.validation_report', 'inputnode.validation_report'),
-            ]),
-            (ds_petref_wf, petref_source_buffer, [
-                ('outputnode.petref', 'in_file'),
-            ]),
+            (pet_hmc_wf, ds_hmc_wf, [('outputnode.xforms', 'inputnode.xforms')]),
+            (ds_hmc_wf, hmc_buffer, [('outputnode.xforms', 'hmc_xforms')]),
+            (pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')]),
+            (pet_hmc_wf, ds_petref_wf, [('outputnode.petref', 'inputnode.petref')]),
         ])  # fmt:skip
     else:
-        config.loggers.workflow.info('Found HMC petref - skipping Stage 1')
+        config.loggers.workflow.info('Found head motion correction transforms and petref - skipping Stage 1')
 
         val_pet = pe.Node(ValidateImage(), name='val_pet')
 
         workflow.connect([
             (val_pet, petref_buffer, [('out_file', 'pet_file')]),
             (val_pet, func_fit_reports_wf, [('out_report', 'inputnode.validation_report')]),
-            (petref_buffer, petref_source_buffer, [('petref', 'in_file')]),
+
         ])  # fmt:skip
         val_pet.inputs.in_file = pet_file
+        petref_buffer.inputs.petref = petref
 
-    # Stage 2: Estimate head motion
-    if not hmc_xforms:
-        config.loggers.workflow.info('Stage 2: Adding motion correction workflow')
-        pet_hmc_wf = init_pet_hmc_wf(
-            name='pet_hmc_wf', mem_gb=mem_gb['filesize'], omp_nthreads=omp_nthreads
-        )
-
-        ds_hmc_wf = init_ds_hmc_wf(
-            bids_root=layout.root,
-            output_dir=config.execution.petprep_dir,
-        )
-        ds_hmc_wf.inputs.inputnode.source_files = [pet_file]
-
-        workflow.connect([
-            (petref_buffer, pet_hmc_wf, [
-                ('petref', 'inputnode.raw_ref_image'),
-                ('pet_file', 'inputnode.pet_file'),
-            ]),
-            (pet_hmc_wf, ds_hmc_wf, [('outputnode.xforms', 'inputnode.xforms')]),
-            (ds_hmc_wf, hmc_buffer, [('outputnode.xforms', 'hmc_xforms')]),
-        ])  # fmt:skip
-    else:
-        config.loggers.workflow.info('Found motion correction transforms - skipping Stage 2')
-
-    # Stage 3: Coregistration
+    # Stage 2: Coregistration
     if not petref2anat_xform:
-
+        config.loggers.workflow.info('Stage 2: Adding co-registration workflow of PET to T1w')
         # calculate PET registration to T1w
         pet_reg_wf = init_pet_reg_wf(
             pet2anat_dof=config.workflow.pet2anat_dof,
@@ -344,15 +322,14 @@ def init_pet_fit_wf(
                 ('t1w_mask', 'inputnode.anat_mask'),
             ]),
             (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
-            # Incomplete sources
-            (petref_buffer, ds_petreg_wf, [('petref', 'inputnode.source_files')]),
+            (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
             (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
             (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
         ])  # fmt:skip
     else:
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
 
-    # Stage 4: Estimate PET brain mask
+    # Stage 3: Estimate PET brain mask
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 
     from .confounds import _binary_union, _smooth_binarize

@@ -259,6 +259,7 @@ It is released under the [CC0]\
         BIDSDataGrabber(
             subject_data=subject_data,
             anat_only=config.workflow.anat_only,
+            require_bold=False,
             require_pet=bool(subject_data['pet']),
             subject_id=subject_id,
             anat_derivatives=anatomical_cache if anatomical_cache else None,

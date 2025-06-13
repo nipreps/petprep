@@ -592,10 +592,11 @@ class workflow(_Config):
     spaces = None
     """Keeps the :py:class:`~niworkflows.utils.spaces.SpatialReferences`
     instance keeping standard and nonstandard spaces."""
-    reference_frame: int | str | None = None
-    """Selected frame index for PET reference generation.
+    hmc_fwhm: float = 10.0
+    """FWHM for Gaussian smoothing prior to head-motion estimation."""
+    hmc_start_time: float = 120.0
+    """Time point (in seconds) at which head-motion estimation starts."""
 
-    ``None`` or ``'average'`` retains the current averaging behavior."""
 
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""
