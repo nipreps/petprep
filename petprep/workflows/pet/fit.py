@@ -285,7 +285,7 @@ def init_pet_fit_wf(
 
     # Stage 2: Coregistration
     if not petref2anat_xform:
-
+        config.loggers.workflow.info('Stage 2: Adding co-registration workflow of PET to T1w')
         # calculate PET registration to T1w
         pet_reg_wf = init_pet_reg_wf(
             pet2anat_dof=config.workflow.pet2anat_dof,
