@@ -283,7 +283,7 @@ def init_pet_fit_wf(
         ])  # fmt:skip
         val_pet.inputs.in_file = pet_file
 
-    # Stage 3: Coregistration
+    # Stage 2: Coregistration
     if not petref2anat_xform:
 
         # calculate PET registration to T1w
@@ -316,7 +316,7 @@ def init_pet_fit_wf(
     else:
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
 
-    # Stage 4: Estimate PET brain mask
+    # Stage 3: Estimate PET brain mask
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 
     from .confounds import _binary_union, _smooth_binarize
