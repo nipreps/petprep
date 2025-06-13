@@ -271,7 +271,7 @@ FreeSurfer's ``mri_robust_template``.
             output_names=["lta_list"],
             function=lta_list,
         ),
-        name="lta_list",
+        name="create_lta_list",
     )
 
     # Motion estimation
@@ -283,7 +283,7 @@ FreeSurfer's ``mri_robust_template``.
             args='--cras',
             num_threads=omp_nthreads,
         ),
-        name='robust_template',
+        name='est_robust_hmc',
     )
     upd_xfm = pe.Node(
         niu.Function(
@@ -295,7 +295,7 @@ FreeSurfer's ``mri_robust_template``.
     )
 
     # Convert to ITK
-    lta2itk = pe.Node(LTAList2ITK(), name='lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
+    lta2itk = pe.Node(LTAList2ITK(), name='convert_lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
 
     convert_mgz_nii = pe.Node(fs.MRIConvert(out_type='niigz'), name='convert_ref')
 
