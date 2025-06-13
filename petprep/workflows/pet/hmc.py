@@ -29,7 +29,7 @@ Head-Motion Estimation and Correction (HMC) of PET images
 """
 
 from collections.abc import Sequence
-from nipype.interfaces.utility import Select
+from pathlib import Path
 
 import nibabel as nb
 import nitransforms as nt
@@ -44,9 +44,8 @@ from nipype.interfaces.base import (
     SimpleInterface,
     TraitedSpec,
 )
+from nipype.interfaces.utility import Select
 from nipype.pipeline import engine as pe
-
-from pathlib import Path
 
 
 def get_start_frame(
@@ -69,6 +68,9 @@ def get_start_frame(
 
     from collections.abc import Sequence
     import numpy as np
+
+    if durations is None:
+        return 0
 
     durations = np.asarray(durations, dtype=float)
     if durations.size == 0:
@@ -211,6 +213,9 @@ FreeSurfer's ``mri_robust_template``.
         ),
         name='inputnode',
     )
+    inputnode.inputs.start_time = start_time
+    inputnode.inputs.frame_durations = frame_durations
+    inputnode.inputs.frame_start_times = frame_start_times
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
 
     # Split frames
@@ -222,7 +227,7 @@ FreeSurfer's ``mri_robust_template``.
     # Define a function to create the correct indices
     def get_frame_indices(total_frames, start_idx):
         return list(range(start_idx, total_frames))
-    
+
     # Explicit function for Nipype connection
     def num_files(filelist):
         return len(filelist)
@@ -250,13 +255,14 @@ FreeSurfer's ``mri_robust_template``.
     thresh = pe.MapNode(fsl.maths.Threshold(thresh=20), name='thresh', iterfield=['in_file'])
 
     # Select reference frame
-    start_frame = pe.Node(niu.Function(
-                                    input_names=['durations', 'start_time', 'frame_starts'],
-                                    output_names=['start_frame_idx'],
-                                    function=get_start_frame,
-                                ),
-                                name='get_start_frame',
-                            )
+    start_frame = pe.Node(
+        niu.Function(
+            input_names=['durations', 'start_time', 'frame_starts'],
+            output_names=['start_frame_idx'],
+            function=get_start_frame,
+        ),
+        name='get_start_frame',
+    )
     start_frame.inputs.start_time = start_time
 
     transform_outputs = pe.Node(
@@ -270,18 +276,23 @@ FreeSurfer's ``mri_robust_template``.
 
     # Motion estimation
     robtemp = pe.Node(
-        fs.RobustTemplate(auto_detect_sensitivity=True,
-                          intensity_scaling=True,
-                          average_metric="mean",
-                          args=f"--cras",
-                          num_threads=omp_nthreads),
+        fs.RobustTemplate(
+            auto_detect_sensitivity=True,
+            intensity_scaling=True,
+            average_metric='mean',
+            args='--cras',
+            num_threads=omp_nthreads,
+        ),
         name='robust_template',
     )
-    upd_xfm = pe.Node(niu.Function(
+    upd_xfm = pe.Node(
+        niu.Function(
             input_names=['xforms', 'idx'],
             output_names=['updated_xforms'],
-            function=update_list_transforms),
-        name='update_list_transforms')
+            function=update_list_transforms,
+        ),
+        name='update_list_transforms',
+    )
 
     # Convert to ITK
     lta2itk = pe.Node(LTAList2ITK(), name='lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
