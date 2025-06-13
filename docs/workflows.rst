@@ -289,7 +289,8 @@ from the ``aseg.mgz`` file as described in
 PET preprocessing
 ------------------
 *PETPrep* performs a series of steps to preprocess :abbr:`PET (positron emission tomography)`
-data. Broadly, these are split into fit and transform stages.
+data. Broadly, these are split into fit and transform stages. Stage 1 simultaneously
+estimates head motion and the reference image.
 
 The following figures show the overall workflow graph and the ``pet_fit_wf``
 subgraph:
@@ -331,14 +332,14 @@ split into multiple sub-workflows described below.
 
 PET reference image estimation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-:py:func:`~petprep.workflows.pet.reference.init_raw_boldref_wf`
+:py:func:`~petprep.workflows.pet.reference.init_raw_petref_wf`
 
 .. workflow::
     :graph2use: orig
     :simple_form: yes
 
-    from petprep.workflows.pet.reference import init_raw_boldref_wf
-    wf = init_raw_boldref_wf()
+    from petprep.workflows.pet.reference import init_raw_petref_wf
+    wf = init_raw_petref_wf()
 
 This workflow estimates a reference image for a
 :abbr:`PET (positron emission tomography)` series as follows:
