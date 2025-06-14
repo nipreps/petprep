@@ -27,6 +27,7 @@ class SegmentBSOutputSpec(TraitedSpec):
     out_file = File(exists=True, desc='Brainstem segmentation in anatomical space')
     out_fsvox_file = File(exists=True, desc='Brainstem segmentation in FS voxel space')
     volumes_file = File(exists=True, desc='Brainstem volumes table')
+    stderr = File(desc='Standard error output file', exists=True)
 
 
 class SegmentBS(SimpleInterface):

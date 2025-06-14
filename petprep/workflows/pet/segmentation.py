@@ -13,10 +13,22 @@ from ... import config
 from ...data import load as load_data
 from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
-from ...interfaces.segmentation import SegmentBS, SegmentThalamicNuclei, SegmentWM, SegmentHA_T1, MRISclimbicSeg
-from ...utils.brainstem import brainstem_stats_to_stats, brainstem_to_dsegtsv
+from ...interfaces.segmentation import (
+    SegmentBS,
+    SegmentThalamicNuclei,
+    SegmentWM,
+    SegmentHA_T1,
+    MRISclimbicSeg,
+)
 from ...utils.gtmseg import gtm_stats_to_stats, gtm_to_dsegtsv
 from ...utils.thalamic import ctab_to_dsegtsv, summary_to_stats
+
+try:  # Py>=3.9
+    from importlib.resources import files as ir_files
+except Exception:  # pragma: no cover - Py<3.9 fallback
+    from importlib_resources import files as ir_files
+
+SEG_DATA = ir_files("petprep.data.segmentation")
 
 
 def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
@@ -42,23 +54,163 @@ def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
     return str(out_file)
 
 
-SEGMENTATION_CMDS = {
-    'gtm': 'gtmseg',
-    'brainstem': 'SegmentBS',
-    'thalamicNuclei': 'SegmentThalamicNuclei',
-    'hippocampusAmygdala': 'SegmentHA_T1',
-    'wm': 'SegmentWM',
-    'raphe': 'MRISclimbicSeg',
-    'limbic': 'MRISclimbicSeg',
+SEGMENTATIONS = {
+    'gtm': {
+        'interface': GTMSeg,
+        'interface_kwargs': {'args': '--no-xcerseg'},
+        'desc': 'gtm',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+        'segstats': False,
+        'dseg_func': gtm_to_dsegtsv,
+        'morph_func': gtm_stats_to_stats,
+    },
+    'brainstem': {
+        'interface': SegmentBS,
+        'desc': 'brainstem',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
+    'thalamicNuclei': {
+        'interface': SegmentThalamicNuclei,
+        'desc': 'thalamus',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
+    'hippocampusAmygdala': {
+        'interface': SegmentHA_T1,
+        'desc': 'hippocampusAmygdala',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+        'merge_ha': True,
+    },
+    'wm': {
+        'interface': SegmentWM,
+        'desc': 'whiteMatter',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
+    'raphe': {
+        'interface': MRISclimbicSeg,
+        'interface_kwargs': {
+            'model': str(SEG_DATA / 'raphe+pons.n21.d114.h5'),
+            'ctab': str(SEG_DATA / 'raphe+pons.ctab'),
+            'out_file': 'raphe_seg.mgz',
+        },
+        'desc': 'raphe',
+        'inputs': [('t1w_preproc', 'in_file')],
+        'color_table': str(SEG_DATA / 'raphe+pons.ctab'),
+    },
+    'limbic': {
+        'interface': MRISclimbicSeg,
+        'interface_kwargs': {
+            'ctab': str(load_data('segmentation/sclimbic.ctab')),
+            'out_file': 'sclimbic.mgz',
+            'write_volumes': True,
+        },
+        'desc': 'limbic',
+        'inputs': [('subjects_dir', 'sd'), ('subject_id', 'subjects')],
+        'color_table': str(load_data('segmentation/sclimbic.ctab')),
+    },
 }
 
 
-def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
-    """Return a minimal segmentation workflow selecting a FreeSurfer command.
+def _build_nodes(seg: str, desc: str, *, color_table: str | None = None,
+                 segstats: bool = True, merge_ha: bool = False,
+                 dseg_func=ctab_to_dsegtsv, morph_func=summary_to_stats):
+    """Create common segmentation nodes."""
+    nodes = {}
+    if merge_ha:
+        nodes['convert_lh'] = pe.Node(MRIConvert(out_type='niigz', resample_type='nearest'),
+                                      name='convert_ha_lh')
+        nodes['convert_rh'] = pe.Node(MRIConvert(out_type='niigz', resample_type='nearest'),
+                                      name='convert_ha_rh')
+        nodes['merge_seg'] = pe.Node(
+            Function(input_names=['lh_file', 'rh_file'], output_names=['out_file'],
+                     function=_merge_ha_labels),
+            name='merge_ha_seg')
+        seg_source = nodes['merge_seg']
+    else:
+        nodes['convert_seg'] = pe.Node(MRIConvert(out_type='niigz', resample_type='nearest'),
+                                       name=f'convert_{seg}seg')
+        seg_source = nodes['convert_seg']
 
-    When ``seg`` is ``'gtm'``, the workflow runs FreeSurfer's ``gtmseg`` utility.
-    In that case, ``subjects_dir`` and ``subject_id`` inputs must be provided.
-    """
+    nodes['sources'] = pe.Node(
+        BIDSURI(numinputs=1, dataset_links=config.execution.dataset_links,
+                out_dir=str(config.execution.petprep_dir)),
+        name='sources')
+
+    nodes['ds_seg'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            desc=desc,
+            suffix='dseg',
+            extension='.nii.gz',
+            compress=True,
+        ),
+        name=f'ds_{seg}seg',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+
+    if segstats:
+        segstats_kwargs = {
+            'exclude_id': 0,
+            'ctab_out_file': f'desc-{desc}_dseg.ctab',
+            'summary_file': f'desc-{desc}_morph.txt',
+        }
+        if color_table:
+            segstats_kwargs['color_table_file'] = color_table
+        else:
+            segstats_kwargs['default_color_table'] = True
+        nodes['segstats'] = pe.Node(SegStats(**segstats_kwargs), name=f'segstats_{seg}')
+        nodes['create_morph'] = pe.Node(
+            Function(input_names=['summary_file'], output_names=['out_file'],
+                     function=morph_func),
+            name=f'create_{seg}_morphtsv')
+        nodes['create_dseg'] = pe.Node(
+            Function(input_names=['ctab_file'], output_names=['out_file'],
+                     function=dseg_func),
+            name=f'create_{seg}_dsegtsv')
+    else:
+        nodes['make_dseg'] = pe.Node(
+            niu.Function(function=dseg_func,
+                        input_names=['subjects_dir', 'subject_id'],
+                        output_names=['out_file']),
+            name=f'make_{seg}dsegtsv')
+        nodes['make_morph'] = pe.Node(
+            niu.Function(function=morph_func,
+                        input_names=['subjects_dir', 'subject_id'],
+                        output_names=['out_file']),
+            name=f'make_{seg}morphtsv')
+
+    nodes['ds_dseg_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            desc=desc,
+            suffix='dseg',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}dsegtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    nodes['ds_morph_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            desc=desc,
+            suffix='morph',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}morphtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    nodes['seg_source'] = seg_source
+    return nodes
+
+
+def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
+    """Return a minimal segmentation workflow selecting a FreeSurfer command."""
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
 
@@ -71,826 +223,73 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         name='outputnode',
     )
 
-    # This node is just a placeholder for the actual FreeSurfer command
-    if seg == 'gtm':
-        seg_node = pe.Node(GTMSeg(args='--no-xcerseg'), name='run_gtm')
-    elif seg == 'thalamicNuclei':
-        seg_node = pe.Node(SegmentThalamicNuclei(), name='run_thalamicnuclei')
-    elif seg == 'brainstem':
-        seg_node = pe.Node(SegmentBS(), name='run_brainstem')
-    elif seg == 'hippocampusAmygdala':
-        seg_node = pe.Node(SegmentHA_T1(), name='run_hippocampusamygdala')
-    elif seg == 'wm':
-        seg_node = pe.Node(SegmentWM(), name='run_wm')
-    elif seg == 'limbic':
-        seg_node = pe.Node(
-            MRISclimbicSeg(
-                ctab=str(load_data('segmentation/sclimbic.ctab')),
-                out_file='sclimbic.mgz',
-                write_volumes=True,
-            ),
-            name='run_limbic',
-        )
-    elif seg == 'raphe':
-        try:
-            from importlib.resources import files as ir_files
-        except ImportError:  # PY<3.9
-            from importlib_resources import files as ir_files
-
-        data = ir_files('petprep.data.segmentation')
-        seg_node = pe.Node(
-            MRISclimbicSeg(
-                model=str(data / 'raphe+pons.n21.d114.h5'),
-                ctab=str(data / 'raphe+pons.ctab'),
-                out_file='raphe_seg.mgz',
-            ),
-            name='run_raphe',
-        )
-    else:
+    spec = SEGMENTATIONS.get(seg)
+    if spec is None:
         seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
-
-    if seg == 'gtm':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                )
-            ]
-        )
-    elif seg == 'brainstem':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                )
-            ]
-        )
-    elif seg == 'hippocampusAmygdala':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                )
-            ]
-        )
-    elif seg == 'thalamicNuclei':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                )
-            ]
-        )
-    elif seg == 'limbic':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'sd'), ('subject_id', 'subjects')],
-                )
-            ]
-        )
-    elif seg == 'raphe':
-        workflow.connect([(inputnode, seg_node, [('t1w_preproc', 'in_file')])])
-    elif seg == 'wm':
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    seg_node,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                )
-            ]
-        )
-    else:
-        workflow.connect([(inputnode, seg_node, [])])
-
-    if seg == 'gtm':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_gtmseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='gtm',
-                suffix='dseg',
-                compress=True,
-            ),
-            name='ds_gtmseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        mk_dseg_tsv = pe.Node(
-            niu.Function(
-                function=gtm_to_dsegtsv,
-                input_names=['subjects_dir', 'subject_id'],
-                output_names=['out_file'],
-            ),
-            name='make_gtmdsegtsv',
-        )
-        mk_morph_tsv = pe.Node(
-            niu.Function(
-                function=gtm_stats_to_stats,
-                input_names=['subjects_dir', 'subject_id'],
-                output_names=['out_file'],
-            ),
-            name='make_gtmmorphtsv',
-        )
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='gtm',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_gtmdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='gtm',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_gtmmorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (
-                    inputnode,
-                    mk_dseg_tsv,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (
-                    inputnode,
-                    mk_morph_tsv,
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (mk_dseg_tsv, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (mk_morph_tsv, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'thalamicNuclei':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_thalamicseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='thalamus',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_thalamicseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_thal = pe.Node(
-            SegStats(
-                exclude_id=0,
-                default_color_table=True,
-                ctab_out_file='desc-thalamus_dseg.ctab',
-                summary_file='desc-thalamus_morph.txt',
-            ),
-            name='segstats_thal',
-        )
-
-        create_thal_morph = pe.Node(
-            Function(
-                input_names=['summary_file'],
-                output_names=['out_file'],
-                function=summary_to_stats,
-            ),
-            name='create_thal_morphtsv',
-        )
-
-        create_thal_dseg = pe.Node(
-            Function(
-                input_names=['ctab_file'],
-                output_names=['out_file'],
-                function=ctab_to_dsegtsv,
-            ),
-            name='create_thal_dsegtsv',
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='thalamus',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_thalamusdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='thalamus',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_thalamusmorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('thalamic_labels_voxel', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (seg_node, segstats_thal, [('thalamic_labels_voxel', 'segmentation_file')]),
-                (segstats_thal, create_thal_morph, [('summary_file', 'summary_file')]),
-                (segstats_thal, create_thal_dseg, [('ctab_out_file', 'ctab_file')]),
-                (create_thal_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_thal_morph, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'hippocampusAmygdala':
-        convert_lh = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_ha_lh',
-        )
-        convert_rh = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_ha_rh',
-        )
-        merge_seg = pe.Node(
-            Function(
-                input_names=['lh_file', 'rh_file'],
-                output_names=['out_file'],
-                function=_merge_ha_labels,
-            ),
-            name='merge_ha_seg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='hippocampusAmygdala',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_hippoamygseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_ha = pe.Node(
-            SegStats(
-                exclude_id=0,
-                default_color_table=True,
-                ctab_out_file='desc-hippocampusAmygdala_dseg.ctab',
-                summary_file='desc-hippocampusAmygdala_morph.txt',
-            ),
-            name='segstats_ha',
-        )
-
-        create_ha_morph = pe.Node(
-            Function(
-                input_names=['summary_file'],
-                output_names=['out_file'],
-                function=summary_to_stats,
-            ),
-            name='create_ha_morphtsv',
-        )
-
-        create_ha_dseg = pe.Node(
-            Function(
-                input_names=['ctab_file'],
-                output_names=['out_file'],
-                function=ctab_to_dsegtsv,
-            ),
-            name='create_ha_dsegtsv',
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='hippocampusAmygdala',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_hippoamygdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='hippocampusAmygdala',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_hippoamygmorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_lh, [('lh_hippoAmygLabels', 'in_file')]),
-                (seg_node, convert_rh, [('rh_hippoAmygLabels', 'in_file')]),
-                (convert_lh, merge_seg, [('out_file', 'lh_file')]),
-                (convert_rh, merge_seg, [('out_file', 'rh_file')]),
-                (merge_seg, ds_seg, [('out_file', 'in_file')]),
-                (merge_seg, segstats_ha, [('out_file', 'segmentation_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (segstats_ha, create_ha_morph, [('summary_file', 'summary_file')]),
-                (segstats_ha, create_ha_dseg, [('ctab_out_file', 'ctab_file')]),
-                (create_ha_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_ha_morph, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'brainstem':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_brainstemseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='brainstem',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_brainstemseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_bs = pe.Node(
-            SegStats(
-                exclude_id=0,
-                default_color_table=True,
-                ctab_out_file="desc-brainstem_dseg.ctab",
-                summary_file="desc-brainstem_morph.txt",
-            ),
-            name="segstats_bs",
-        )
-
-        create_bs_morphtsv = pe.Node(
-            Function(
-                input_names=["summary_file"],
-                output_names=["out_file"],
-                function=summary_to_stats,
-            ),
-            name="create_bs_morphtsv",
-        )
-
-        create_bs_dsegtsv = pe.Node(
-            Function(
-                input_names=["ctab_file"],
-                output_names=["out_file"],
-                function=ctab_to_dsegtsv,
-            ),
-            name="create_bs_dsegtsv",
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='brainstem',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_brainstemdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='brainstem',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_brainstemmorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (seg_node, segstats_bs, [('out_file', 'segmentation_file')]),
-                (segstats_bs, create_bs_morphtsv, [('summary_file', 'summary_file')]),
-                (segstats_bs, create_bs_dsegtsv, [('ctab_out_file', 'ctab_file')]),
-                (create_bs_dsegtsv, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_bs_morphtsv, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'raphe':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_rapheseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='raphe',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_rapheseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_raphe = pe.Node(
-            SegStats(
-                exclude_id=0,
-                color_table_file=str(data / 'raphe+pons.ctab'),
-                ctab_out_file='desc-raphe_dseg.ctab',
-                summary_file='desc-raphe_morph.txt',
-            ),
-            name='segstats_raphe',
-        )
-
-        create_raphe_morph = pe.Node(
-            Function(
-                input_names=['summary_file'],
-                output_names=['out_file'],
-                function=summary_to_stats,
-            ),
-            name='create_raphe_morphtsv',
-        )
-
-        create_raphe_dseg = pe.Node(
-            Function(
-                input_names=['ctab_file'],
-                output_names=['out_file'],
-                function=ctab_to_dsegtsv,
-            ),
-            name='create_raphe_dsegtsv',
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='raphe',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_raphedsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='raphe',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_raphemorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (seg_node, segstats_raphe, [('out_file', 'segmentation_file')]),
-                (segstats_raphe, create_raphe_morph, [('summary_file', 'summary_file')]),
-                (segstats_raphe, create_raphe_dseg, [('ctab_out_file', 'ctab_file')]),
-                (create_raphe_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_raphe_morph, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'wm':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_wmseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='whiteMatter',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_wmseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_wm = pe.Node(
-            SegStats(
-                exclude_id=0,
-                default_color_table=True,
-                ctab_out_file='desc-whiteMatter_dseg.ctab',
-                summary_file='desc-whiteMatter_morph.txt',
-            ),
-            name='segstats_wm',
-        )
-
-        create_wm_morph = pe.Node(
-            Function(
-                input_names=['summary_file'],
-                output_names=['out_file'],
-                function=summary_to_stats,
-            ),
-            name='create_wm_morphtsv',
-        )
-
-        create_wm_dseg = pe.Node(
-            Function(
-                input_names=['ctab_file'],
-                output_names=['out_file'],
-                function=ctab_to_dsegtsv,
-            ),
-            name='create_wm_dsegtsv',
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='whiteMatter',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_whiteMatterdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='whiteMatter',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_whiteMattermorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (seg_node, segstats_wm, [('out_file', 'segmentation_file')]),
-                (segstats_wm, create_wm_morph, [('summary_file', 'summary_file')]),
-                (segstats_wm, create_wm_dseg, [('ctab_out_file', 'ctab_file')]),
-                (create_wm_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_wm_morph, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    elif seg == 'limbic':
-        convert_seg = pe.Node(
-            MRIConvert(out_type='niigz'),
-            name='convert_limbicseg',
-        )
-        sources = pe.Node(
-            BIDSURI(
-                numinputs=1,
-                dataset_links=config.execution.dataset_links,
-                out_dir=str(config.execution.petprep_dir),
-            ),
-            name='sources',
-        )
-        ds_seg = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='limbic',
-                suffix='dseg',
-                extension='.nii.gz',
-                compress=True,
-            ),
-            name='ds_limbicseg',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        segstats_limbic = pe.Node(
-            SegStats(
-                exclude_id=0,
-                color_table_file=str(load_data('segmentation/sclimbic.ctab')),
-                ctab_out_file='desc-limbic_dseg.ctab',
-                summary_file='desc-limbic_morph.txt',
-            ),
-            name='segstats_limbic',
-        )
-
-        create_limbic_morph = pe.Node(
-            Function(
-                input_names=['summary_file'],
-                output_names=['out_file'],
-                function=summary_to_stats,
-            ),
-            name='create_limbic_morphtsv',
-        )
-
-        create_limbic_dseg = pe.Node(
-            Function(
-                input_names=['ctab_file'],
-                output_names=['out_file'],
-                function=ctab_to_dsegtsv,
-            ),
-            name='create_limbic_dsegtsv',
-        )
-
-        ds_dseg_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='limbic',
-                suffix='dseg',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_limbicdsegtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        ds_morph_tsv = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='limbic',
-                suffix='morph',
-                extension='.tsv',
-                datatype='anat',
-                check_hdr=False,
-            ),
-            name='ds_limbicmorphtsv',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
-        workflow.connect(
-            [
-                (seg_node, convert_seg, [('out_file', 'in_file')]),
-                (inputnode, sources, [('t1w_preproc', 'in1')]),
-                (convert_seg, ds_seg, [('out_file', 'in_file')]),
-                (inputnode, ds_seg, [('t1w_preproc', 'source_file')]),
-                (sources, ds_seg, [('out', 'Sources')]),
-                (ds_seg, outputnode, [('out_file', 'segmentation')]),
-                (seg_node, segstats_limbic, [('out_file', 'segmentation_file')]),
-                (segstats_limbic, create_limbic_morph, [('summary_file', 'summary_file')]),
-                (segstats_limbic, create_limbic_dseg, [('ctab_out_file', 'ctab_file')]),
-                (create_limbic_dseg, ds_dseg_tsv, [('out_file', 'in_file')]),
-                (create_limbic_morph, ds_morph_tsv, [('out_file', 'in_file')]),
-                (inputnode, ds_dseg_tsv, [('t1w_preproc', 'source_file')]),
-                (inputnode, ds_morph_tsv, [('t1w_preproc', 'source_file')]),
-                (sources, ds_dseg_tsv, [('out', 'Sources')]),
-                (sources, ds_morph_tsv, [('out', 'Sources')]),
-                (ds_dseg_tsv, outputnode, [('out_file', 'dseg_tsv')]),
-            ]
-        )
-    else:
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
+        return workflow
+
+    interface = spec['interface']
+    seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+
+    for in_field, out_field in spec.get('inputs', []):
+        workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
+
+    nodes = _build_nodes(
+        seg,
+        spec['desc'],
+        color_table=spec.get('color_table'),
+        segstats=spec.get('segstats', True),
+        merge_ha=spec.get('merge_ha', False),
+        dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
+        morph_func=spec.get('morph_func', summary_to_stats),
+    )
+
+    if spec.get('merge_ha', False):
+        workflow.connect([
+            (seg_node, nodes['convert_lh'], [('lh_hippoAmygLabels', 'in_file')]),
+            (seg_node, nodes['convert_rh'], [('rh_hippoAmygLabels', 'in_file')]),
+            (inputnode, nodes['convert_lh'], [('t1w_preproc', 'reslice_like')]),
+            (inputnode, nodes['convert_rh'], [('t1w_preproc', 'reslice_like')]),
+            (nodes['convert_lh'], nodes['merge_seg'], [('out_file', 'lh_file')]),
+            (nodes['convert_rh'], nodes['merge_seg'], [('out_file', 'rh_file')]),
+        ])
+    else:
+        workflow.connect([
+            (seg_node, nodes['convert_seg'], [('out_file', 'in_file')]),
+            (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
+        ])
+
+    workflow.connect([
+        (inputnode, nodes['sources'], [('t1w_preproc', 'in1')]),
+        (nodes['seg_source'], nodes['ds_seg'], [('out_file', 'in_file')]),
+        (inputnode, nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
+        (nodes['sources'], nodes['ds_seg'], [('out', 'Sources')]),
+        (nodes['ds_seg'], outputnode, [('out_file', 'segmentation')]),
+    ])
+
+    if spec.get('segstats', True):
+        workflow.connect([
+            (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
+            (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
+            (nodes['segstats'], nodes['create_dseg'], [('ctab_out_file', 'ctab_file')]),
+            (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+            (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+        ])
+    else:
+        workflow.connect([
+            (inputnode, nodes['make_dseg'], [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
+            (inputnode, nodes['make_morph'], [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
+            (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+            (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+        ])
+
+    workflow.connect([
+        (inputnode, nodes['ds_dseg_tsv'], [('t1w_preproc', 'source_file')]),
+        (inputnode, nodes['ds_morph_tsv'], [('t1w_preproc', 'source_file')]),
+        (nodes['sources'], nodes['ds_dseg_tsv'], [('out', 'Sources')]),
+        (nodes['sources'], nodes['ds_morph_tsv'], [('out', 'Sources')]),
+        (nodes['ds_dseg_tsv'], outputnode, [('out_file', 'dseg_tsv')]),
+    ])
 
     return workflow

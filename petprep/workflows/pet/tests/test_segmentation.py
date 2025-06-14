@@ -35,6 +35,10 @@ def test_segmentation_branch(bids_root: Path, tmp_path: Path, seg: str):
 
     seg_wf = wf.get_node(f'pet_{seg}_seg_wf')
     assert seg_wf is not None
+    from ..segmentation import SEGMENTATIONS
+    assert seg in SEGMENTATIONS
+    run_node = seg_wf.get_node(f'run_{seg}')
+    assert isinstance(run_node.interface, SEGMENTATIONS[seg]['interface'])
 
     if seg == 'gtm':
         run_gtm = seg_wf.get_node('run_gtm')
