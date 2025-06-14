@@ -331,49 +331,6 @@ configured with cubic B-spline interpolation.
         ]),
     ])  # fmt:skip
 
-    tacs_wf = init_tacs_wf(
-        metadata=all_metadata[0],
-        seg_name=config.workflow.seg,
-        desc_suffix=config.workflow.seg,
-        ref_labels=config.workflow.ref_mask,
-        hb_labels=config.workflow.hb_mask,
-    )
-
-    pvc_enabled = (
-        config.workflow.pvc_method != "none"
-        and getattr(config.workflow, "pvc_psf", None)
-    )
-    gtmpvc_wf = None
-    if pvc_enabled:
-        gtmpvc_wf = init_gtmpvc_wf(
-            metadata=all_metadata[0],
-            method=config.workflow.pvc_method
-        )
-
-    workflow.connect([
-        (pet_anat_wf, tacs_wf, [('outputnode.pet_file', 'inputnode.pet')]),
-        (seg_wf, tacs_wf, [
-            ('outputnode.segmentation', 'inputnode.segmentation'),
-            ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
-        ]),
-        (pet_fit_wf, gtmpvc_reg_wf, [
-            ('outputnode.petref', 'inputnode.pet_ref'),
-            ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm'),
-        ]),
-        (pet_native_wf, gtmpvc_reg_wf, [
-            ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
-        ]),
-        (inputnode, gtmpvc_reg_wf, [('t1w_preproc', 'inputnode.t1w_preproc')]),
-        (gtmpvc_reg_wf, tacs_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
-    ])  # fmt:skip
-
-    if gtmpvc_wf:
-        workflow.connect([
-            (pet_anat_wf, gtmpvc_wf, [('outputnode.pet_file', 'inputnode.pet')]),
-            (seg_wf, gtmpvc_wf, [('outputnode.segmentation', 'inputnode.segmentation')]),
-            (gtmpvc_reg_wf, gtmpvc_wf, [('outputnode.reg_lta', 'inputnode.reg_lta')]),
-        ])  # fmt:skip
-
     # Full derivatives, including resampled PET series
     if nonstd_spaces.intersection(('anat', 'T1w')):
         ds_pet_t1_wf = init_ds_volumes_wf(
