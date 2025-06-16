@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import subprocess
 
 from nipype.interfaces.base import (
     BaseInterface,
@@ -261,56 +262,48 @@ class SegmentHA_T1(FSCommand):
 
 
 class SegmentThalamicNucleiInputSpec(BaseInterfaceInputSpec):
-    subjects_dir = Directory(
-        desc="FreeSurfer subjects directory (bids_dir/derivatives/freesurfer)",
-        exists=True,
-        mandatory=True,
-    )
-    subject_id = traits.Str(desc="Subject ID (i.e. sub-XX)", mandatory=True)
+    subjects_dir = Directory(exists=True, mandatory=True, desc="FreeSurfer subjects directory")
+    subject_id = traits.Str(mandatory=True, desc="Subject identifier")
 
 
 class SegmentThalamicNucleiOutputSpec(TraitedSpec):
-    thalamic_labels_voxel = File(desc="ThalamicNuclei.v13.T1.FSvoxelSpace.mgz")
-    thalamic_volumes_txt = File(desc="Output file ThalamicNuclei.v13.T1.volumes.txt")
+    out_file = File(exists=True, desc="Thalamic nuclei segmentation in FS voxel space")
+    volumes_file = File(exists=True, desc="Thalamic nuclei volume statistics")
 
 
-class SegmentThalamicNuclei(BaseInterface):
+class SegmentThalamicNuclei(SimpleInterface):
     """Run ``segmentThalamicNuclei.sh`` unless outputs already exist."""
 
     input_spec = SegmentThalamicNucleiInputSpec
     output_spec = SegmentThalamicNucleiOutputSpec
 
     def _run_interface(self, runtime):
-        subjects_dir = self.inputs.subjects_dir
-        subject_id = self.inputs.subject_id
+        subj_dir = Path(self.inputs.subjects_dir) / self.inputs.subject_id / "mri"
+        out_file = subj_dir / "ThalamicNuclei.v13.T1.FSvoxelSpace.mgz"
+        volumes_file = subj_dir / "ThalamicNuclei.v13.T1.volumes.txt"
 
-        fs_path = os.path.join(subjects_dir, subject_id, "mri")
-        expected = [
-            "ThalamicNuclei.v13.T1.FSvoxelSpace.mgz",
-            "ThalamicNuclei.v13.T1.volumes.txt",
-        ]
-
-        if all(os.path.exists(os.path.join(fs_path, f)) for f in expected):
-            return runtime
-
-        cmd = CommandLine(
-            command="segmentThalamicNuclei.sh",
-            args=subject_id,
-            environ={"SUBJECTS_DIR": subjects_dir},
-        )
-        runtime = cmd.run()
+        if not (out_file.exists() and volumes_file.exists()):
+            cmd = [
+                "segmentThalamicNuclei.sh",
+                self.inputs.subject_id,
+                str(self.inputs.subjects_dir),
+            ]
+            self._run_command(cmd)
+        else:
+            runtime.returncode = 0
 
         return runtime
 
+    def _run_command(self, cmd):
+        import subprocess
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
     def _list_outputs(self):
-        fs_path = os.path.join(self.inputs.subjects_dir, self.inputs.subject_id, "mri")
         outputs = self._outputs().get()
-        outputs["thalamic_labels_voxel"] = os.path.join(
-            fs_path, "ThalamicNuclei.v13.T1.FSvoxelSpace.mgz"
-        )
-        outputs["thalamic_volumes_txt"] = os.path.join(
-            fs_path, "ThalamicNuclei.v13.T1.volumes.txt"
-        )
+        subj_dir = os.path.join(self.inputs.subjects_dir, self.inputs.subject_id, "mri")
+
+        outputs["out_file"] = os.path.join(subj_dir, "ThalamicNuclei.v13.T1.FSvoxelSpace.mgz")
+        outputs["volumes_file"] = os.path.join(subj_dir, "ThalamicNuclei.v13.T1.volumes.txt")
         return outputs
 
 

@@ -710,7 +710,7 @@ def init_ds_seg_std_wf(*, output_dir: str, name: str = "ds_seg_std_wf") -> pe.Wo
             base_directory=output_dir,
             desc=config.workflow.seg,
             suffix="dseg",
-            datatype="pet",
+            datatype="anat",
             compress=True,
         ),
         name="ds_seg",
