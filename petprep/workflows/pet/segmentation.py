@@ -110,7 +110,7 @@ SEGMENTATIONS = {
             'conform': True,
         },
         'desc': 'limbic',
-        'inputs': [('subjects_dir', 'sd'), ('subject_id', 'subjects')],
+        'inputs': [('t1w_preproc', 'in_file')],
         'color_table': str(load_data('segmentation/sclimbic_cleaned.ctab')),
     },
 }
