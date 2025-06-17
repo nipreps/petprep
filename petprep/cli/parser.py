@@ -545,6 +545,23 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         'The user is responsible for ensuring that all necessary files are present.',
     )
 
+    g_seg = parser.add_argument_group('Segmentation options')
+    g_seg.add_argument(
+        '--seg',
+        action='store',
+        default='gtm',
+        choices=[
+            'gtm',
+            'brainstem',
+            'thalamicNuclei',
+            'hippocampusAmygdala',
+            'wm',
+            'raphe',
+            'limbic',
+        ],
+        help='Segmentation method to use.',
+    )
+
     g_carbon = parser.add_argument_group('Options for carbon usage tracking')
     g_carbon.add_argument(
         '--track-carbon',

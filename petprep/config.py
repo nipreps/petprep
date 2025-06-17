@@ -596,6 +596,8 @@ class workflow(_Config):
     """Selected frame index for PET reference generation.
 
     ``None`` or ``'average'`` retains the current averaging behavior."""
+    """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
+    'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
 
 class loggers:
     """Keep loggers easily accessible (see :py:func:`init`)."""
