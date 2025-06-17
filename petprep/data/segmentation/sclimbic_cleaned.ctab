@@ -1,6 +1,3 @@
-# Color table for subcortical limbic structures (sclimbic)
-# This must be in the same order as during training
-   0 Unknown                      0   0   0 0
   26 Left-Nucleus-Accumbens     234 197 102 0
   58 Right-Nucleus-Accumbens    245 155   0 0
  819 Left-HypoThal-noMB           0  80   0 0
