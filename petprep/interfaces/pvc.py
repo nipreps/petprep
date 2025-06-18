@@ -7,12 +7,14 @@ from nipype.interfaces.base import (
     TraitedSpec,
     File,
     traits,
+    InputMultiPath,
 )
 import os
 
 
 class Binarise4DSegmentationInputSpec(BaseInterfaceInputSpec):
     dseg_file = File(exists=True, mandatory=True, desc="Input segmentation file (_dseg.nii.gz)")
+    out_file = File("binarised_4d.nii.gz", usedefault=True, desc="Output 4D binary segmentation")
 
 
 class Binarise4DSegmentationOutputSpec(TraitedSpec):
@@ -56,6 +58,11 @@ class StackProbSegMapsInputSpec(BaseInterfaceInputSpec):
         mandatory=True,
         desc="List of tissue probability segmentation maps (_probseg.nii.gz).",
     )
+    out_file = File(
+        "stacked_probseg_maps.nii.gz",
+        usedefault=True,
+        desc="Output 4D stacked probability segmentation maps.",
+    )
 
 
 class StackProbSegMapsOutputSpec(TraitedSpec):
@@ -92,6 +99,7 @@ class CSVtoNiftiInputSpec(BaseInterfaceInputSpec):
     csv_file = File(exists=True, mandatory=True, desc="Input CSV file with region means")
     reference_nifti = File(exists=True, mandatory=True, desc="Reference NIfTI file for spatial information")
     label_list = traits.List(traits.Int, mandatory=True, desc="List of labels corresponding to regions")
+    out_file = File("output_from_csv.nii.gz", usedefault=True, desc="Output NIfTI file")
 
 
 class CSVtoNiftiOutputSpec(TraitedSpec):
