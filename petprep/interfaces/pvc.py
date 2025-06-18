@@ -1,21 +1,23 @@
 import nibabel as nb
 import numpy as np
+import pandas as pd
 from nipype.interfaces.base import (
     BaseInterface,
     BaseInterfaceInputSpec,
     TraitedSpec,
     File,
+    traits,
 )
 import os
 
 
 class Binarise4DSegmentationInputSpec(BaseInterfaceInputSpec):
     dseg_file = File(exists=True, mandatory=True, desc="Input segmentation file (_dseg.nii.gz)")
-    out_file = File("binarised_4d.nii.gz", usedefault=True, desc="Output 4D binary segmentation")
 
 
 class Binarise4DSegmentationOutputSpec(TraitedSpec):
     out_file = File(exists=True, desc="Output 4D binary segmentation file")
+    label_list = traits.List(traits.Int, desc="List of labels corresponding to the segmentation regions")
 
 
 class Binarise4DSegmentation(BaseInterface):
@@ -37,22 +39,22 @@ class Binarise4DSegmentation(BaseInterface):
         new_img = nb.Nifti1Image(binarised_4d, affine=dseg_img.affine, header=dseg_img.header)
         nb.save(new_img, os.path.abspath(self.inputs.out_file))
 
+        self._label_list = region_labels.tolist()
+
         return runtime
 
     def _list_outputs(self):
-        return {"out_file": os.path.abspath(self.inputs.out_file)}
-    
+        return {
+            "out_file": os.path.abspath(self.inputs.out_file),
+            "label_list": self._label_list
+        }
+
 
 class StackProbSegMapsInputSpec(BaseInterfaceInputSpec):
     probseg_files = InputMultiPath(
         File(exists=True),
         mandatory=True,
         desc="List of tissue probability segmentation maps (_probseg.nii.gz).",
-    )
-    out_file = File(
-        "stacked_probseg_maps.nii.gz",
-        usedefault=True,
-        desc="Output 4D stacked probability segmentation maps.",
     )
 
 
@@ -85,3 +87,38 @@ class StackProbSegMaps(BaseInterface):
     def _list_outputs(self):
         return {"out_file": os.path.abspath(self.inputs.out_file)}
 
+
+class CSVtoNiftiInputSpec(BaseInterfaceInputSpec):
+    csv_file = File(exists=True, mandatory=True, desc="Input CSV file with region means")
+    reference_nifti = File(exists=True, mandatory=True, desc="Reference NIfTI file for spatial information")
+    label_list = traits.List(traits.Int, mandatory=True, desc="List of labels corresponding to regions")
+
+
+class CSVtoNiftiOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc="Output NIfTI image file")
+
+
+class CSVtoNifti(BaseInterface):
+    input_spec = CSVtoNiftiInputSpec
+    output_spec = CSVtoNiftiOutputSpec
+
+    def _run_interface(self, runtime):
+        csv_data = pd.read_csv(self.inputs.csv_file, sep="\t")
+        reference_img = nb.load(self.inputs.reference_nifti)
+        reference_data = reference_img.get_fdata().astype(np.int32)
+
+        output_data = np.zeros(reference_data.shape, dtype=np.float32)
+
+        label_means = dict(zip(csv_data['REGION'], csv_data['MEAN']))
+
+        for label in self.inputs.label_list:
+            if label in label_means:
+                output_data[reference_data == label] = label_means[label]
+
+        output_img = nb.Nifti1Image(output_data, affine=reference_img.affine, header=reference_img.header)
+        nb.save(output_img, os.path.abspath(self.inputs.out_file))
+
+        return runtime
+
+    def _list_outputs(self):
+        return {"out_file": os.path.abspath(self.inputs.out_file)}
