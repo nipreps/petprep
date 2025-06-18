@@ -545,6 +545,15 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         'The user is responsible for ensuring that all necessary files are present.',
     )
 
+    g_pvc = parser.add_argument_group('Options for partial volume correction')
+    g_pvc.add_argument('--pvc-method', action='store', help='PVC method identifier')
+    g_pvc.add_argument(
+        '--pvc-psf',
+        nargs='+',
+        type=float,
+        help='Point spread function FWHM (one value or three values)',
+    )
+
     g_carbon = parser.add_argument_group('Options for carbon usage tracking')
     g_carbon.add_argument(
         '--track-carbon',
