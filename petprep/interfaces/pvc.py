@@ -1,59 +1,44 @@
 import nibabel as nb
+import numpy as np
 from nipype.interfaces.base import (
+    BaseInterface,
     BaseInterfaceInputSpec,
-    File,
-    SimpleInterface,
     TraitedSpec,
+    File,
     traits,
 )
-from nipype.utils.filemanip import fname_presuffix
+import os
 
 
-class GTMPVCInputSpec(BaseInterfaceInputSpec):
-    pet_file = File(exists=True, mandatory=True, desc='Input PET image')
-    petref = File(exists=True, mandatory=True, desc='Input PET reference image')
-    mask_file = File(exists=True, desc='Mask or segmentation in same space as pet_file')
-    method = traits.Str('none', usedefault=True, desc='PVC method')
-    fwhm = traits.Any(desc='Point-spread function FWHM')
+class Binarise4DSegmentationInputSpec(BaseInterfaceInputSpec):
+    dseg_file = File(exists=True, mandatory=True, desc="Input segmentation file (_dseg.nii.gz)")
+    out_file = File("binarised_4d.nii.gz", usedefault=True, desc="Output 4D binary segmentation")
 
 
-class GTMPVCOutputSpec(TraitedSpec):
-    out_file = File(desc='PVC corrected image')
+class Binarise4DSegmentationOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc="Output 4D binary segmentation file")
 
 
-class GTMPVC(SimpleInterface):
-    """Placeholder interface for partial volume correction."""
-
-    input_spec = PVCInputSpec
-    output_spec = PVCOutputSpec
+class Binarise4DSegmentation(BaseInterface):
+    input_spec = Binarise4DSegmentationInputSpec
+    output_spec = Binarise4DSegmentationOutputSpec
 
     def _run_interface(self, runtime):
-        out_file = fname_presuffix(self.inputs.in_file, suffix='_pvc', newpath=runtime.cwd)
-        nb.load(self.inputs.in_file).to_filename(out_file)
-        self._results['out_file'] = out_file
+        dseg_img = nb.load(self.inputs.dseg_file)
+        dseg_data = dseg_img.get_fdata().astype(np.int32)
+
+        region_labels = np.unique(dseg_data)
+        region_labels = region_labels[region_labels != 0]  # exclude background
+
+        binarised_4d = np.zeros(dseg_data.shape + (len(region_labels),), dtype=np.uint8)
+
+        for idx, label in enumerate(region_labels):
+            binarised_4d[..., idx] = (dseg_data == label).astype(np.uint8)
+
+        new_img = nb.Nifti1Image(binarised_4d, affine=dseg_img.affine, header=dseg_img.header)
+        nb.save(new_img, os.path.abspath(self.inputs.out_file))
+
         return runtime
-    
 
-class PETPVCInputSpec(BaseInterfaceInputSpec):
-    pet_file = File(exists=True, mandatory=True, desc='Input PET image')
-    petref = File(exists=True, mandatory=True, desc='Input PET reference image')
-    mask_file = File(exists=True, desc='Mask or segmentation in same space as pet_file')
-    method = traits.Str('none', usedefault=True, desc='PVC method')
-    fwhm = traits.Any(desc='Point-spread function FWHM')
-
-
-class PETPVCOutputSpec(TraitedSpec):
-    out_file = File(desc='PVC corrected image')
-
-
-class PETPVC(SimpleInterface):
-    """Placeholder interface for partial volume correction."""
-
-    input_spec = PVCInputSpec
-    output_spec = PVCOutputSpec
-
-    def _run_interface(self, runtime):
-        out_file = fname_presuffix(self.inputs.in_file, suffix='_pvc', newpath=runtime.cwd)
-        nb.load(self.inputs.in_file).to_filename(out_file)
-        self._results['out_file'] = out_file
-        return runtime
+    def _list_outputs(self):
+        return {"out_file": os.path.abspath(self.inputs.out_file)}
