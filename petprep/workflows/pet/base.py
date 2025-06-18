@@ -47,6 +47,7 @@ from .outputs import (
     init_ds_volumes_wf,
     prepare_timing_parameters,
 )
+from .pvc import init_pet_pvc_wf
 from .resampling import init_pet_surf_wf
 
 
