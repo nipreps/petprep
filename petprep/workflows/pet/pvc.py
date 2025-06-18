@@ -3,7 +3,9 @@ from __future__ import annotations
 import nipype.interfaces.utility as niu
 import nipype.pipeline.engine as pe
 
-from ...interfaces.pvc import PVC
+from ...interfaces.pvc import Binarise4DSegmentation
+from nipype.interfaces.petpvc import PETPVC
+from nipype.interfaces.freesurfer.petsurfer import GTMPVC
 
 
 def init_pet_pvc_wf(
