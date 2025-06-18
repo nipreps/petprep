@@ -111,17 +111,17 @@ class CSVtoNifti(BaseInterface):
     output_spec = CSVtoNiftiOutputSpec
 
     def _run_interface(self, runtime):
-        csv_data = pd.read_csv(self.inputs.csv_file, sep="\t")
+        import pandas as pd
+
+        csv_data = pd.read_csv(self.inputs.csv_file, sep='\t')
         reference_img = nb.load(self.inputs.reference_nifti)
         reference_data = reference_img.get_fdata().astype(np.int32)
 
         output_data = np.zeros(reference_data.shape, dtype=np.float32)
 
-        label_means = dict(zip(csv_data['REGION'], csv_data['MEAN']))
-
-        for label in self.inputs.label_list:
-            if label in label_means:
-                output_data[reference_data == label] = label_means[label]
+        for idx, label in enumerate(self.inputs.label_list):
+            mean_value = csv_data.iloc[idx]['MEAN']
+            output_data[reference_data == label] = mean_value
 
         output_img = nb.Nifti1Image(output_data, affine=reference_img.affine, header=reference_img.header)
         nb.save(output_img, os.path.abspath(self.inputs.out_file))
