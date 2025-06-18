@@ -1,0 +1,46 @@
+{
+  "petpvc": {
+    "GTM": {"pvc": "GTM", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0},
+    "LABBE": {"pvc": "LABBE", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5},
+    "RL": {"pvc": "RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "VC": {"pvc": "VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "RBV": {"pvc": "RBV", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0},
+    "LABBE+RBV": {"pvc": "LABBE+RBV", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5},
+    "RBV+VC": {"pvc": "RBV+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "RBV+RL": {"pvc": "RBV+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "LABBE+RBV+VC": {"pvc": "LABBE+RBV+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5, "n_iter": 10},
+    "LABBE+RBV+RL": {"pvc": "LABBE+RBV+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5, "n_iter": 10},
+    "STC": {"pvc": "STC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0},
+    "MTC": {"pvc": "MTC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0},
+    "LABBE+MTC": {"pvc": "LABBE+MTC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5},
+    "MTC+VC": {"pvc": "MTC+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "MTC+RL": {"pvc": "MTC+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "LABBE+MTC+VC": {"pvc": "LABBE+MTC+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5, "n_iter": 10},
+    "LABBE+MTC+RL": {"pvc": "LABBE+MTC+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "alpha": 1.5, "n_iter": 10},
+    "IY": {"pvc": "IY", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "IY+VC": {"pvc": "IY+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "IY+RL": {"pvc": "IY+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "MG": {"pvc": "MG", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0},
+    "MG+VC": {"pvc": "MG+VC", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10},
+    "MG+RL": {"pvc": "MG+RL", "fwhm_x": 4.0, "fwhm_y": 4.0, "fwhm_z": 4.0, "n_iter": 10}
+  },
+  "petsurfer": {
+    "GTM": {
+      "psf": 4.0,
+      "auto_mask": [4.0, 0.01],
+      "default_seg_merge": true
+    },
+    "MG": {
+      "psf": 4.0,
+      "auto_mask": [4.0, 0.01],
+      "mg": [0.5, ["2", "41"]],
+      "no_rescale": true
+    },
+    "RBV": {
+      "psf": 4.0,
+      "auto_mask": [4.0, 0.01],
+      "rbv": true,
+      "default_seg_merge": true
+    }
+  }
+}
