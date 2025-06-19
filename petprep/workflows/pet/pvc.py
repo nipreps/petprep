@@ -50,8 +50,8 @@ def init_pet_pvc_wf(
 
     if tool_lower == 'petpvc':
         # Handling 4D PETPVC processing
-        split_frames = pe.Node(niu.Split(dimension='t'), name='split_frames')
-        merge_frames = pe.Node(niu.Merge(dimension='t'), name='merge_frames')
+        split_frames = pe.Node(Split(dimension='t'), name='split_frames')
+        merge_frames = pe.Node(Merge(dimension='t'), name='merge_frames')
 
         resample_pet_to_anat = pe.MapNode(
             ApplyVolTransform(interp='nearest', reg_header=True),
@@ -74,7 +74,7 @@ def init_pet_pvc_wf(
         workflow.connect([
             (inputnode, split_frames, [('pet_file', 'in_file')]),
             (split_frames, resample_pet_to_anat, [('out_files', 'source_file')]),
-            (inputnode, resample_pet_to_anat, [('anat_seg', 'target_file')]),
+            (inputnode, resample_pet_to_anat, [('segmentation', 'target_file')]),
             (resample_pet_to_anat, pvc_node, [('transformed_file', 'in_file')]),
         ])
 
@@ -105,7 +105,7 @@ def init_pet_pvc_wf(
                 workflow.connect([
                     (pvc_node, csv_to_nifti_node, [('out_file', 'csv_file')]),
                     (binarise_segmentation, csv_to_nifti_node, [('label_list', 'label_list')]),
-                    (inputnode, csv_to_nifti_node, [('anat_seg', 'reference_nifti')]),
+                    (inputnode, csv_to_nifti_node, [('segmentation', 'reference_nifti')]),
                     (csv_to_nifti_node, merge_frames, [('out_file', 'in_files')]),
                 ])
 
