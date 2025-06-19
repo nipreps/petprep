@@ -8,9 +8,9 @@ from nipype.interfaces.petpvc import PETPVC
 from nipype.interfaces.freesurfer.petsurfer import GTMPVC
 from nipype.interfaces.fsl import Split, Merge
 import nibabel as nb
+from nipype.interfaces.freesurfer import ApplyVolTransform
 
-# Custom nodes (import appropriately)
-from your_package.interfaces import CSVtoNifti, StackTissueProbabilityMaps
+from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation
 
 def load_pvc_config(config_path: Path) -> dict:
     with open(config_path, 'r') as f:
@@ -50,8 +50,13 @@ def init_pet_pvc_wf(
 
     if tool_lower == 'petpvc':
         # Handling 4D PETPVC processing
-        split_frames = pe.Node(Split(dimension='t'), name='split_frames')
-        merge_frames = pe.Node(Merge(dimension='t'), name='merge_frames')
+        split_frames = pe.Node(niu.Split(dimension='t'), name='split_frames')
+        merge_frames = pe.Node(niu.Merge(dimension='t'), name='merge_frames')
+        resample_pet_to_anat = pe.MapNode(
+            ApplyVolTransform(interp='nearest', reg_header=True),
+            iterfield=['source_file'],
+            name='resample_pet'
+        )
 
         pvc_node = pe.MapNode(
             PETPVC(pvc=method_config.pop('pvc'), **method_config),
@@ -59,18 +64,20 @@ def init_pet_pvc_wf(
             name=f'{tool_lower}_{method_key.lower()}_pvc_node',
         )
 
-        workflow.connect([(inputnode, split_frames, [('pet_file', 'in_file')])])
-        workflow.connect([(split_frames, pvc_node, [('out_files', 'in_file')])])
+        workflow.connect([
+        (inputnode, split_frames, [('pet_file', 'in_file')]),
+        (split_frames, resample_pet_to_anat, [('out_files', 'source_file')]),
+        (inputnode, resample_pet_to_anat, [('anat_seg', 'target_file')]),
+        (resample_pet_to_anat, pvc_node, [('transformed_file', 'in_file')]),
+    ])
 
         if method_key == 'MG':
             stack_node = pe.Node(StackTissueProbabilityMaps(), name='stack_probmaps')
             workflow.connect([
                 (inputnode, stack_node, [('t1w_tpms', 't1w_tpms')]),
-                (stack_node, pvc_node, [('out_file', 'mask_file')])
-            ])
-            workflow.connect([
+                (stack_node, pvc_node, [('out_file', 'mask_file')]),
                 (pvc_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
             ])
 
         elif method_key == 'GTM':
@@ -87,14 +94,14 @@ def init_pet_pvc_wf(
                 (pvc_node, csv_to_nifti_node, [('out_file', 'csv_file')]),
                 (inputnode, csv_to_nifti_node, [('anat_seg', 'reference_nifti')]),
                 (csv_to_nifti_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
             ])
 
         else:
             workflow.connect([
                 (inputnode, pvc_node, [('anat_seg', 'mask_file')]),
                 (pvc_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
             ])
 
     elif tool_lower == 'petsurfer':
