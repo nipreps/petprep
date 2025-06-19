@@ -6,12 +6,15 @@ import nipype.interfaces.utility as niu
 import nipype.pipeline.engine as pe
 from nipype.interfaces.petpvc import PETPVC
 from nipype.interfaces.freesurfer.petsurfer import GTMPVC
+from nipype.interfaces.fsl import Split, Merge
+import nibabel as nb
 
+# Custom nodes (import appropriately)
+from your_package.interfaces import CSVtoNifti, StackTissueProbabilityMaps
 
 def load_pvc_config(config_path: Path) -> dict:
     with open(config_path, 'r') as f:
         return json.load(f)
-
 
 def init_pet_pvc_wf(
     *,
@@ -21,8 +24,6 @@ def init_pet_pvc_wf(
     config_path: Path,
     name: str = 'pet_pvc_wf',
 ) -> pe.Workflow:
-    """Apply partial volume correction to a PET series using PETPVC or PETSurfer."""
-
     config = load_pvc_config(config_path)
 
     tool_lower = tool.lower()
@@ -34,34 +35,73 @@ def init_pet_pvc_wf(
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'anat_seg', 'anat_file', 'reg_file']),
+        niu.IdentityInterface(fields=['pet_file', 'anat_seg', 'anat_file', 'reg_file', 't1w_tpms']),
         name='inputnode'
     )
-    outputnode = pe.Node(niu.IdentityInterface(fields=['pet_pvc_file']), name='outputnode')
+
+    outputnode = pe.Node(
+        niu.IdentityInterface(fields=['pet_pvc_file']),
+        name='outputnode'
+    )
 
     pvc_params = pvc_params or {}
-
     method_config = config[tool_lower][method_key].copy()
     method_config.update(pvc_params)
 
     if tool_lower == 'petpvc':
-        pvc_node = pe.Node(
-            PETPVC(
-                pvc=method_config.pop('pvc'),
-                **method_config
-            ),
-            name=f'{tool_lower}_pvc_node',
+        # Handling 4D PETPVC processing
+        split_frames = pe.Node(Split(dimension='t'), name='split_frames')
+        merge_frames = pe.Node(Merge(dimension='t'), name='merge_frames')
+
+        pvc_node = pe.MapNode(
+            PETPVC(pvc=method_config.pop('pvc'), **method_config),
+            iterfield=['in_file'],
+            name=f'{tool_lower}_{method_key.lower()}_pvc_node',
         )
 
-        workflow.connect([
-            (inputnode, pvc_node, [('pet_file', 'in_file'), ('anat_seg', 'mask_file')]),
-            (pvc_node, outputnode, [('out_file', 'pet_pvc_file')]),
-        ])
+        workflow.connect([(inputnode, split_frames, [('pet_file', 'in_file')])])
+        workflow.connect([(split_frames, pvc_node, [('out_files', 'in_file')])])
+
+        if method_key == 'MG':
+            stack_node = pe.Node(StackTissueProbabilityMaps(), name='stack_probmaps')
+            workflow.connect([
+                (inputnode, stack_node, [('t1w_tpms', 't1w_tpms')]),
+                (stack_node, pvc_node, [('out_file', 'mask_file')])
+            ])
+            workflow.connect([
+                (pvc_node, merge_frames, [('out_file', 'in_files')]),
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+            ])
+
+        elif method_key == 'GTM':
+            pvc_node.inputs.out_file = 'gtm_output.csv'
+
+            csv_to_nifti_node = pe.MapNode(
+                CSVtoNifti(),
+                iterfield=['csv_file'],
+                name='csv_to_nifti_node'
+            )
+
+            workflow.connect([
+                (inputnode, pvc_node, [('anat_seg', 'mask_file')]),
+                (pvc_node, csv_to_nifti_node, [('out_file', 'csv_file')]),
+                (inputnode, csv_to_nifti_node, [('anat_seg', 'reference_nifti')]),
+                (csv_to_nifti_node, merge_frames, [('out_file', 'in_files')]),
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+            ])
+
+        else:
+            workflow.connect([
+                (inputnode, pvc_node, [('anat_seg', 'mask_file')]),
+                (pvc_node, merge_frames, [('out_file', 'in_files')]),
+                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')])
+            ])
 
     elif tool_lower == 'petsurfer':
+        # PETSurfer directly handles 4D data (no splitting needed)
         pvc_node = pe.Node(
             GTMPVC(**method_config),
-            name=f'{tool_lower}_pvc_node',
+            name=f'{tool_lower}_{method_key.lower()}_pvc_node',
         )
 
         workflow.connect([
