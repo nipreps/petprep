@@ -5,12 +5,11 @@ from pathlib import Path
 import nipype.interfaces.utility as niu
 import nipype.pipeline.engine as pe
 from nipype.interfaces.petpvc import PETPVC
-from nipype.interfaces.freesurfer.petsurfer import GTMPVC
 from nipype.interfaces.fsl import Split, Merge
 import nibabel as nb
 from nipype.interfaces.freesurfer import ApplyVolTransform, Tkregister2, MRICoreg
 
-from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation
+from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation, GTMPVC
 
 
 def load_pvc_config(config_path: Path) -> dict:
