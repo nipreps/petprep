@@ -52,42 +52,27 @@ class Binarise4DSegmentation(BaseInterface):
         }
 
 
-class StackProbSegMapsInputSpec(BaseInterfaceInputSpec):
-    probseg_files = InputMultiPath(
-        File(exists=True),
-        mandatory=True,
-        desc="List of tissue probability segmentation maps (_probseg.nii.gz).",
-    )
-    out_file = File(
-        "stacked_probseg_maps.nii.gz",
-        usedefault=True,
-        desc="Output 4D stacked probability segmentation maps.",
-    )
+class StackTissueProbabilityMapsInputSpec(BaseInterfaceInputSpec):
+    t1w_tpms = traits.List(File(exists=True), mandatory=True, desc="List of T1w tissue probability maps")
+    out_file = File("stacked_probseg.nii.gz", usedefault=True, desc="Output stacked 4D probability map")
 
 
-class StackProbSegMapsOutputSpec(TraitedSpec):
-    out_file = File(exists=True, desc="Output 4D stacked probability segmentation maps.")
+class StackTissueProbabilityMapsOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc="Output stacked 4D probability map")
 
 
-class StackProbSegMaps(BaseInterface):
-    input_spec = StackProbSegMapsInputSpec
-    output_spec = StackProbSegMapsOutputSpec
+class StackTissueProbabilityMaps(BaseInterface):
+    input_spec = StackTissueProbabilityMapsInputSpec
+    output_spec = StackTissueProbabilityMapsOutputSpec
 
     def _run_interface(self, runtime):
-        images = [nb.load(img_file) for img_file in self.inputs.probseg_files]
+        imgs = [nb.load(f).get_fdata() for f in self.inputs.t1w_tpms]
+        affine = nb.load(self.inputs.t1w_tpms[0]).affine
 
-        shapes = [img.shape for img in images]
-        affines = [img.affine for img in images]
+        stacked_img = np.stack(imgs, axis=-1)
 
-        if len(set(shapes)) > 1 or len(set([tuple(a.flatten()) for a in affines])) > 1:
-            raise ValueError("All probability maps must have the same shape and affine.")
-
-        stacked_data = np.stack([img.get_fdata() for img in images], axis=-1)
-
-        stacked_img = nb.Nifti1Image(
-            stacked_data, affine=images[0].affine, header=images[0].header
-        )
-        nb.save(stacked_img, os.path.abspath(self.inputs.out_file))
+        new_img = nb.Nifti1Image(stacked_img, affine=affine)
+        nb.save(new_img, os.path.abspath(self.inputs.out_file))
 
         return runtime
 
