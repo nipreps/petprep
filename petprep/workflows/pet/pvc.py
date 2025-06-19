@@ -164,6 +164,9 @@ def init_pet_pvc_wf(
         if 'auto_mask' in method_config:
             method_config['auto_mask'] = tuple(method_config['auto_mask'])
 
+        if 'mg' in method_config:
+            method_config['mg'] = tuple(method_config['mg'])
+
         pvc_node = pe.Node(
             GTMPVC(**method_config),
             name=f'{tool_lower}_{method_key.lower()}_pvc_node',
