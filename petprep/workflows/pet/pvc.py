@@ -35,12 +35,12 @@ def init_pet_pvc_wf(
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'anat_seg', 'anat_file', 'reg_file', 't1w_tpms']),
+        niu.IdentityInterface(fields=['pet_file', 'segmentation', 't1w_tpms', 'petref']),
         name='inputnode'
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_pvc_file']),
+        niu.IdentityInterface(fields=['pet_pvc_file', 'pet_pvc_mask']),
         name='outputnode'
     )
 
