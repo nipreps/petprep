@@ -52,6 +52,7 @@ def init_pet_pvc_wf(
         # Handling 4D PETPVC processing
         split_frames = pe.Node(niu.Split(dimension='t'), name='split_frames')
         merge_frames = pe.Node(niu.Merge(dimension='t'), name='merge_frames')
+
         resample_pet_to_anat = pe.MapNode(
             ApplyVolTransform(interp='nearest', reg_header=True),
             iterfield=['source_file'],
@@ -62,6 +63,12 @@ def init_pet_pvc_wf(
             PETPVC(pvc=method_config.pop('pvc'), **method_config),
             iterfield=['in_file'],
             name=f'{tool_lower}_{method_key.lower()}_pvc_node',
+        )
+
+        resample_pet_to_petref = pe.MapNode(
+            ApplyVolTransform(interp='nearest', reg_header=True),
+            iterfield=['source_file'],
+            name='resample_pet_to_petref'
         )
 
         workflow.connect([
@@ -103,6 +110,12 @@ def init_pet_pvc_wf(
                 (pvc_node, merge_frames, [('out_file', 'in_files')]),
                 (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
             ])
+
+        workflow.connect([
+            (merge_frames, resample_pet_to_petref, [('merged_file', 'source_file')]),
+            (inputnode, resample_pet_to_petref, [('pet_file', 'target_file')]),
+            (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')]),
+        ])
 
     elif tool_lower == 'petsurfer':
         # PETSurfer directly handles 4D data (no splitting needed)
