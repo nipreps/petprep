@@ -47,6 +47,18 @@
       "default_seg_merge": true,
       "no_rescale": true,
       "pvc_dir": "pvc_rbv_output"
+    },
+    "AGTM": {
+      "psf": 4.0,
+      "num_threads": 1,
+      "auto_mask": [1.0, 0.01],
+      "default_seg_merge": true,
+      "opt_seg_merge": true,
+      "optimization_schema": "1D",
+      "opt_tol": [4, 10e-6, 0.02],
+      "opt_brain": true,
+      "no_rescale": true,
+      "pvc_dir": "pvc_agtm_output"
     }
   }
 }
