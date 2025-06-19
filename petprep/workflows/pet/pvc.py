@@ -56,7 +56,7 @@ def init_pet_pvc_wf(
         resample_pet_to_anat = pe.MapNode(
             ApplyVolTransform(interp='nearest', reg_header=True),
             iterfield=['source_file'],
-            name='resample_pet'
+            name='resample_pet_to_anat'
         )
 
         pvc_node = pe.MapNode(
@@ -72,11 +72,11 @@ def init_pet_pvc_wf(
         )
 
         workflow.connect([
-        (inputnode, split_frames, [('pet_file', 'in_file')]),
-        (split_frames, resample_pet_to_anat, [('out_files', 'source_file')]),
-        (inputnode, resample_pet_to_anat, [('anat_seg', 'target_file')]),
-        (resample_pet_to_anat, pvc_node, [('transformed_file', 'in_file')]),
-    ])
+            (inputnode, split_frames, [('pet_file', 'in_file')]),
+            (split_frames, resample_pet_to_anat, [('out_files', 'source_file')]),
+            (inputnode, resample_pet_to_anat, [('anat_seg', 'target_file')]),
+            (resample_pet_to_anat, pvc_node, [('transformed_file', 'in_file')]),
+        ])
 
         if method_key == 'MG':
             stack_node = pe.Node(StackTissueProbabilityMaps(), name='stack_probmaps')
@@ -84,32 +84,35 @@ def init_pet_pvc_wf(
                 (inputnode, stack_node, [('t1w_tpms', 't1w_tpms')]),
                 (stack_node, pvc_node, [('out_file', 'mask_file')]),
                 (pvc_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
-            ])
-
-        elif method_key == 'GTM':
-            pvc_node.inputs.out_file = 'gtm_output.csv'
-
-            csv_to_nifti_node = pe.MapNode(
-                CSVtoNifti(),
-                iterfield=['csv_file'],
-                name='csv_to_nifti_node'
-            )
-
-            workflow.connect([
-                (inputnode, pvc_node, [('anat_seg', 'mask_file')]),
-                (pvc_node, csv_to_nifti_node, [('out_file', 'csv_file')]),
-                (inputnode, csv_to_nifti_node, [('anat_seg', 'reference_nifti')]),
-                (csv_to_nifti_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
             ])
 
         else:
+            binarise_segmentation = pe.Node(Binarise4DSegmentation(), name='binarise_segmentation')
             workflow.connect([
-                (inputnode, pvc_node, [('anat_seg', 'mask_file')]),
-                (pvc_node, merge_frames, [('out_file', 'in_files')]),
-                (merge_frames, outputnode, [('merged_file', 'pet_pvc_file')]),
+                (inputnode, binarise_segmentation, [('segmentation', 'dseg_file')]),
+                (binarise_segmentation, pvc_node, [('out_file', 'mask_file')]),
             ])
+
+            if method_key == 'GTM':
+                pvc_node.inputs.out_file = 'gtm_output.csv'
+
+                csv_to_nifti_node = pe.MapNode(
+                    CSVtoNifti(),
+                    iterfield=['csv_file'],
+                    name='csv_to_nifti_node'
+                )
+
+                workflow.connect([
+                    (pvc_node, csv_to_nifti_node, [('out_file', 'csv_file')]),
+                    (binarise_segmentation, csv_to_nifti_node, [('label_list', 'label_list')]),
+                    (inputnode, csv_to_nifti_node, [('anat_seg', 'reference_nifti')]),
+                    (csv_to_nifti_node, merge_frames, [('out_file', 'in_files')]),
+                ])
+
+            else:
+                workflow.connect([
+                    (pvc_node, merge_frames, [('out_file', 'in_files')]),
+                ])
 
         workflow.connect([
             (merge_frames, resample_pet_to_petref, [('merged_file', 'source_file')]),
