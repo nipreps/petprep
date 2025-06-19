@@ -8,13 +8,26 @@ from nipype.interfaces.petpvc import PETPVC
 from nipype.interfaces.freesurfer.petsurfer import GTMPVC
 from nipype.interfaces.fsl import Split, Merge
 import nibabel as nb
-from nipype.interfaces.freesurfer import ApplyVolTransform
+from nipype.interfaces.freesurfer import ApplyVolTransform, Tkregister2, MRICoreg
 
 from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation
+
 
 def load_pvc_config(config_path: Path) -> dict:
     with open(config_path, 'r') as f:
         return json.load(f)
+
+
+# Add a function to dynamically construct the path
+def construct_gtmseg_path(subjects_dir, subject_id):
+    from pathlib import Path
+    return str(Path(subjects_dir) / subject_id / 'mri' / 'gtmseg.mgz')
+
+
+def construct_nu_path(subjects_dir, subject_id):
+    from pathlib import Path
+    return str(Path(subjects_dir) / subject_id / 'mri' / 'nu.mgz')
+
 
 def init_pet_pvc_wf(
     *,
@@ -27,7 +40,7 @@ def init_pet_pvc_wf(
     config = load_pvc_config(config_path)
 
     tool_lower = tool.lower()
-    method_key = method.upper() if tool_lower == 'petpvc' else method.lower()
+    method_key = method.upper()
 
     if method_key not in config.get(tool_lower, {}):
         raise ValueError(f"Method '{method}' is not valid for tool '{tool}'.")
@@ -35,7 +48,7 @@ def init_pet_pvc_wf(
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_file', 'segmentation', 't1w_tpms', 'petref']),
+        niu.IdentityInterface(fields=['pet_file', 'segmentation', 't1w_tpms', 'petref', 'subjects_dir', 'subject_id']),
         name='inputnode'
     )
 
@@ -122,17 +135,59 @@ def init_pet_pvc_wf(
 
     elif tool_lower == 'petsurfer':
         # PETSurfer directly handles 4D data (no splitting needed)
+        tkregister_node = pe.Node(
+            Tkregister2(
+                reg_file='identity.dat',
+                reg_header=True,
+                lta_out='identity_vox.lta',
+            ),
+            name='tkregister_identity'
+        )
+
+        gtmseg_path_node = pe.Node(
+            niu.Function(
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['gtmseg_path'],
+                function=construct_gtmseg_path
+            ),
+            name='gtmseg_path'
+        )
+
+        nu_path_node = pe.Node(
+            niu.Function(
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['nu_path'],
+                function=construct_nu_path
+            ),
+            name='nu_path'
+        )
+
+        if 'auto_mask' in method_config:
+            method_config['auto_mask'] = tuple(method_config['auto_mask'])
+
         pvc_node = pe.Node(
             GTMPVC(**method_config),
             name=f'{tool_lower}_{method_key.lower()}_pvc_node',
         )
 
         workflow.connect([
+            (inputnode, nu_path_node, [
+                ('subjects_dir', 'subjects_dir'),
+                ('subject_id', 'subject_id'),
+            ]),
+            (inputnode, tkregister_node, [('petref', 'moving_image')]),
+            (nu_path_node, tkregister_node, [('nu_path', 'target_image')]),
+            (inputnode, tkregister_node, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
+            (tkregister_node, pvc_node, [('lta_file', 'reg_file')]),
+            (inputnode, gtmseg_path_node, [
+                ('subjects_dir', 'subjects_dir'),
+                ('subject_id', 'subject_id'),
+            ]),
             (inputnode, pvc_node, [
                 ('pet_file', 'in_file'),
-                ('anat_seg', 'segmentation'),
-                ('reg_file', 'reg_file')
+                ('subjects_dir', 'subjects_dir'),
             ]),
+            (gtmseg_path_node, pvc_node, [('gtmseg_path', 'segmentation')]),
             (pvc_node, outputnode, [('gtm_file', 'pet_pvc_file')]),
         ])
 

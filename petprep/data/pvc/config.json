@@ -27,20 +27,26 @@
   "petsurfer": {
     "GTM": {
       "psf": 4.0,
-      "auto_mask": [4.0, 0.01],
-      "default_seg_merge": true
+      "auto_mask": [1.0, 0.01],
+      "default_seg_merge": true,
+      "no_rescale": true,
+      "pvc_dir": "pvc_gtm_output"
     },
     "MG": {
       "psf": 4.0,
-      "auto_mask": [4.0, 0.01],
+      "auto_mask": [1.0, 0.01],
       "mg": [0.5, ["2", "41"]],
-      "no_rescale": true
+      "default_seg_merge": true,
+      "no_rescale": true,
+      "pvc_dir": "pvc_mg_output"
     },
     "RBV": {
       "psf": 4.0,
-      "auto_mask": [4.0, 0.01],
+      "auto_mask": [1.0, 0.01],
       "rbv": true,
-      "default_seg_merge": true
+      "default_seg_merge": true,
+      "no_rescale": true,
+      "pvc_dir": "pvc_rbv_output"
     }
   }
 }
