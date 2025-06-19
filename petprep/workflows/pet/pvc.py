@@ -132,7 +132,7 @@ def init_pet_pvc_wf(
             (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')]),
         ])
 
-    elif tool_lower == 'petsurfer':
+    elif tool_lower == 'petsurfer' and method_key == 'GTM' or method_key == 'MG' or method_key == 'RBV':
         # PETSurfer directly handles 4D data (no splitting needed)
         tkregister_node = pe.Node(
             Tkregister2(
@@ -194,6 +194,6 @@ def init_pet_pvc_wf(
         ])
 
     else:
-        raise ValueError(f"Unsupported PVC tool: {tool}")
+        raise ValueError(f"Unsupported method PVC ({method}) for PVC tool: {tool}")
 
     return workflow
