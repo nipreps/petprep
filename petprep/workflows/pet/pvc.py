@@ -190,8 +190,19 @@ def init_pet_pvc_wf(
                 ('subjects_dir', 'subjects_dir'),
             ]),
             (gtmseg_path_node, pvc_node, [('gtmseg_path', 'segmentation')]),
-            (pvc_node, outputnode, [('gtm_file', 'pet_pvc_file')]),
         ])
+
+        # Conditional output based on method
+        if method_key == 'GTM':
+            workflow.connect([(pvc_node, outputnode, [('gtm_file', 'pet_pvc_file')])])
+
+        elif method_key == 'MG':
+            workflow.connect([(pvc_node, outputnode, [('mg', 'pet_pvc_file')])])
+
+        elif method_key == 'RBV':
+            workflow.connect([(pvc_node, outputnode, [('rbv', 'pet_pvc_file')])])
+
+        workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
 
     else:
         raise ValueError(f"Unsupported method PVC ({method}) for PVC tool: {tool}")
