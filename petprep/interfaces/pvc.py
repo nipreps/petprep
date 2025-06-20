@@ -600,9 +600,9 @@ class GTMStatsTo4DNifti(BaseInterface):
             output_4d[mask, :] = gtm_data[i, 0, 0, :]
 
         out_img = nb.Nifti1Image(output_4d, affine=seg_img.affine)
-        nb.save(out_img, self.inputs.out_file)
+        nb.save(out_img, os.path.abspath(self.inputs.out_file))
 
         return runtime
 
     def _list_outputs(self):
-        return {'out_file': self.inputs.out_file}
+        return {"out_file": os.path.abspath(self.inputs.out_file)}
