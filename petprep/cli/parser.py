@@ -546,6 +546,7 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
     )
 
     g_pvc = parser.add_argument_group('Options for partial volume correction')
+    parser.add_argument('--pvc-tool', choices=['petpvc', 'petsurfer'], help='Tool to use for partial volume correction')
     g_pvc.add_argument('--pvc-method', action='store', help='PVC method identifier')
     g_pvc.add_argument(
         '--pvc-psf',
