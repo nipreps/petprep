@@ -60,6 +60,12 @@ def init_pet_pvc_wf(
     method_config = config[tool_lower][method_key].copy()
     method_config.update(pvc_params)
 
+    resample_pet_to_petref = pe.MapNode(
+            ApplyVolTransform(interp='nearest', reg_header=True),
+            iterfield=['source_file'],
+            name='resample_pet_to_petref'
+        )
+
     if tool_lower == 'petpvc':
         # Handling 4D PETPVC processing
         split_frames = pe.Node(Split(dimension='t'), name='split_frames')
@@ -75,12 +81,6 @@ def init_pet_pvc_wf(
             PETPVC(pvc=method_config.pop('pvc'), **method_config),
             iterfield=['in_file'],
             name=f'{tool_lower}_{method_key.lower()}_pvc_node',
-        )
-
-        resample_pet_to_petref = pe.MapNode(
-            ApplyVolTransform(interp='nearest', reg_header=True),
-            iterfield=['source_file'],
-            name='resample_pet_to_petref'
         )
 
         workflow.connect([
@@ -207,17 +207,22 @@ def init_pet_pvc_wf(
             ])
 
             workflow.connect([
-                (pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')]),
-                (gtm_stats_node, outputnode, [('out_file', 'pet_pvc_file')]),
+                (gtm_stats_node, resample_pet_to_petref, [('pet_file', 'target_file')]),
+                (inputnode, resample_pet_to_petref, [('petref', 'source_file')]),
+                (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')]),
             ])
 
         elif method_key == 'MG':
             workflow.connect([(pvc_node, outputnode, [('mg', 'pet_pvc_file')])])
 
         elif method_key == 'RBV':
-            workflow.connect([(pvc_node, outputnode, [('rbv', 'pet_pvc_file')])])
 
-        #workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
+            workflow.connect([(pvc_node, resample_pet_to_petref, [('pet_file', 'target_file')]),
+                (inputnode, resample_pet_to_petref, [('petref', 'source_file')]),
+                (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')])
+            ])
+
+        workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
 
     else:
         raise ValueError(f"Unsupported method PVC ({method}) for PVC tool: {tool}")
