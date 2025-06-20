@@ -15,6 +15,10 @@ positron emission tomography (PET) imaging.
 .. image:: https://circleci.com/gh/nipreps/petprep/tree/master.svg?style=shield
   :target: https://circleci.com/gh/nipreps/petprep/tree/master
 
+.. image:: https://github.com/nipreps/petprep/actions/workflows/tests.yml/badge.svg
+  :target: https://github.com/nipreps/petprep/actions/workflows/tests.yml
+  :alt: Stable tests
+
 .. image:: https://readthedocs.org/projects/petprep/badge/?version=latest
   :target: https://petprep.org/en/latest/?badge=latest
   :alt: Documentation Status
