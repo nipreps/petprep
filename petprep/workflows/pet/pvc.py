@@ -9,7 +9,7 @@ from nipype.interfaces.fsl import Split, Merge
 import nibabel as nb
 from nipype.interfaces.freesurfer import ApplyVolTransform, Tkregister2, MRICoreg
 
-from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation, GTMPVC
+from petprep.interfaces.pvc import CSVtoNifti, StackTissueProbabilityMaps, Binarise4DSegmentation, GTMPVC, GTMStatsTo4DNifti
 
 
 def load_pvc_config(config_path: Path) -> dict:
@@ -194,7 +194,22 @@ def init_pet_pvc_wf(
 
         # Conditional output based on method
         if method_key == 'GTM':
-            workflow.connect([(pvc_node, outputnode, [('gtm_file', 'pet_pvc_file')])])
+
+            gtm_stats_node = pe.Node(
+                GTMStatsTo4DNifti(),
+                name='gtm_stats_to_4d_nifti'
+            )
+
+            workflow.connect([
+                (pvc_node, gtm_stats_node, [('gtm_file', 'gtm_file'),
+                                            ('gtm_stats', 'gtm_stats')]),
+                (inputnode, gtm_stats_node, [('segmentation', 'segmentation')]),
+            ])
+
+            workflow.connect([
+                (pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')]),
+                (gtm_stats_node, outputnode, [('out_file', 'pet_pvc_file')]),
+            ])
 
         elif method_key == 'MG':
             workflow.connect([(pvc_node, outputnode, [('mg', 'pet_pvc_file')])])
@@ -202,7 +217,7 @@ def init_pet_pvc_wf(
         elif method_key == 'RBV':
             workflow.connect([(pvc_node, outputnode, [('rbv', 'pet_pvc_file')])])
 
-        workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
+        #workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
 
     else:
         raise ValueError(f"Unsupported method PVC ({method}) for PVC tool: {tool}")
