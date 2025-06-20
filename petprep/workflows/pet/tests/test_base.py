@@ -74,3 +74,38 @@ def test_pet_wf(
 
     flatgraph = wf._create_flat_graph()
     generate_expanded_graph(flatgraph)
+
+
+def _prep_pet_series(bids_root: Path) -> list[str]:
+    """Generate dummy PET data for testing."""
+    pet_series = [
+        str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')
+    ]
+    img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+    return pet_series
+
+
+def test_pet_wf_with_pvc(bids_root: Path):
+    """PET workflow includes the PVC workflow when configured."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pvc_tool = 'PETPVC'
+        config.workflow.pvc_method = 'GTM'
+        config.workflow.pvc_psf = (1.0, 1.0, 1.0)
+
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert 'pet_pvc_wf' in [n.split('.')[-1] for n in wf.list_node_names()]
+
+
+def test_pet_wf_without_pvc(bids_root: Path):
+    """PET workflow does not include the PVC workflow by default."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert 'pet_pvc_wf' not in [n.split('.')[-1] for n in wf.list_node_names()]
