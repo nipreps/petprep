@@ -207,7 +207,7 @@ def init_pet_pvc_wf(
             ])
 
             workflow.connect([
-                (gtm_stats_node, resample_pet_to_petref, [('pet_file', 'target_file')]),
+                (gtm_stats_node, resample_pet_to_petref, [('out_file', 'target_file')]),
                 (inputnode, resample_pet_to_petref, [('petref', 'source_file')]),
                 (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')]),
             ])
@@ -216,11 +216,10 @@ def init_pet_pvc_wf(
             workflow.connect([(pvc_node, outputnode, [('mg', 'pet_pvc_file')])])
 
         elif method_key == 'RBV':
-
             workflow.connect([(pvc_node, resample_pet_to_petref, [('pet_file', 'target_file')]),
-                (inputnode, resample_pet_to_petref, [('petref', 'source_file')]),
-                (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')])
-            ])
+                              (inputnode, resample_pet_to_petref, [('petref', 'source_file')]),
+                              (resample_pet_to_petref, outputnode, [('transformed_file', 'pet_pvc_file')])
+                              ])
 
         workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
 
