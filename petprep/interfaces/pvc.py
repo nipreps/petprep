@@ -432,6 +432,9 @@ class GTMPVCOutputSpec(TraitedSpec):
     mgx_gm = File(
         desc="All GM voxel-wise values corrected using the extended Muller-Gartner method",
     )
+    mg = File(
+        desc="All voxel-wise values corrected using the Muller-Gartner method",
+    )
     rbv = File(desc="All GM voxel-wise values corrected using the RBV method")
     opt_params = File(
         desc="Optimal parameter estimates for the FWHM using adaptive GTM"
@@ -540,6 +543,8 @@ class GTMPVC(FSCommand):
             outputs["mgx_ctxgm"] = os.path.join(pvcdir, "mgx.ctxgm.nii.gz")
             outputs["mgx_subctxgm"] = os.path.join(pvcdir, "mgx.subctxgm.nii.gz")
             outputs["mgx_gm"] = os.path.join(pvcdir, "mgx.gm.nii.gz")
+        if self.inputs.mg:
+            outputs["mg"] = os.path.join(pvcdir, "mg.nii.gz")
         if self.inputs.rbv:
             outputs["rbv"] = os.path.join(pvcdir, "rbv.nii.gz")
             outputs["reg_rbvpet2anat"] = os.path.join(pvcdir, "aux", "rbv2anat.lta")
