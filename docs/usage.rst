@@ -180,6 +180,21 @@ This feature has several intended use-cases:
 See also the ``--level`` flag, which can be used to control which derivatives are
 generated.
 
+Partial volume correction
+-------------------------
+*PETPrep* can optionally correct PET images for partial volume effects.
+The ``--pvc-tool`` flag selects the tool to use (``petpvc`` or ``petsurfer``),
+while ``--pvc-method`` chooses the specific algorithm provided by that tool.
+Use ``--pvc-psf`` to specify the point spread function FWHM, either as a single
+value or three values. When PVC is enabled, the corrected image automatically
+feeds into the remainder of the workflow.
+
+For example, to run PVC using the ``petpvc`` implementation and the ``GTM``
+method with a 5 mm PSF::
+
+    $ petprep /data/bids_root /out participant \
+        --pvc-tool petpvc --pvc-method GTM --pvc-psf 5
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the
