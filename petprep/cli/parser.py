@@ -678,6 +678,15 @@ def parse_args(args=None, namespace=None):
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
 
+    pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
+    if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):
+        parser.error(
+            'Options --pvc-tool, --pvc-method and --pvc-psf must be used together.'
+        )
+
+    if opts.pvc_psf is not None:
+        config.workflow.pvc_psf = tuple(opts.pvc_psf)
+
     if not config.execution.notrack:
         import importlib.util
 

@@ -223,3 +223,38 @@ def test_derivatives(tmp_path):
         parser.parse_args(temp_args)
 
     _reset_config()
+
+
+def test_pvc_argument_handling(tmp_path, minimal_bids):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    base_args = [
+        str(minimal_bids),
+        str(out_dir),
+        'participant',
+        '-w',
+        str(work_dir),
+        '--skip-bids-validation',
+    ]
+
+    # Missing some PVC arguments should error
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--pvc-tool', 'petpvc'])
+    _reset_config()
+
+    # Providing all PVC arguments should succeed and convert the PSF to a tuple
+    parse_args(
+        args=base_args
+        + [
+            '--pvc-tool',
+            'petsurfer',
+            '--pvc-method',
+            'GTM',
+            '--pvc-psf',
+            '2',
+            '2',
+            '2',
+        ]
+    )
+    assert config.workflow.pvc_psf == (2.0, 2.0, 2.0)
+    _reset_config()
