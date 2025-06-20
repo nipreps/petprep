@@ -415,6 +415,9 @@ class GTMPVCOutputSpec(TraitedSpec):
     gtm_file = File(desc="TACs for all regions with GTM PVC")
     gtm_stats = File(desc="Statistics for the GTM PVC")
     input_file = File(desc="4D PET file in native volume space")
+    tissue_fraction = File(
+        desc="Tissue fraction map in native volume space"
+    )
     reg_pet2anat = File(desc="Registration file to go from PET to anat")
     reg_anat2pet = File(desc="Registration file to go from anat to PET")
     reg_rbvpet2anat = File(
@@ -527,6 +530,7 @@ class GTMPVC(FSCommand):
         outputs["gtm_stats"] = os.path.join(pvcdir, "gtm.stats.dat")
         outputs["reg_pet2anat"] = os.path.join(pvcdir, "aux", "bbpet2anat.lta")
         outputs["reg_anat2pet"] = os.path.join(pvcdir, "aux", "anat2bbpet.lta")
+        outputs["tissue_fraction"] = os.path.join(pvcdir, "aux", "tissue.fraction.nii.gz")
 
         # Assign the conditional outputs
         if self.inputs.save_input:
@@ -553,3 +557,52 @@ class GTMPVC(FSCommand):
             outputs["opt_params"] = os.path.join(pvcdir, "aux", "opt.params.dat")
 
         return outputs
+
+
+class GTMStatsTo4DNiftiInputSpec(BaseInterfaceInputSpec):
+    gtm_file = File(exists=True, mandatory=True, desc='Input GTM NIfTI file from PETSurfer')
+    segmentation = File(exists=True, mandatory=True, desc='Input segmentation NIfTI file')
+    gtm_stats = File(exists=True, mandatory=True, desc='GTM statistics file (gtm.stats.dat)')
+    out_file = traits.Str('gtm_4d.nii.gz', usedefault=True, desc='Output filename')
+
+
+class GTMStatsTo4DNiftiOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='Output 4D NIfTI file')
+
+
+class GTMStatsTo4DNifti(BaseInterface):
+    input_spec = GTMStatsTo4DNiftiInputSpec
+    output_spec = GTMStatsTo4DNiftiOutputSpec
+
+    def _run_interface(self, runtime):
+        # Load segmentation
+        seg_img = nb.load(self.inputs.segmentation)
+        seg_data = seg_img.get_fdata().astype(int)
+
+        # Load GTM data
+        gtm_img = nb.load(self.inputs.gtm_file)
+        gtm_data = gtm_img.get_fdata()
+        
+        # Load GTM stats
+        gtm_stats = pd.read_csv(
+            self.inputs.gtm_stats, delim_whitespace=True, header=None, usecols=[1], names=['index']
+        )
+        gtm_indices = gtm_stats['index'].values
+
+        n_frames = gtm_data.shape[-1]
+        shape_4d = seg_data.shape + (n_frames,)
+
+        output_4d = np.zeros(shape_4d, dtype=np.float32)
+
+        # Map values to regions
+        for i, idx in enumerate(gtm_indices):
+            mask = seg_data == idx
+            output_4d[mask, :] = gtm_data[i, 0, 0, :]
+
+        out_img = nb.Nifti1Image(output_4d, affine=seg_img.affine)
+        nb.save(out_img, self.inputs.out_file)
+
+        return runtime
+
+    def _list_outputs(self):
+        return {'out_file': self.inputs.out_file}
