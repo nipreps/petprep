@@ -31,7 +31,7 @@ ARG BASE_IMAGE=ubuntu:jammy-20240125
 FROM ghcr.io/astral-sh/uv:python3.12-alpine AS src
 RUN apk add git
 COPY . /src
-RUN uvx --from build pyproject-build --installer uv -w /src
+RUN uv build --wheel /src
 
 #
 # Download stages
