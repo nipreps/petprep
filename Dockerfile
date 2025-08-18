@@ -72,10 +72,9 @@ RUN mkdir -p /opt/afni-latest \
     --exclude "linux_openmp_64/meica.libs" \
     # Keep only what we use
     && find /opt/afni-latest -type f -not \( \
-        -name "3dTshift" -or \
         -name "3dUnifize" -or \
-        -name "3dAutomask" -or \
-        -name "3dvolreg" \) -delete
+        -name "3dAutomask" \) \
+        -delete
 
 # PETPVC
 FROM downloader AS petpvc

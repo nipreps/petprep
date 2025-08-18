@@ -13,27 +13,18 @@
 | **FSL** | | https://doi.org/10.1016/j.neuroimage.2004.07.051 https://doi.org/10.1016/j.neuroimage.2008.10.055 https://doi.org/10.1016/j.neuroimage.2011.09.015
 | FAST | https://doi.org/10.1109/42.906424 | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FAST |
 | BET | https://doi.org/10.1002/hbm.10062 | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/BET |
-| FLIRT | https://doi.org/10.1006/nimg.2002.1132 https://doi.org/10.1016/S1361-8415(01)00036-6 | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FLIRT; https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FLIRT_BBR |
-| MCFLIRT | https://doi.org/10.1006/nimg.2002.1132 | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/MCFLIRT |
-| SUSAN | https://doi.org/10.1023/A:1007963824710 | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/SUSAN |
-| MELODIC | | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/MELODIC |
-| PRELUDE & FUGUE | https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FUGUE/Guide | https://nipype.readthedocs.io/en/latest/interfaces/generated/workflows.dmri/fsl.utils.html#cleanup-edge-pipeline |
 | **AFNI** | | https://doi.org/10.1006/cbmr.1996.0014; https://doi.org/10.1016/j.neuroimage.2011.08.056
 | 3dvolreg | | https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dvolreg.html |
-| 3dTshift | | https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dTshift.html |
 | 3dUnifize | | https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dUnifize.html |
 | 3dAutomask | | https://afni.nimh.nih.gov/pub/dist/doc/program_help/3dAutomask.html |
 | **Power, et al. (2012) measures** | https://doi.org/10.1016/j.neuroimage.2011.10.018 | |
 | DVARS | https://arxiv.org/abs/1704.01469 https://doi.org/10.1101/125021 | https://nipype.readthedocs.io/en/latest/interfaces/generated/nipype.algorithms.confounds.html#computedvars |
 | Framewise displacement | | https://nipype.readthedocs.io/en/latest/interfaces/generated/nipype.algorithms.confounds.html#framewisedisplacement |
 | **Other**
-| a/tCompCor | https://doi.org/10.1016/j.neuroimage.2007.04.042 | https://nipype.readthedocs.io/en/latest/api/generated/nipype.algorithms.confounds.html#nipype-algorithms-confounds-compcor |
 | Connectome Workbench | | https://humanconnectome.org/software/connectome-workbench
-| phdiff2fmap | https://doi.org/10.1006/nimg.2001.1054 | https://fmriprep.readthedocs.io/en/stable/sdc/estimation.html#fmriprep.interfaces.fmap.phdiff2fmap |
 | nibabel | https://doi.org/10.5281/zenodo.60808 | https://github.com/nipy/nibabel/ |
 | nilearn | https://doi.org/10.3389/fninf.2014.00014 | https://github.com/nilearn/nilearn/ |
 | nipype | https://doi.org/10.3389/fninf.2011.00013 https://doi.org/10.5281/zenodo.581704 | https://github.com/nipy/nipype/ |
-| convert3d | | https://sourceforge.net/projects/c3d/ |
 | **Graphics**
 | seaborn | https://doi.org/10.5281/zenodo.883859 | https://github.com/mwaskom/seaborn |
 | matplotlib 2.0.0 | https://doi.org/10.5281/zenodo.248351 | https://github.com/matplotlib/matplotlib |
