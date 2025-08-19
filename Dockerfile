@@ -50,12 +50,6 @@ RUN apt-get update && \
                     unzip && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# FreeSurfer 7.4.1
-# FROM downloader AS freesurfer
-# COPY docker/files/freesurfer7.4.1-exclude.txt /usr/local/etc/freesurfer7.4.1-exclude.txt
-# RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-ubuntu22_amd64-7.4.1.tar.gz \
-#      | tar zxv --no-same-owner -C /opt --exclude-from=/usr/local/etc/freesurfer7.4.1-exclude.txt
-
 # AFNI
 FROM downloader AS afni
 # Bump the date to current to update AFNI
@@ -75,16 +69,6 @@ RUN mkdir -p /opt/afni-latest \
         -name "3dUnifize" -or \
         -name "3dAutomask" \) \
         -delete
-
-# PETPVC
-FROM downloader AS petpvc
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl libinsighttoolkit5.2 && \
-    rm -rf /var/lib/apt/lists/* && \
-    curl -fsSL https://github.com/UCL/PETPVC/releases/download/v1.2.10/PETPVC-1.2.10-Linux.tar.gz \
-      | tar -xz -C /usr/local --strip-components=1 \
-          PETPVC-1.2.10/bin PETPVC-1.2.10/parc && \
-    rm -rf /tmp/* /var/tmp/*
 
 # Micromamba
 FROM downloader AS micromamba
@@ -168,7 +152,6 @@ RUN apt-get update -qq \
 # Install files from stages
 COPY --from=freesurfer/freesurfer:7.4.1 /usr/local/freesurfer /opt/freesurfer
 COPY --from=afni /opt/afni-latest /opt/afni-latest
-COPY --from=petpvc /usr/local /usr/local
 
 # Simulate SetUpFreeSurfer.sh
 ENV OS="Linux" \
