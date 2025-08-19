@@ -63,11 +63,50 @@ jobs:
       env:
         TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
 
-  get_test_data:
+  smoke-test:
     runs-on: docker
     steps:
     - uses: actions/checkout@v5
+    - uses: astral-sh/setup-uv@v6
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y --no-install-recommends graphviz
     - name: Check if data needs to be pulled
       run: |
         if [ ! -d "test/data" ]; then
           echo "Fetching data..."
+          uv run petprep/scripts/collect_test_data.py -o bids -d smriprep freesurfer
+        fi
+    - name: Install PETPrep wrapper
+      run: |
+        uv tool install petprep/wrapper
+    - name: Run PETPrep smoke test
+      run: |
+        uvx petprep_wrapper bids derivatives/output participant -i $PETPREP_DOCKER_IMAGE --participant-label 01
+      env:
+        PETPREP_DOCKER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tags[0] }}
+
+  push-container:
+    if: github.event_name != 'pull_request'
+    needs: build-container
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - name: Log into registry ${{ env.REGISTRY }}
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Push Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64
