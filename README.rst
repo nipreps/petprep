@@ -12,6 +12,10 @@ positron emission tomography (PET) imaging.
   :target: https://petprep.org/en/latest/?badge=latest
   :alt: Documentation Status
 
+.. image:: https://img.shields.io/badge/docker-nipreps/petprep-brightgreen.svg?logo=docker&style=flat
+  :target: https://hub.docker.com/r/nipreps/petprep/tags/
+  :alt: Docker image available!
+
 .. image:: https://chanzuckerberg.github.io/open-science/badges/CZI-EOSS.svg
   :target: https://czi.co/EOSS
   :alt: CZI's Essential Open Source Software for Science
