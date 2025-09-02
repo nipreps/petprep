@@ -9,6 +9,7 @@ on:
 
 env:
   DATA_DIR: /tmp/data/petprep_test_data
+  FREESURFER_HOME: /usr/local/freesurfer/7.4.1
 
 jobs:
   collect-data:
