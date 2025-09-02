@@ -14,6 +14,7 @@ on:
         default: "petprep freesurfer smriprep"
       outputs:
         data_directory:
+          type: string
           description: 'Path to "cached" data collected with `collect_test_data.py`'
           value: ${{ inputs.data_directory }}
 env:
