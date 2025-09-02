@@ -9,7 +9,6 @@ on:
 
 env:
   # for local/self hosted runners one can assume that the 
-  DATA_DIR: /tmp/data/petprep_test_data
   FREESURFER_HOME: /usr/local/freesurfer/7.4.1
   SUBJECTS_DIR: $FREESURFER_HOME/subjects
 
@@ -61,5 +60,5 @@ jobs:
 
       - name: Run petprep
         run: |
-          source $FREESURFER_HOME/SetUpFreeSurfer.sh
-          petprep "$DATA_DIR" "$DATA_DIR/derivatives/petprep" participant --fs-license-file "$FREESURFER_HOME/license.txt"
+          source "${FREESURFER_HOME}/SetUpFreeSurfer.sh"
+          petprep "${DATA_DIR}" "${DATA_DIR}/derivatives/petprep" participant --fs-license-file "${FREESURFER_HOME}/license.txt"
