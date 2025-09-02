@@ -2,15 +2,23 @@ name: Collect Data
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ "main" ]
-    tags: "*"
-  pull_request:
   workflow_call:
-
+    inputs:
+      data_directory:
+        type: string
+        required: false
+        default: /tmp/data/petprep_test_data
+      derivatives:
+        type: string
+        required: false
+        default: "petprep freesurfer smriprep"
+      outputs:
+        data_directory:
+          description: 'Path to "cached" data collected with `collect_test_data.py`'
+          value: ${{ inputs.data_directory }}
 env:
-  DATA_DIR: /tmp/data/petprep_test_data
-  DERIVATIVES: "petprep freesurfer smriprep"
+  DATA_DIR: ${{ inputs.data_directory }}
+  DERIVATIVES: ${{ inputs.derivatives }}
 
 jobs:
   collect-data:
@@ -39,20 +47,21 @@ jobs:
               rm -rf "$DATA_DIR"
             fi
           fi
-       
+      
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
+      - name: Setup Git for DataLad
+        if: steps.check-data.outputs.skip_collection != 'true'
+        run: |
+          # Configure Git for DataLad
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+      
       - name: Collect data
         if: steps.check-data.outputs.skip_collection != 'true'
         run: |
+          # Collect the data
           uv run scripts/collect_test_data.py -o "$DATA_DIR" -d $DERIVATIVES
-      
-      - name: Data collection skipped
-        if: steps.check-data.outputs.skip_collection == 'true'
-        run: |
-          echo "Data collection step skipped - using existing data in $DATA_DIR"
-      
-     
