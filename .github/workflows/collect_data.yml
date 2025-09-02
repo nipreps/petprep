@@ -39,6 +39,11 @@ jobs:
               rm -rf "$DATA_DIR"
             fi
           fi
+       
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       
       - name: Collect data
         if: steps.check-data.outputs.skip_collection != 'true'
