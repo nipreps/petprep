@@ -6,6 +6,7 @@ on:
     branches: [ "main" ]
     tags: "*"
   pull_request:
+  workflow_call:
 
 env:
   DATA_DIR: /tmp/data/petprep_test_data
@@ -15,7 +16,7 @@ jobs:
   collect-data:
     outputs:
       data_directory: ${{ env.DATA_DIR }}
-    runs-on: baremetal
+    runs-on: local
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5

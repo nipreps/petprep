@@ -16,7 +16,7 @@ jobs:
 
   run-tests:
     needs: collect-data
-    runs-on: baremetal
+    runs-on: local
     env:
       DATA_DIR: ${{ needs.collect-data.outputs.data_directory }}
     steps:
