@@ -58,5 +58,5 @@ jobs:
 
       - name: Run petprep
         run: |
-          ./$FREESURFER_HOME/SetUpFreeSurfer.sh
+          $FREESURFER_HOME/SetUpFreeSurfer.sh
           petprep "$DATA_DIR" "$DATA_DIR/derivatives/petprep" participant --fs-license-file "$FREESURFER_HOME/license.txt"
