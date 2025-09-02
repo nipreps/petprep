@@ -1,6 +1,6 @@
-Name: Collect Data
+name: Collect Data
 
-On:
+on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
@@ -15,6 +15,7 @@ jobs:
   collect-data:
     outputs:
       data_directory: ${{ env.DATA_DIR }}
+    runs-on: baremetal
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
