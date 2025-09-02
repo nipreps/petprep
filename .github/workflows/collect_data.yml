@@ -12,11 +12,11 @@ on:
         type: string
         required: false
         default: "petprep freesurfer smriprep"
-      outputs:
-        data_directory:
-          type: string
-          description: 'Path to "cached" data collected with `collect_test_data.py`'
-          value: ${{ inputs.data_directory }}
+    outputs:
+      data_directory:
+        type: string
+        description: 'Path to "cached" data collected with `collect_test_data.py`'
+        value: ${{ inputs.data_directory }}
 env:
   DATA_DIR: ${{ inputs.data_directory }}
   DERIVATIVES: ${{ inputs.derivatives }}
