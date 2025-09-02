@@ -11,7 +11,7 @@ env:
   DATA_DIR: /tmp/data/petprep_test_data
   DERIVATIVES: "petprep freesurfer smriprep"
 
-Jobs:
+jobs:
   collect-data:
     outputs:
       data_directory: ${{ env.DATA_DIR }}
