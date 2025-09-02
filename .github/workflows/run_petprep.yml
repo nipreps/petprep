@@ -1,0 +1,60 @@
+name: Run PETPREP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    tags: "*"
+  pull_request:
+
+env:
+  DATA_DIR: /tmp/data/petprep_test_data
+
+jobs:
+  collect-data:
+    uses: ./.github/workflows/collect_data.yml
+
+  run-tests:
+    needs: collect-data
+    runs-on: baremetal
+    env:
+      DATA_DIR: ${{ needs.collect-data.outputs.data_directory }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 200
+          fetch-tags: true
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Build and Install PETPREP
+        run: |
+          uv build 
+          pip install dist/*.whl
+
+      - name: Check petprep is installed
+        run: |
+          which petprep
+          petprep --version
+
+      - name: Verify test data exists
+        run: |
+          if [ ! -d "$DATA_DIR" ] || [ -z "$(ls -A $DATA_DIR 2>/dev/null)" ]; then
+            echo "Error: Test data directory is empty or missing"
+            exit 1
+          fi
+          echo "Test data verified at $DATA_DIR"
+          ls -la "$DATA_DIR"
+
+      - name: Run petprep
+        run: |
+          petprep "$DATA_DIR" "$DATA_DIR/derivatives/petprep" participant --fs-license-file "$FREESURFER_HOME/license.txt"

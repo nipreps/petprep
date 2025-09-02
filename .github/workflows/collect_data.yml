@@ -1,0 +1,51 @@
+Name: Collect Data
+
+On:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    tags: "*"
+  pull_request:
+
+env:
+  DATA_DIR: /tmp/data/petprep_test_data
+  DERIVATIVES: "petprep freesurfer smriprep"
+
+Jobs:
+  collect-data:
+    outputs:
+      data_directory: ${{ env.DATA_DIR }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 200
+          fetch-tags: true
+      
+      - name: Check if data directory exists and has data
+        id: check-data
+        run: |
+          if [ -d "$DATA_DIR" ] && [ -n "$(ls -A $DATA_DIR 2>/dev/null)" ]; then
+            echo "Data directory exists and contains data, skipping collection"
+            echo "skip_collection=true" >> $GITHUB_OUTPUT
+          else
+            echo "Data directory is empty or does not exist, re-downloading data"
+            echo "skip_collection=false" >> $GITHUB_OUTPUT
+            # Clean up empty directory if it exists
+            if [ -d "$DATA_DIR" ]; then
+              echo "Removing empty data directory"
+              rm -rf "$DATA_DIR"
+            fi
+          fi
+      
+      - name: Collect data
+        if: steps.check-data.outputs.skip_collection != 'true'
+        run: |
+          uv run scripts/collect_test_data.py -o "$DATA_DIR" -d $DERIVATIVES
+      
+      - name: Data collection skipped
+        if: steps.check-data.outputs.skip_collection == 'true'
+        run: |
+          echo "Data collection step skipped - using existing data in $DATA_DIR"
+      
+     
