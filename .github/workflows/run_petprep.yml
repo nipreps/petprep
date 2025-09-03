@@ -10,6 +10,12 @@ on:
 env:
   # for local/self hosted runners one can assume that the 
   FREESURFER_HOME: /usr/local/freesurfer/7.4.1
+  FSLDIR: /opt/conda/envs/petprep
+  FSL_OUTPUT_TYPE: NIFTI_GZ
+  AFNI_PATH: /opt/afni-latest
+  FSL_PATH: /opt/conda/envs/petprep/share/fsl/bin
+  ANTS_PATH: /opt/ants-2.6.2/bin
+  WORKBENCH_PATH: /opt/workbench/exe_linux64
 
 jobs:
   collect-data:
@@ -40,7 +46,7 @@ jobs:
       - name: Build and Install PETPREP
         run: |
           uv build 
-          pip install dist/*.whl
+          pip install dist/*.whl --force-reinstall
 
       - name: Check petprep is installed
         run: |
@@ -59,7 +65,10 @@ jobs:
       - name: Run petprep
         run: |
           source "${FREESURFER_HOME}/SetUpFreeSurfer.sh"
-          echo "FREESURFER_HOME: ${FREESURFER_HOME}"
-          echo "SUBJECTS_DIR: ${SUBJECTS_DIR}"
-          echo "FS_LICENSE: ${FS_LICENSE}"
+          export PATH="${AFNI_PATH}:${PATH}"
+          export PATH="${FSL_PATH}:${PATH}"
+          export PATH="${ANTS_PATH}:${PATH}"
+          export PATH="${WORKBENCH_PATH}:${PATH}"
+          export FSLDIR="${FSLDIR}"
+          export FSL_OUTPUT_TYPE="${FSL_OUTPUT_TYPE}"
           petprep "${DATA_DIR}" "${DATA_DIR}/derivatives/petprep" participant --fs-license-file "${FREESURFER_HOME}/license.txt"
