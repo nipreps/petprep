@@ -600,6 +600,18 @@ class workflow(_Config):
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
 
+    seg_template: str | None = None
+    """TemplateFlow template ID used for segmentation."""
+
+    seg_atlas: str | None = None
+    """Atlas name used for segmentation."""
+
+    seg_desc: str | None = None
+    """Description label for the segmentation."""
+
+    seg_res: str | int | None = None
+    """Resolution of the segmentation or atlas."""
+
     pvc_tool: str | None = None
     """Tool used for partial volume correction."""
     pvc_method: str | None = None
