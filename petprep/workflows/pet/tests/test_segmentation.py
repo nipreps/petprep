@@ -21,6 +21,12 @@ def test_segmentation_node_selection():
         assert 'create_wm_dsegtsv' in names_wm
         assert 'create_wm_morphtsv' in names_wm
 
+        wf_atlas = init_segmentation_wf('atlas')
+        names_atlas = [n.name for n in wf_atlas._get_all_nodes()]
+        assert 'fetch_atlas' in names_atlas
+        assert 'warp_atlas' in names_atlas
+        assert 'segstats_atlas' not in names_atlas
+
 
 def test_merge_ha_labels(tmp_path):
     """Merged volume should match input geometry."""

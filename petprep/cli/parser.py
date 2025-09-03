@@ -552,6 +552,7 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
             'wm',
             'raphe',
             'limbic',
+            'atlas',
         ],
         help='Segmentation method to use.',
     )

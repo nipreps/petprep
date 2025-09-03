@@ -4,6 +4,7 @@
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
+from nipype.interfaces.ants import ApplyTransforms, Registration
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -25,6 +26,8 @@ from ...utils.segmentation import (
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
     summary_to_stats,
+    tf_labels_to_dsegtsv,
+    tf_labels_to_morphtsv,
 )
 
 try:  # Py>=3.9
@@ -57,6 +60,34 @@ def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
     out_file = Path('hippocampusAmygdala_dseg.nii.gz').absolute()
     out_img.to_filename(out_file)
     return str(out_file)
+
+
+def _fetch_templateflow_atlas(
+    template: str | None,
+    atlas: str | None,
+    desc: str | None = None,
+    resolution: str | int | None = None,
+):
+    """Fetch an atlas and corresponding label table from TemplateFlow."""
+    import templateflow.api as tf
+
+    params = {
+        'template': template,
+        'atlas': atlas,
+        'desc': desc,
+        'resolution': resolution,
+        'suffix': 'dseg',
+    }
+    params = {k: v for k, v in params.items() if v is not None}
+
+    atlas_file = str(tf.get(extension=['.nii', '.nii.gz'], **params))
+    labels_file = str(tf.get(extension='.tsv', **params))
+
+    tpl_params = {'template': template, 'resolution': resolution, 'suffix': 'T1w'}
+    tpl_params = {k: v for k, v in tpl_params.items() if v is not None}
+    template_image = str(tf.get(extension=['.nii', '.nii.gz'], **tpl_params))
+
+    return atlas_file, labels_file, template_image
 
 
 SEGMENTATIONS = {
@@ -117,6 +148,12 @@ SEGMENTATIONS = {
         'desc': 'limbic',
         'inputs': [('t1w_preproc', 'in_file')],
         'color_table': str(load_data('segmentation/sclimbic_cleaned.ctab')),
+    },
+    'atlas': {
+        'desc': 'atlas',
+        'segstats': False,
+        'dseg_func': tf_labels_to_dsegtsv,
+        'morph_func': tf_labels_to_morphtsv,
     },
 }
 
@@ -267,40 +304,107 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
         return workflow
 
-    interface = spec['interface']
-    seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+    if seg == 'atlas':
+        nodes = _build_nodes(
+            seg,
+            spec['desc'],
+            segstats=False,
+            dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
+            morph_func=spec.get('morph_func', summary_to_stats),
+        )
 
-    for in_field, out_field in spec.get('inputs', []):
-        workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
+        fetch_atlas = pe.Node(
+            Function(
+                input_names=['template', 'atlas', 'desc', 'resolution'],
+                output_names=['atlas_file', 'labels_file', 'template_image'],
+                function=_fetch_templateflow_atlas,
+            ),
+            name='fetch_atlas',
+            run_without_submitting=True,
+        )
+        fetch_atlas.inputs.template = getattr(config.workflow, 'template', None)
+        fetch_atlas.inputs.atlas = getattr(config.workflow, 'atlas', None)
+        fetch_atlas.inputs.desc = getattr(config.workflow, 'desc', None)
+        fetch_atlas.inputs.resolution = getattr(config.workflow, 'resolution', None)
 
-    nodes = _build_nodes(
-        seg,
-        spec['desc'],
-        color_table=spec.get('color_table'),
-        segstats=spec.get('segstats', True),
-        merge_ha=spec.get('merge_ha', False),
-        dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
-        morph_func=spec.get('morph_func', summary_to_stats),
-    )
-
-    if spec.get('merge_ha', False):
-        workflow.connect(
-            [
-                (seg_node, nodes['convert_lh'], [('lh_hippoAmygLabels', 'in_file')]),
-                (seg_node, nodes['convert_rh'], [('rh_hippoAmygLabels', 'in_file')]),
-                (inputnode, nodes['convert_lh'], [('t1w_preproc', 'reslice_like')]),
-                (inputnode, nodes['convert_rh'], [('t1w_preproc', 'reslice_like')]),
-                (nodes['convert_lh'], nodes['merge_seg'], [('out_file', 'lh_file')]),
-                (nodes['convert_rh'], nodes['merge_seg'], [('out_file', 'rh_file')]),
-            ]
+        reg = pe.Node(Registration(), name='t1w_to_tpl')
+        warp = pe.Node(
+            ApplyTransforms(interpolation='NearestNeighbor'),
+            name='warp_atlas',
         )
     else:
+
         workflow.connect(
             [
-                (seg_node, nodes['convert_seg'], [('out_file', 'in_file')]),
+                (inputnode, reg, [('t1w_preproc', 'moving_image')]),
+                (fetch_atlas, reg, [('template_image', 'fixed_image')]),
+                (reg, warp, [
+                    ('reverse_transforms', 'transforms'),
+                    ('reverse_invert_flags', 'invert_transform_flags'),
+                ]),
+                (fetch_atlas, warp, [('atlas_file', 'input_image')]),
+                (inputnode, warp, [('t1w_preproc', 'reference_image')]),
+                (warp, nodes['convert_seg'], [('output_image', 'in_file')]),
                 (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
             ]
         )
+
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    nodes['make_dseg'],
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (
+                    inputnode,
+                    nodes['make_morph'],
+                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+                ),
+                (fetch_atlas, nodes['make_dseg'], [('labels_file', 'seg_file')]),
+                (fetch_atlas, nodes['make_morph'], [('labels_file', 'seg_file')]),
+                (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+                (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+            ]
+        )
+
+        seg_node = warp
+    else:
+        interface = spec['interface']
+        seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+
+        for in_field, out_field in spec.get('inputs', []):
+            workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
+
+        nodes = _build_nodes(
+            seg,
+            spec['desc'],
+            color_table=spec.get('color_table'),
+            segstats=spec.get('segstats', True),
+            merge_ha=spec.get('merge_ha', False),
+            dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
+            morph_func=spec.get('morph_func', summary_to_stats),
+        )
+
+    if seg != 'atlas':
+        if spec.get('merge_ha', False):
+            workflow.connect(
+                [
+                    (seg_node, nodes['convert_lh'], [('lh_hippoAmygLabels', 'in_file')]),
+                    (seg_node, nodes['convert_rh'], [('rh_hippoAmygLabels', 'in_file')]),
+                    (inputnode, nodes['convert_lh'], [('t1w_preproc', 'reslice_like')]),
+                    (inputnode, nodes['convert_rh'], [('t1w_preproc', 'reslice_like')]),
+                    (nodes['convert_lh'], nodes['merge_seg'], [('out_file', 'lh_file')]),
+                    (nodes['convert_rh'], nodes['merge_seg'], [('out_file', 'rh_file')]),
+                ]
+            )
+        else:
+            workflow.connect(
+                [
+                    (seg_node, nodes['convert_seg'], [('out_file', 'in_file')]),
+                    (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
+                ]
+            )
 
     workflow.connect(
         [
@@ -312,41 +416,42 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         ]
     )
 
-    if spec.get('segstats', True):
-        workflow.connect(
-            [
-                (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
-                (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
-                (nodes['segstats'], nodes['create_dseg'], [('ctab_out_file', 'ctab_file')]),
-                (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
-                (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
-            ]
-        )
-    else:
-        workflow.connect(
-            [
-                (
-                    inputnode,
-                    nodes['make_dseg'],
-                    [
-                        ('subjects_dir', 'subjects_dir'),
-                        ('subject_id', 'subject_id'),
-                    ],
-                ),
-                (
-                    inputnode,
-                    nodes['make_morph'],
-                    [
-                        ('subjects_dir', 'subjects_dir'),
-                        ('subject_id', 'subject_id'),
-                    ],
-                ),
-                (seg_node, nodes['make_dseg'], [('out_file', 'seg_file')]),
-                (seg_node, nodes['make_morph'], [('out_file', 'seg_file')]),
-                (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
-                (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
-            ]
-        )
+    if seg != 'atlas':
+        if spec.get('segstats', True):
+            workflow.connect(
+                [
+                    (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
+                    (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
+                    (nodes['segstats'], nodes['create_dseg'], [('ctab_out_file', 'ctab_file')]),
+                    (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+                    (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+                ]
+            )
+        else:
+            workflow.connect(
+                [
+                    (
+                        inputnode,
+                        nodes['make_dseg'],
+                        [
+                            ('subjects_dir', 'subjects_dir'),
+                            ('subject_id', 'subject_id'),
+                        ],
+                    ),
+                    (
+                        inputnode,
+                        nodes['make_morph'],
+                        [
+                            ('subjects_dir', 'subjects_dir'),
+                            ('subject_id', 'subject_id'),
+                        ],
+                    ),
+                    (seg_node, nodes['make_dseg'], [('out_file', 'seg_file')]),
+                    (seg_node, nodes['make_morph'], [('out_file', 'seg_file')]),
+                    (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+                    (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+                ]
+            )
 
     workflow.connect(
         [
