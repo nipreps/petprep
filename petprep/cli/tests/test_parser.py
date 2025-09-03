@@ -183,8 +183,8 @@ def test_parse_args_segmentation(tmp_path, minimal_bids):
         ]
     )
     assert config.workflow.seg_template == 'MNI152NLin2009cAsym'
-    assert config.workflow.seg_atlas == 'AAL'
-    assert config.workflow.seg_desc == 'probseg'
+    assert config.workflow.seg_atlas == 'Schaefer2018'
+    assert config.workflow.seg_desc == '400Parcels7Networks'
     assert config.workflow.seg_res == 1
     _reset_config()
 
