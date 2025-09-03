@@ -554,7 +554,29 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
             'limbic',
             'atlas',
         ],
-        help='Segmentation method to use.',
+        help="Segmentation method to use. Use 'atlas' to select a TemplateFlow atlas.",
+    )
+
+    g_seg.add_argument(
+        '--seg-template',
+        action='store',
+        help='TemplateFlow template identifier (e.g., "MNI152NLin2009cAsym").',
+    )
+    g_seg.add_argument(
+        '--seg-atlas',
+        action='store',
+        help='Atlas name within the selected template (e.g., "AAL").',
+    )
+    g_seg.add_argument(
+        '--seg-desc',
+        action='store',
+        help='TemplateFlow atlas description label (e.g., "probseg").',
+    )
+    g_seg.add_argument(
+        '--seg-res',
+        action='store',
+        type=int,
+        help='TemplateFlow atlas resolution to use (e.g., 1).',
     )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
@@ -741,6 +763,15 @@ def parse_args(args=None, namespace=None):
         config.workflow.ref_mask_name = opts.ref_mask_name
     if opts.ref_mask_index is not None:
         config.workflow.ref_mask_index = tuple(opts.ref_mask_index)
+
+    if opts.seg_template is not None:
+        config.workflow.seg_template = opts.seg_template
+    if opts.seg_atlas is not None:
+        config.workflow.seg_atlas = opts.seg_atlas
+    if opts.seg_desc is not None:
+        config.workflow.seg_desc = opts.seg_desc
+    if opts.seg_res is not None:
+        config.workflow.seg_res = opts.seg_res
 
     if opts.pvc_tool is not None:
         config.workflow.pvc_tool = opts.pvc_tool

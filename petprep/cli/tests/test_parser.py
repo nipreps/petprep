@@ -158,6 +158,37 @@ def test_parse_args(tmp_path, minimal_bids):
     _reset_config()
 
 
+def test_parse_args_segmentation(tmp_path, minimal_bids):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+
+    parse_args(
+        args=[
+            str(minimal_bids),
+            str(out_dir),
+            'participant',
+            '-w',
+            str(work_dir),
+            '--skip-bids-validation',
+            '--seg',
+            'atlas',
+            '--seg-template',
+            'MNI152NLin2009cAsym',
+            '--seg-atlas',
+            'Schaefer2018',
+            '--seg-desc',
+            '400Parcels7Networks',
+            '--seg-res',
+            '1',
+        ]
+    )
+    assert config.workflow.seg_template == 'MNI152NLin2009cAsym'
+    assert config.workflow.seg_atlas == 'AAL'
+    assert config.workflow.seg_desc == 'probseg'
+    assert config.workflow.seg_res == 1
+    _reset_config()
+
+
 def test_bids_filter_file(tmp_path, capsys):
     bids_path = tmp_path / 'data'
     out_path = tmp_path / 'out'
