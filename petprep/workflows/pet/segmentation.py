@@ -332,7 +332,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             ApplyTransforms(interpolation='NearestNeighbor'),
             name='warp_atlas',
         )
-    else:
 
         workflow.connect(
             [
