@@ -3,8 +3,8 @@
 
 from nipype import Function
 from nipype.interfaces import utility as niu
-from nipype.interfaces.freesurfer import MRIConvert
 from nipype.interfaces.ants import ApplyTransforms, Registration
+from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
@@ -80,12 +80,22 @@ def _fetch_templateflow_atlas(
     }
     params = {k: v for k, v in params.items() if v is not None}
 
-    atlas_file = str(tf.get(extension=['.nii', '.nii.gz'], **params))
-    labels_file = str(tf.get(extension='.tsv', **params))
+    atlas_file = tf.get(extension=['.nii', '.nii.gz'], **params)
+    if isinstance(atlas_file, list | tuple):
+        atlas_file = atlas_file[0]
+    atlas_file = str(atlas_file)
+
+    labels_file = tf.get(extension='.tsv', **params)
+    if isinstance(labels_file, list | tuple):
+        labels_file = labels_file[0]
+    labels_file = str(labels_file)
 
     tpl_params = {'template': template, 'resolution': resolution, 'suffix': 'T1w'}
     tpl_params = {k: v for k, v in tpl_params.items() if v is not None}
-    template_image = str(tf.get(extension=['.nii', '.nii.gz'], **tpl_params))
+    template_image = tf.get(extension=['.nii', '.nii.gz'], **tpl_params)
+    if isinstance(template_image, list | tuple):
+        template_image = template_image[0]
+    template_image = str(template_image)
 
     return atlas_file, labels_file, template_image
 
