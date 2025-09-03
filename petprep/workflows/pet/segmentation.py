@@ -322,10 +322,10 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name='fetch_atlas',
             run_without_submitting=True,
         )
-        fetch_atlas.inputs.template = getattr(config.workflow, 'template', None)
-        fetch_atlas.inputs.atlas = getattr(config.workflow, 'atlas', None)
-        fetch_atlas.inputs.desc = getattr(config.workflow, 'desc', None)
-        fetch_atlas.inputs.resolution = getattr(config.workflow, 'resolution', None)
+        fetch_atlas.inputs.template = config.workflow.seg_template
+        fetch_atlas.inputs.atlas = config.workflow.seg_atlas
+        fetch_atlas.inputs.desc = config.workflow.seg_desc
+        fetch_atlas.inputs.resolution = config.workflow.seg_res
 
         reg = pe.Node(Registration(), name='t1w_to_tpl')
         warp = pe.Node(

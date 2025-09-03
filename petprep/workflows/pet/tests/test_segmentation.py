@@ -2,6 +2,7 @@ import nibabel as nb
 import numpy as np
 import pytest
 
+from .... import config
 from ...tests import mock_config
 from ..segmentation import _merge_ha_labels, init_segmentation_wf
 
@@ -71,3 +72,20 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
+
+
+def test_templateflow_params_propagate():
+    """Custom TemplateFlow parameters should propagate to fetch_atlas."""
+    with mock_config():
+        config.workflow.seg_template = 'MNI152NLin6Sym'
+        config.workflow.seg_atlas = 'AAL'
+        config.workflow.seg_desc = 'probseg'
+        config.workflow.seg_res = 1
+
+        wf = init_segmentation_wf('atlas')
+        fetch_atlas = wf.get_node('fetch_atlas')
+
+        assert fetch_atlas.inputs.template == 'MNI152NLin6Sym'
+        assert fetch_atlas.inputs.atlas == 'AAL'
+        assert fetch_atlas.inputs.desc == 'probseg'
+        assert fetch_atlas.inputs.resolution == 1
