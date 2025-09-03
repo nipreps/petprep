@@ -80,20 +80,35 @@ def _fetch_templateflow_atlas(
     }
     params = {k: v for k, v in params.items() if v is not None}
 
-    atlas_file = tf.get(extension=['.nii', '.nii.gz'], **params)
+    atlas_file = tf.get(extension='.nii.gz', **params)
     if isinstance(atlas_file, list | tuple):
+        if len(atlas_file) != 1:
+            raise ValueError(
+                'Multiple atlas matches found. '
+                'Refine parameters (template, atlas, desc, resolution).'
+            )
         atlas_file = atlas_file[0]
     atlas_file = str(atlas_file)
 
     labels_file = tf.get(extension='.tsv', **params)
     if isinstance(labels_file, list | tuple):
+        if len(labels_file) != 1:
+            raise ValueError(
+                'Multiple label tables found. '
+                'Refine parameters (template, atlas, desc, resolution).'
+            )
         labels_file = labels_file[0]
     labels_file = str(labels_file)
 
     tpl_params = {'template': template, 'resolution': resolution, 'suffix': 'T1w'}
     tpl_params = {k: v for k, v in tpl_params.items() if v is not None}
-    template_image = tf.get(extension=['.nii', '.nii.gz'], **tpl_params)
+    template_image = tf.get(extension='.nii.gz', **tpl_params)
     if isinstance(template_image, list | tuple):
+        if len(template_image) != 1:
+            raise ValueError(
+                'Multiple T1w templates found. '
+                'Refine parameters (template, atlas, desc, resolution).'
+            )
         template_image = template_image[0]
     template_image = str(template_image)
 

@@ -4,7 +4,7 @@ import pytest
 
 from .... import config
 from ...tests import mock_config
-from ..segmentation import _merge_ha_labels, init_segmentation_wf
+from ..segmentation import _fetch_templateflow_atlas, _merge_ha_labels, init_segmentation_wf
 
 
 def test_segmentation_node_selection():
@@ -89,3 +89,21 @@ def test_templateflow_params_propagate():
         assert fetch_atlas.inputs.atlas == 'AAL'
         assert fetch_atlas.inputs.desc == 'probseg'
         assert fetch_atlas.inputs.resolution == 1
+
+
+@pytest.mark.parametrize('conflict', ['atlas', 'labels', 't1w'])
+def test_fetch_templateflow_atlas_conflicts(monkeypatch, conflict):
+    """Multiple TemplateFlow matches should raise a ValueError."""
+    def mock_get(*, extension=None, suffix=None, **kwargs):
+        if conflict == 'atlas' and suffix == 'dseg' and extension == '.nii.gz':
+            return ['a', 'b']
+        if conflict == 'labels' and extension == '.tsv':
+            return ['a', 'b']
+        if conflict == 't1w' and suffix == 'T1w':
+            return ['a', 'b']
+        return 'single'
+
+    monkeypatch.setattr('templateflow.api.get', mock_get)
+
+    with pytest.raises(ValueError, match='Refine parameters'):
+        _fetch_templateflow_atlas('tpl', 'atl')
