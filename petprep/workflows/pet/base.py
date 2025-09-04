@@ -701,7 +701,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         DerivativesDataSink(
             base_directory=petprep_dir,
             suffix='tacs',
-            seg=config.workflow.seg,
+            seg=(
+                config.workflow.atlas_name
+                if config.workflow.seg == 'atlas'
+                else config.workflow.seg
+            ),
             desc='preproc',
             allowed_entities=('seg',),
             TaskName=all_metadata[0].get('TaskName'),
@@ -735,7 +739,11 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             DerivativesDataSink(
                 base_directory=petprep_dir,
                 suffix='tacs',
-                seg=config.workflow.seg,
+                seg=(
+                    config.workflow.atlas_name
+                    if config.workflow.seg == 'atlas'
+                    else config.workflow.seg
+                ),
                 desc='preproc',
                 ref=config.workflow.ref_mask_name,
                 allowed_entities=('seg', 'ref'),

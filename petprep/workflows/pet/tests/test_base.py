@@ -274,3 +274,31 @@ def test_psf_metadata_propagation(bids_root: Path):
         wf.get_node('ds_pet_t1_wf.psf_meta'), wf.get_node('ds_pet_t1_wf.ds_pet')
     )
     assert ('meta_dict', 'meta_dict') in edge_ds['connect']
+
+
+def test_atlas_name_tacs_outputs(bids_root: Path, tmp_path: Path):
+    """Custom atlas name should appear in TACs filenames."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.seg = 'atlas'
+        config.workflow.atlas_name = 'CustomName'
+        config.workflow.ref_mask_name = 'cerebellum'
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    tacs_file = tmp_path / 'tacs.tsv'
+    tacs_file.write_text('')
+
+    ds_pet_tacs = wf.get_node('ds_pet_tacs')
+    ds_pet_tacs.inputs.in_file = str(tacs_file)
+    pet_name = Path(ds_pet_tacs.run().outputs.out_file).name
+    assert 'seg-CustomName' in pet_name
+    assert 'desc-preproc' in pet_name
+    assert pet_name.endswith('tacs.tsv')
+
+    ds_ref_tacs = wf.get_node('ds_ref_tacs')
+    ds_ref_tacs.inputs.in_file = str(tacs_file)
+    ref_name = Path(ds_ref_tacs.run().outputs.out_file).name
+    assert 'seg-CustomName' in ref_name
+    assert 'desc-preproc' in ref_name
+    assert ref_name.endswith('tacs.tsv')
