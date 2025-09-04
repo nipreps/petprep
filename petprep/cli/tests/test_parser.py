@@ -175,15 +175,18 @@ def test_parse_args_segmentation(tmp_path, minimal_bids):
             '-w',
             str(work_dir),
             '--skip-bids-validation',
-           '--atlas',
+            '--atlas',
             str(atlas),
             '--tpl',
             str(tpl),
+            '--atlas-name',
+            'custom',
         ]
     )
     assert config.workflow.seg == 'atlas'
     assert config.workflow.atlas_file == atlas
     assert config.workflow.tpl_file == tpl
+    assert config.workflow.atlas_name == 'custom'
     _reset_config()
 
 

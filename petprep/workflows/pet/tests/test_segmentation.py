@@ -126,3 +126,18 @@ def test_atlas_warp_transforms():
 
         assert warp_atlas.inputs.transforms is not Undefined
         assert warp_tpl.inputs.transforms is not Undefined
+
+
+def test_atlas_custom_name_outputs():
+    """Custom atlas name should be reflected in output node names."""
+    with mock_config():
+        config.workflow.tpl_file = 'tpl.nii.gz'
+        config.workflow.atlas_file = 'atlas_dseg.nii.gz'
+        config.workflow.atlas_name = 'custom'
+
+        wf = init_segmentation_wf('atlas')
+        names = [n.name for n in wf._get_all_nodes()]
+
+        assert 'ds_customseg' in names
+        assert 'make_customdsegtsv' in names
+        assert 'make_custommorphtsv' in names

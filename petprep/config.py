@@ -601,6 +601,9 @@ class workflow(_Config):
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic', 'atlas')."""
 
+    atlas_name: str = 'atlas'
+    """Name used for atlas segmentation outputs."""
+
     atlas_file: str | None = None
     """Path to atlas segmentation file (``dseg.nii[.gz]``)."""
 

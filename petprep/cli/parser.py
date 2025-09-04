@@ -569,6 +569,12 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
         type=partial(_is_file, parser=parser),
         help='Template image corresponding to --atlas.',
     )
+    g_seg.add_argument(
+        '--atlas-name',
+        action='store',
+        default='atlas',
+        help='Name to use for atlas segmentation outputs.',
+    )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
     g_refmask.add_argument(
@@ -754,6 +760,8 @@ def parse_args(args=None, namespace=None):
         config.workflow.ref_mask_name = opts.ref_mask_name
     if opts.ref_mask_index is not None:
         config.workflow.ref_mask_index = tuple(opts.ref_mask_index)
+
+    config.workflow.atlas_name = opts.atlas_name
 
     if opts.atlas is not None or opts.tpl is not None:
         if not (opts.atlas and opts.tpl):

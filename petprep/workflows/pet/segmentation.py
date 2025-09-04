@@ -280,8 +280,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
     if seg == 'atlas':
         nodes = _build_nodes(
-            seg,
-            spec['desc'],
+            seg=config.workflow.atlas_name,
+            desc=spec['desc'],
             segstats=False,
             dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
             morph_func=spec.get('morph_func', summary_to_stats),
