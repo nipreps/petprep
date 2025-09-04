@@ -43,6 +43,7 @@ def test_summary_to_stats(tmp_path):
     out = summary_to_stats(stats)
     df = pd.read_csv(out, sep='\t')
     assert 'volume-mm3' in df.columns
+    assert (df['volume-mm3'] > 0).all()
 
 
 def test_ctab_to_dsegtsv(tmp_path):

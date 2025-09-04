@@ -28,8 +28,6 @@ from ...utils.segmentation import (
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
     summary_to_stats,
-    tf_labels_to_dsegtsv,
-    tf_labels_to_morphtsv,
 )
 
 try:  # Py>=3.9
@@ -125,9 +123,9 @@ SEGMENTATIONS = {
     },
     'atlas': {
         'desc': 'atlas',
-        'segstats': False,
-        'dseg_func': tf_labels_to_dsegtsv,
-        'morph_func': tf_labels_to_morphtsv,
+        'segstats': True,
+        'dseg_func': ctab_to_dsegtsv,
+        'morph_func': summary_to_stats,
     },
 }
 
@@ -282,7 +280,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         nodes = _build_nodes(
             seg=config.workflow.atlas_name,
             desc=spec['desc'],
-            segstats=False,
+            segstats=True,
             dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
             morph_func=spec.get('morph_func', summary_to_stats),
         )
@@ -368,20 +366,12 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
         workflow.connect(
             [
-                (
-                    inputnode,
-                    nodes['make_dseg'],
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (
-                    inputnode,
-                    nodes['make_morph'],
-                    [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
-                ),
-                (atlas_source, nodes['make_dseg'], [('labels_file', 'seg_file')]),
-                (atlas_source, nodes['make_morph'], [('labels_file', 'seg_file')]),
-                (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
-                (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+                (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
+                (atlas_source, nodes['segstats'], [('labels_file', 'color_table_file')]),
+                (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
+                (nodes['segstats'], nodes['create_dseg'], [('ctab_out_file', 'ctab_file')]),
+                (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
+                (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
             ]
         )
 

@@ -194,22 +194,3 @@ def tf_labels_to_dsegtsv(
     out_file = seg_file.with_name(f"{seg_file.stem}_dseg.tsv")
     df.to_csv(out_file, sep='\t', index=False)
     return str(out_file)
-
-
-def tf_labels_to_morphtsv(
-    subjects_dir: str | None, subject_id: str | None, seg_file: str
-) -> str:
-    """Generate a dummy morphology table from a TemplateFlow atlas."""
-    from pathlib import Path
-
-    import pandas as pd
-
-    seg_file = Path(seg_file)
-    df = pd.read_csv(seg_file, sep='\t')
-    if 'label' in df.columns and 'name' not in df.columns:
-        df = df.rename(columns={'label': 'name'})
-    df = df[['index', 'name']]
-    df['volume-mm3'] = 0
-    out_file = seg_file.with_name(f"{seg_file.stem}_morph.tsv")
-    df.to_csv(out_file, sep='\t', index=False)
-    return str(out_file)

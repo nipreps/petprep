@@ -38,7 +38,7 @@ def test_segmentation_node_selection(tmp_path):
         assert 'ds_atlasseg' in names_atlas
         assert 'ds_atlasdsegtsv' in names_atlas
         assert 'ds_atlasmorphtsv' in names_atlas
-        assert 'segstats_atlas' not in names_atlas
+        assert 'segstats_atlas' in names_atlas
 
         ds_tpl = wf_atlas.get_node('ds_tpl_t1w')
         assert ds_tpl.inputs.desc == 'tpl'
@@ -101,14 +101,20 @@ def test_atlas_label_connections():
 
         wf = init_segmentation_wf('atlas')
         atlas_source = wf.get_node('atlas_source')
-        make_dseg = wf.get_node('make_atlasdsegtsv')
-        make_morph = wf.get_node('make_atlasmorphtsv')
+        segstats = wf.get_node('segstats_atlas')
+        create_dseg = wf.get_node('create_atlas_dsegtsv')
+        create_morph = wf.get_node('create_atlas_morphtsv')
+        convert_seg = wf.get_node('convert_atlasseg')
 
-        edge_dseg = wf._graph.get_edge_data(atlas_source, make_dseg)
-        edge_morph = wf._graph.get_edge_data(atlas_source, make_morph)
+        edge_ctab = wf._graph.get_edge_data(atlas_source, segstats)
+        edge_seg = wf._graph.get_edge_data(convert_seg, segstats)
+        edge_dseg = wf._graph.get_edge_data(segstats, create_dseg)
+        edge_morph = wf._graph.get_edge_data(segstats, create_morph)
 
-        assert ('labels_file', 'seg_file') in edge_dseg['connect']
-        assert ('labels_file', 'seg_file') in edge_morph['connect']
+        assert ('labels_file', 'color_table_file') in edge_ctab['connect']
+        assert ('out_file', 'segmentation_file') in edge_seg['connect']
+        assert ('ctab_out_file', 'ctab_file') in edge_dseg['connect']
+        assert ('summary_file', 'summary_file') in edge_morph['connect']
 
 
 def test_atlas_file_path():
