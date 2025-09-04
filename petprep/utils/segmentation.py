@@ -165,6 +165,46 @@ def summary_to_stats(summary_file: str) -> str:
     return str(out_file)
 
 
+def tf_summary_to_stats(summary_file: str, labels_file: str) -> str:
+    """Convert ``summary.stats`` and atlas labels to a TSV table."""
+    from pathlib import Path
+
+    import pandas as pd
+
+    from petprep.utils.segmentation import _read_stats_table
+
+    summary_file = Path(summary_file)
+    labels_file = Path(labels_file)
+
+    stats_df = _read_stats_table(summary_file)
+    stats_df.columns = [c.lower() for c in stats_df.columns]
+
+    if 'segid' in stats_df.columns:
+        segid = stats_df.pop('segid')
+        if 'index' in stats_df.columns:
+            stats_df = stats_df.drop(columns=['index'])
+        stats_df.insert(0, 'index', segid)
+    elif 'index' not in stats_df.columns:
+        raise ValueError('No "segid" or "index" column found in stats table')
+
+    vol_col = 'volume_mm3' if 'volume_mm3' in stats_df.columns else 'volume'
+    stats_df = stats_df[['index', vol_col]].rename(columns={vol_col: 'volume-mm3'})
+    stats_df['index'] = stats_df['index'].astype(int)
+    stats_df['volume-mm3'] = stats_df['volume-mm3'].astype(float)
+
+    labels_df = pd.read_csv(labels_file, sep='\t')
+    if 'label' in labels_df.columns and 'name' not in labels_df.columns:
+        labels_df = labels_df.rename(columns={'label': 'name'})
+    labels_df = labels_df[['index', 'name']]
+    labels_df['index'] = labels_df['index'].astype(int)
+
+    df = labels_df.merge(stats_df, on='index', how='inner')
+
+    out_file = summary_file.with_suffix('.tsv')
+    df.to_csv(out_file, sep='\t', index=False)
+    return str(out_file)
+
+
 def ctab_to_dsegtsv(ctab_file: str) -> str:
     """Convert a FreeSurfer ``ctab`` file to a TSV label table."""
     from pathlib import Path

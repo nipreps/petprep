@@ -3,10 +3,12 @@ import numpy as np
 import pytest
 from pathlib import Path
 from nipype.interfaces.base import Undefined
+import pandas as pd
 
 from .... import config
 from ...tests import mock_config
 from ..segmentation import _merge_ha_labels, init_segmentation_wf
+from ....utils.segmentation import tf_summary_to_stats
 
 
 def test_segmentation_node_selection(tmp_path):
@@ -110,11 +112,25 @@ def test_atlas_label_connections():
         edge_seg = wf._graph.get_edge_data(convert_seg, segstats)
         edge_dseg = wf._graph.get_edge_data(atlas_source, create_dseg)
         edge_morph = wf._graph.get_edge_data(segstats, create_morph)
+        edge_morph_labels = wf._graph.get_edge_data(atlas_source, create_morph)
 
         assert ('labels_file', 'color_table_file') in edge_ctab['connect']
         assert ('out_file', 'segmentation_file') in edge_seg['connect']
         assert ('labels_file', 'seg_file') in edge_dseg['connect']
         assert ('summary_file', 'summary_file') in edge_morph['connect']
+        assert ('labels_file', 'labels_file') in edge_morph_labels['connect']
+
+
+def test_tf_summary_to_stats_labels(tmp_path):
+    """tf_summary_to_stats should use atlas labels for region names."""
+    labels = tmp_path / 'labels.tsv'
+    labels.write_text('index\tname\n1\tA\n2\tB\n')
+    summary = tmp_path / 'summary.stats'
+    summary.write_text('# ColHeaders Index Volume_mm3\n1 10\n2 20\n')
+    out_file = tf_summary_to_stats(str(summary), str(labels))
+    df = pd.read_csv(out_file, sep='\t')
+    assert df['name'].tolist() == ['A', 'B']
+    assert df['volume-mm3'].tolist() == [10.0, 20.0]
 
 
 def test_atlas_file_path():

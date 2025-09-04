@@ -28,6 +28,7 @@ from ...utils.segmentation import (
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
     summary_to_stats,
+    tf_summary_to_stats,
     tf_labels_to_dsegtsv,
 )
 
@@ -126,7 +127,7 @@ SEGMENTATIONS = {
         'desc': 'atlas',
         'segstats': True,
         'dseg_func': tf_labels_to_dsegtsv,
-        'morph_func': summary_to_stats,
+        'morph_func': tf_summary_to_stats,
     },
 }
 
@@ -141,6 +142,7 @@ def _build_nodes(
     dseg_func=ctab_to_dsegtsv,
     morph_func=summary_to_stats,
     dseg_input: str = 'ctab_file',
+    morph_inputs: tuple[str, ...] = ('summary_file',),
 ):
     """Create common segmentation nodes."""
     nodes = {}
@@ -201,7 +203,7 @@ def _build_nodes(
             segstats_kwargs['default_color_table'] = True
         nodes['segstats'] = pe.Node(SegStats(**segstats_kwargs), name=f'segstats_{seg}')
         nodes['create_morph'] = pe.Node(
-            Function(input_names=['summary_file'], output_names=['out_file'], function=morph_func),
+            Function(input_names=list(morph_inputs), output_names=['out_file'], function=morph_func),
             name=f'create_{seg}_morphtsv',
         )
         nodes['create_dseg'] = pe.Node(
@@ -286,6 +288,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
             morph_func=spec.get('morph_func', summary_to_stats),
             dseg_input='seg_file',
+            morph_inputs=('summary_file', 'labels_file'),
         )
 
         tpl_source = pe.Node(
@@ -372,6 +375,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
                 (atlas_source, nodes['segstats'], [('labels_file', 'color_table_file')]),
                 (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
+                (atlas_source, nodes['create_morph'], [('labels_file', 'labels_file')]),
                 (atlas_source, nodes['create_dseg'], [('labels_file', 'seg_file')]),
                 (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
                 (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
