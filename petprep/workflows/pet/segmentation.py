@@ -303,6 +303,31 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             )
 
         reg = pe.Node(Registration(), name='tpl_to_t1w')
+        reg.inputs.transforms = ['Rigid', 'Affine', 'SyN']
+        reg.inputs.transform_parameters = [(0.1,), (0.1,), (0.1, 3, 0)]
+        reg.inputs.metric = ['Mattes', 'Mattes', 'CC']
+        reg.inputs.metric_weight = [1, 1, 1]
+        reg.inputs.radius_or_number_of_bins = [32, 32, 4]
+        reg.inputs.sampling_strategy = ['Regular', 'Regular', None]
+        reg.inputs.sampling_percentage = [0.25, 0.25, None]
+        reg.inputs.number_of_iterations = [
+            [1000, 500, 250, 0],
+            [1000, 500, 250, 0],
+            [100, 70, 50, 10],
+        ]
+        reg.inputs.smoothing_sigmas = [
+            [3, 2, 1, 0],
+            [3, 2, 1, 0],
+            [3, 2, 1, 0],
+        ]
+        reg.inputs.sigma_units = ['vox', 'vox', 'vox']
+        reg.inputs.shrink_factors = [
+            [8, 4, 2, 1],
+            [8, 4, 2, 1],
+            [8, 4, 2, 1],
+        ]
+        reg.inputs.use_histogram_matching = [True, True, True]
+        reg.inputs.write_composite_transform = True
         warp_atlas = pe.Node(
             ApplyTransforms(interpolation='NearestNeighbor'), name='warp_atlas'
         )
