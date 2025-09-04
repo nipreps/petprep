@@ -179,7 +179,7 @@ def ctab_to_dsegtsv(ctab_file: str) -> str:
 
 
 def tf_labels_to_dsegtsv(
-    subjects_dir: str | None, subject_id: str | None, seg_file: str
+    seg_file: str, subjects_dir: str | None = None, subject_id: str | None = None
 ) -> str:
     """Reformat a TemplateFlow atlas label file into a ``dseg.tsv`` table."""
     from pathlib import Path

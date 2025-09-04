@@ -108,12 +108,12 @@ def test_atlas_label_connections():
 
         edge_ctab = wf._graph.get_edge_data(atlas_source, segstats)
         edge_seg = wf._graph.get_edge_data(convert_seg, segstats)
-        edge_dseg = wf._graph.get_edge_data(segstats, create_dseg)
+        edge_dseg = wf._graph.get_edge_data(atlas_source, create_dseg)
         edge_morph = wf._graph.get_edge_data(segstats, create_morph)
 
         assert ('labels_file', 'color_table_file') in edge_ctab['connect']
         assert ('out_file', 'segmentation_file') in edge_seg['connect']
-        assert ('ctab_out_file', 'ctab_file') in edge_dseg['connect']
+        assert ('labels_file', 'seg_file') in edge_dseg['connect']
         assert ('summary_file', 'summary_file') in edge_morph['connect']
 
 

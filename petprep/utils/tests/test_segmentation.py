@@ -6,6 +6,7 @@ from ..segmentation import (
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
     summary_to_stats,
+    tf_labels_to_dsegtsv,
 )
 
 
@@ -52,3 +53,12 @@ def test_ctab_to_dsegtsv(tmp_path):
     out = ctab_to_dsegtsv(ctab)
     df = pd.read_csv(out, sep='\t')
     assert list(df.columns) == ['index', 'name']
+
+
+def test_tf_labels_to_dsegtsv(tmp_path):
+    labels = tmp_path / 'atlas.tsv'
+    labels.write_text("index\tlabel\n1\tfirst\n2\tsecond\n")
+    out = tf_labels_to_dsegtsv(seg_file=labels)
+    df = pd.read_csv(out, sep='\t')
+    assert list(df.columns) == ['index', 'name']
+    assert df['name'].tolist() == ['first', 'second']

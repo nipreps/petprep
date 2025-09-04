@@ -28,6 +28,7 @@ from ...utils.segmentation import (
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
     summary_to_stats,
+    tf_labels_to_dsegtsv,
 )
 
 try:  # Py>=3.9
@@ -124,7 +125,7 @@ SEGMENTATIONS = {
     'atlas': {
         'desc': 'atlas',
         'segstats': True,
-        'dseg_func': ctab_to_dsegtsv,
+        'dseg_func': tf_labels_to_dsegtsv,
         'morph_func': summary_to_stats,
     },
 }
@@ -139,6 +140,7 @@ def _build_nodes(
     merge_ha: bool = False,
     dseg_func=ctab_to_dsegtsv,
     morph_func=summary_to_stats,
+    dseg_input: str = 'ctab_file',
 ):
     """Create common segmentation nodes."""
     nodes = {}
@@ -203,7 +205,7 @@ def _build_nodes(
             name=f'create_{seg}_morphtsv',
         )
         nodes['create_dseg'] = pe.Node(
-            Function(input_names=['ctab_file'], output_names=['out_file'], function=dseg_func),
+            Function(input_names=[dseg_input], output_names=['out_file'], function=dseg_func),
             name=f'create_{seg}_dsegtsv',
         )
     else:
@@ -283,6 +285,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             segstats=True,
             dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
             morph_func=spec.get('morph_func', summary_to_stats),
+            dseg_input='seg_file',
         )
 
         tpl_source = pe.Node(
@@ -369,7 +372,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (nodes['seg_source'], nodes['segstats'], [('out_file', 'segmentation_file')]),
                 (atlas_source, nodes['segstats'], [('labels_file', 'color_table_file')]),
                 (nodes['segstats'], nodes['create_morph'], [('summary_file', 'summary_file')]),
-                (nodes['segstats'], nodes['create_dseg'], [('ctab_out_file', 'ctab_file')]),
+                (atlas_source, nodes['create_dseg'], [('labels_file', 'seg_file')]),
                 (nodes['create_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
                 (nodes['create_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
             ]
