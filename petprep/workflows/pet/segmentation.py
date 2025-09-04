@@ -287,40 +287,68 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             morph_func=spec.get('morph_func', summary_to_stats),
         )
 
-        atlas_files = pe.Node(
-            niu.IdentityInterface(fields=['atlas_file', 'labels_file', 'template_image']),
-            name='atlas_files',
-            run_without_submitting=True,
+        tpl_source = pe.Node(
+            niu.IdentityInterface(fields=['tpl_file']), name='tpl_source'
         )
-        atlas_files.inputs.atlas_file = config.workflow.atlas_file
-        atlas_files.inputs.template_image = config.workflow.tpl_file
-        labels_file = Path(config.workflow.atlas_file)
-        if labels_file.suffixes[-2:] == ['.nii', '.gz']:
-            labels_file = labels_file.with_suffix('').with_suffix('.tsv')
-        else:
-            labels_file = labels_file.with_suffix('.tsv')
-        if not labels_file.exists():
-            raise FileNotFoundError(f'Companion TSV not found for atlas: {labels_file}')
-        atlas_files.inputs.labels_file = str(labels_file)
+        tpl_source.inputs.tpl_file = config.workflow.tpl_file
 
-        reg = pe.Node(Registration(), name='t1w_to_tpl')
-        warp = pe.Node(
-            ApplyTransforms(interpolation='NearestNeighbor'),
-            name='warp_atlas',
+        atlas_source = pe.Node(
+            niu.IdentityInterface(fields=['atlas_file', 'labels_file']), name='atlas_source'
+        )
+        atlas_source.inputs.atlas_file = config.workflow.atlas_file
+        if config.workflow.atlas_file:
+            atlas_source.inputs.labels_file = config.workflow.atlas_file.replace('.nii.gz', '.tsv')
+
+        reg = pe.Node(Registration(), name='tpl_to_t1w')
+        warp_atlas = pe.Node(
+            ApplyTransforms(interpolation='NearestNeighbor'), name='warp_atlas'
+        )
+        warp_tpl = pe.Node(ApplyTransforms(), name='warp_tpl')
+
+        ds_atlas = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='atlas',
+                suffix='T1w',
+                datatype='anat',
+                compress=True,
+            ),
+            name='ds_atlas_t1w',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        ds_tpl = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                desc='tpl',
+                suffix='T1w',
+                datatype='anat',
+                compress=True,
+            ),
+            name='ds_tpl_t1w',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
 
         workflow.connect(
             [
-                (inputnode, reg, [('t1w_preproc', 'moving_image')]),
-                (atlas_files, reg, [('template_image', 'fixed_image')]),
-                (reg, warp, [
-                    ('reverse_transforms', 'transforms'),
-                    ('reverse_invert_flags', 'invert_transform_flags'),
-                ]),
-                (atlas_files, warp, [('atlas_file', 'input_image')]),
-                (inputnode, warp, [('t1w_preproc', 'reference_image')]),
-                (warp, nodes['convert_seg'], [('output_image', 'in_file')]),
+                (tpl_source, reg, [('tpl_file', 'moving_image')]),
+                (inputnode, reg, [('t1w_preproc', 'fixed_image')]),
+                (reg, warp_atlas, [('forward_transforms', 'transforms')]),
+                (reg, warp_tpl, [('forward_transforms', 'transforms')]),
+                (atlas_source, warp_atlas, [('atlas_file', 'input_image')]),
+                (tpl_source, warp_tpl, [('tpl_file', 'input_image')]),
+                (inputnode, warp_atlas, [('t1w_preproc', 'reference_image')]),
+                (inputnode, warp_tpl, [('t1w_preproc', 'reference_image')]),
+                (warp_atlas, nodes['convert_seg'], [('output_image', 'in_file')]),
                 (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
+                (warp_atlas, ds_atlas, [('output_image', 'in_file')]),
+                (inputnode, ds_atlas, [('t1w_preproc', 'source_file')]),
+                (nodes['sources'], ds_atlas, [('out', 'Sources')]),
+                (warp_tpl, ds_tpl, [('output_image', 'in_file')]),
+                (inputnode, ds_tpl, [('t1w_preproc', 'source_file')]),
+                (nodes['sources'], ds_tpl, [('out', 'Sources')]),
             ]
         )
 
@@ -336,14 +364,14 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                     nodes['make_morph'],
                     [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
                 ),
-                (atlas_files, nodes['make_dseg'], [('labels_file', 'seg_file')]),
-                (atlas_files, nodes['make_morph'], [('labels_file', 'seg_file')]),
+                (atlas_source, nodes['make_dseg'], [('labels_file', 'seg_file')]),
+                (atlas_source, nodes['make_morph'], [('labels_file', 'seg_file')]),
                 (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
                 (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
             ]
         )
 
-        seg_node = warp
+        seg_node = warp_atlas
     else:
         interface = spec['interface']
         seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')

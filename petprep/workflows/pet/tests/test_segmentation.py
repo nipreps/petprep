@@ -10,13 +10,9 @@ from ..segmentation import _merge_ha_labels, init_segmentation_wf
 def test_segmentation_node_selection(tmp_path):
     """Ensure workflow nodes depend on segmentation type."""
     with mock_config():
-        atlas = tmp_path / 'atlas_dseg.nii.gz'
-        atlas.write_text('')
-        (tmp_path / 'atlas_dseg.tsv').write_text('')
-        tpl = tmp_path / 'tpl_T1w.nii.gz'
-        tpl.write_text('')
-        config.workflow.atlas_file = atlas
-        config.workflow.tpl_file = tpl
+        config.workflow.tpl_file = 'tpl.nii.gz'
+        config.workflow.atlas_file = 'atlas_dseg.nii.gz'
+
         wf_gtm = init_segmentation_wf('gtm')
         names_gtm = [n.name for n in wf_gtm._get_all_nodes()]
         assert 'make_gtmdsegtsv' in names_gtm
@@ -31,8 +27,12 @@ def test_segmentation_node_selection(tmp_path):
 
         wf_atlas = init_segmentation_wf('atlas')
         names_atlas = [n.name for n in wf_atlas._get_all_nodes()]
-        assert 'atlas_files' in names_atlas
+        assert 'tpl_source' in names_atlas
+        assert 'atlas_source' in names_atlas
         assert 'warp_atlas' in names_atlas
+        assert 'warp_tpl' in names_atlas
+        assert 'ds_atlas_t1w' in names_atlas
+        assert 'ds_tpl_t1w' in names_atlas
         assert 'segstats_atlas' not in names_atlas
 
 
@@ -79,3 +79,21 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
+
+
+def test_atlas_label_connections():
+    """Atlas label table should propagate to TSV builders."""
+    with mock_config():
+        config.workflow.tpl_file = 'tpl.nii.gz'
+        config.workflow.atlas_file = 'atlas_dseg.nii.gz'
+
+        wf = init_segmentation_wf('atlas')
+        atlas_source = wf.get_node('atlas_source')
+        make_dseg = wf.get_node('make_atlasdsegtsv')
+        make_morph = wf.get_node('make_atlasmorphtsv')
+
+        edge_dseg = wf._graph.get_edge_data(atlas_source, make_dseg)
+        edge_morph = wf._graph.get_edge_data(atlas_source, make_morph)
+
+        assert ('labels_file', 'seg_file') in edge_dseg['connect']
+        assert ('labels_file', 'seg_file') in edge_morph['connect']
