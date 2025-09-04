@@ -161,6 +161,11 @@ def test_parse_args(tmp_path, minimal_bids):
 def test_parse_args_segmentation(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
+    atlas = tmp_path / 'atlas_dseg.nii.gz'
+    atlas.write_text('')
+    (tmp_path / 'atlas_dseg.tsv').write_text('')
+    tpl = tmp_path / 'tpl_T1w.nii.gz'
+    tpl.write_text('')
 
     parse_args(
         args=[
@@ -170,22 +175,15 @@ def test_parse_args_segmentation(tmp_path, minimal_bids):
             '-w',
             str(work_dir),
             '--skip-bids-validation',
-            '--seg',
-            'atlas',
-            '--seg-template',
-            'MNI152NLin2009cAsym',
-            '--seg-atlas',
-            'Schaefer2018',
-            '--seg-desc',
-            '400Parcels7Networks',
-            '--seg-res',
-            '1',
+           '--atlas',
+            str(atlas),
+            '--tpl',
+            str(tpl),
         ]
     )
-    assert config.workflow.seg_template == 'MNI152NLin2009cAsym'
-    assert config.workflow.seg_atlas == 'Schaefer2018'
-    assert config.workflow.seg_desc == '400Parcels7Networks'
-    assert config.workflow.seg_res == 1
+    assert config.workflow.seg == 'atlas'
+    assert config.workflow.atlas_file == atlas
+    assert config.workflow.tpl_file == tpl
     _reset_config()
 
 

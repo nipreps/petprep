@@ -207,7 +207,16 @@ cerebral cortex, subcortical structures, and cerebellum.
 
 To run the segmentation with the default ``gtm`` method, use: ::
 
-    $ petprep /data/bids_root /out participant --seg gtm 
+    $ petprep /data/bids_root /out participant --seg gtm
+
+Custom atlases can also be supplied using the ``--atlas`` and ``--tpl`` flags.
+``--atlas`` should point to a ``dseg.nii`` or ``dseg.nii.gz`` file with an
+accompanying ``dseg.tsv`` table, and ``--tpl`` should point to the corresponding
+template image. Providing both flags automatically selects the ``atlas``
+segmentation method: ::
+
+    $ petprep /data/bids_root /out participant \
+        --atlas /path/to/atlas_dseg.nii.gz --tpl /path/to/template_T1w.nii.gz
 
 Partial volume correction
 -------------------------

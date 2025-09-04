@@ -554,29 +554,20 @@ https://petprep.readthedocs.io/en/%s/spaces.html"""
             'limbic',
             'atlas',
         ],
-        help="Segmentation method to use. Use 'atlas' to select a TemplateFlow atlas.",
+        help='Segmentation method to use. Use --atlas/--tpl for custom atlases.',
     )
 
     g_seg.add_argument(
-        '--seg-template',
+        '--atlas',
         action='store',
-        help='TemplateFlow template identifier (e.g., "MNI152NLin2009cAsym").',
+        type=partial(_is_file, parser=parser),
+        help='Path to a labeled atlas image (dseg.nii[.gz]).',
     )
     g_seg.add_argument(
-        '--seg-atlas',
+        '--tpl',
         action='store',
-        help='Atlas name within the selected template (e.g., "AAL").',
-    )
-    g_seg.add_argument(
-        '--seg-desc',
-        action='store',
-        help='TemplateFlow atlas description label (e.g., "probseg").',
-    )
-    g_seg.add_argument(
-        '--seg-res',
-        action='store',
-        type=int,
-        help='TemplateFlow atlas resolution to use (e.g., 1).',
+        type=partial(_is_file, parser=parser),
+        help='Template image corresponding to --atlas.',
     )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
@@ -764,14 +755,19 @@ def parse_args(args=None, namespace=None):
     if opts.ref_mask_index is not None:
         config.workflow.ref_mask_index = tuple(opts.ref_mask_index)
 
-    if opts.seg_template is not None:
-        config.workflow.seg_template = opts.seg_template
-    if opts.seg_atlas is not None:
-        config.workflow.seg_atlas = opts.seg_atlas
-    if opts.seg_desc is not None:
-        config.workflow.seg_desc = opts.seg_desc
-    if opts.seg_res is not None:
-        config.workflow.seg_res = opts.seg_res
+    if opts.atlas is not None or opts.tpl is not None:
+        if not (opts.atlas and opts.tpl):
+            parser.error('Options --atlas and --tpl must be used together.')
+        config.workflow.seg = 'atlas'
+        config.workflow.atlas_file = opts.atlas
+        config.workflow.tpl_file = opts.tpl
+        labels_file = opts.atlas
+        if labels_file.suffixes[-2:] == ['.nii', '.gz']:
+            labels_file = labels_file.with_suffix('').with_suffix('.tsv')
+        else:
+            labels_file = labels_file.with_suffix('.tsv')
+        if not labels_file.exists():
+            parser.error(f'Companion TSV not found for atlas: {labels_file}')
 
     if opts.pvc_tool is not None:
         config.workflow.pvc_tool = opts.pvc_tool

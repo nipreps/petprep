@@ -1,6 +1,8 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 """Segmentation workflows."""
 
+from pathlib import Path
+
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.ants import ApplyTransforms, Registration
@@ -60,59 +62,6 @@ def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
     out_file = Path('hippocampusAmygdala_dseg.nii.gz').absolute()
     out_img.to_filename(out_file)
     return str(out_file)
-
-
-def _fetch_templateflow_atlas(
-    template: str | None,
-    atlas: str | None,
-    desc: str | None = None,
-    resolution: str | int | None = None,
-):
-    """Fetch an atlas and corresponding label table from TemplateFlow."""
-    import templateflow.api as tf
-
-    params = {
-        'template': template,
-        'atlas': atlas,
-        'desc': desc,
-        'resolution': resolution,
-        'suffix': 'dseg',
-    }
-    params = {k: v for k, v in params.items() if v is not None}
-
-    atlas_file = tf.get(extension='.nii.gz', **params)
-    if isinstance(atlas_file, list | tuple):
-        if len(atlas_file) != 1:
-            raise ValueError(
-                'Multiple atlas matches found. '
-                'Refine parameters (template, atlas, desc, resolution).'
-            )
-        atlas_file = atlas_file[0]
-    atlas_file = str(atlas_file)
-
-    labels_file = tf.get(extension='.tsv', **params)
-    if isinstance(labels_file, list | tuple):
-        if len(labels_file) != 1:
-            raise ValueError(
-                'Multiple label tables found. '
-                'Refine parameters (template, atlas, desc, resolution).'
-            )
-        labels_file = labels_file[0]
-    labels_file = str(labels_file)
-
-    tpl_params = {'template': template, 'resolution': resolution, 'suffix': 'T1w'}
-    tpl_params = {k: v for k, v in tpl_params.items() if v is not None}
-    template_image = tf.get(extension='.nii.gz', **tpl_params)
-    if isinstance(template_image, list | tuple):
-        if len(template_image) != 1:
-            raise ValueError(
-                'Multiple T1w templates found. '
-                'Refine parameters (template, atlas, desc, resolution).'
-            )
-        template_image = template_image[0]
-    template_image = str(template_image)
-
-    return atlas_file, labels_file, template_image
 
 
 SEGMENTATIONS = {
@@ -338,19 +287,21 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             morph_func=spec.get('morph_func', summary_to_stats),
         )
 
-        fetch_atlas = pe.Node(
-            Function(
-                input_names=['template', 'atlas', 'desc', 'resolution'],
-                output_names=['atlas_file', 'labels_file', 'template_image'],
-                function=_fetch_templateflow_atlas,
-            ),
-            name='fetch_atlas',
+        atlas_files = pe.Node(
+            niu.IdentityInterface(fields=['atlas_file', 'labels_file', 'template_image']),
+            name='atlas_files',
             run_without_submitting=True,
         )
-        fetch_atlas.inputs.template = config.workflow.seg_template
-        fetch_atlas.inputs.atlas = config.workflow.seg_atlas
-        fetch_atlas.inputs.desc = config.workflow.seg_desc
-        fetch_atlas.inputs.resolution = config.workflow.seg_res
+        atlas_files.inputs.atlas_file = config.workflow.atlas_file
+        atlas_files.inputs.template_image = config.workflow.tpl_file
+        labels_file = Path(config.workflow.atlas_file)
+        if labels_file.suffixes[-2:] == ['.nii', '.gz']:
+            labels_file = labels_file.with_suffix('').with_suffix('.tsv')
+        else:
+            labels_file = labels_file.with_suffix('.tsv')
+        if not labels_file.exists():
+            raise FileNotFoundError(f'Companion TSV not found for atlas: {labels_file}')
+        atlas_files.inputs.labels_file = str(labels_file)
 
         reg = pe.Node(Registration(), name='t1w_to_tpl')
         warp = pe.Node(
@@ -361,12 +312,12 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (inputnode, reg, [('t1w_preproc', 'moving_image')]),
-                (fetch_atlas, reg, [('template_image', 'fixed_image')]),
+                (atlas_files, reg, [('template_image', 'fixed_image')]),
                 (reg, warp, [
                     ('reverse_transforms', 'transforms'),
                     ('reverse_invert_flags', 'invert_transform_flags'),
                 ]),
-                (fetch_atlas, warp, [('atlas_file', 'input_image')]),
+                (atlas_files, warp, [('atlas_file', 'input_image')]),
                 (inputnode, warp, [('t1w_preproc', 'reference_image')]),
                 (warp, nodes['convert_seg'], [('output_image', 'in_file')]),
                 (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
@@ -385,8 +336,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                     nodes['make_morph'],
                     [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
                 ),
-                (fetch_atlas, nodes['make_dseg'], [('labels_file', 'seg_file')]),
-                (fetch_atlas, nodes['make_morph'], [('labels_file', 'seg_file')]),
+                (atlas_files, nodes['make_dseg'], [('labels_file', 'seg_file')]),
+                (atlas_files, nodes['make_morph'], [('labels_file', 'seg_file')]),
                 (nodes['make_dseg'], nodes['ds_dseg_tsv'], [('out_file', 'in_file')]),
                 (nodes['make_morph'], nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
             ]

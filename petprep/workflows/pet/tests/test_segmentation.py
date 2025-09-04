@@ -4,12 +4,19 @@ import pytest
 
 from .... import config
 from ...tests import mock_config
-from ..segmentation import _fetch_templateflow_atlas, _merge_ha_labels, init_segmentation_wf
+from ..segmentation import _merge_ha_labels, init_segmentation_wf
 
 
-def test_segmentation_node_selection():
+def test_segmentation_node_selection(tmp_path):
     """Ensure workflow nodes depend on segmentation type."""
     with mock_config():
+        atlas = tmp_path / 'atlas_dseg.nii.gz'
+        atlas.write_text('')
+        (tmp_path / 'atlas_dseg.tsv').write_text('')
+        tpl = tmp_path / 'tpl_T1w.nii.gz'
+        tpl.write_text('')
+        config.workflow.atlas_file = atlas
+        config.workflow.tpl_file = tpl
         wf_gtm = init_segmentation_wf('gtm')
         names_gtm = [n.name for n in wf_gtm._get_all_nodes()]
         assert 'make_gtmdsegtsv' in names_gtm
@@ -24,7 +31,7 @@ def test_segmentation_node_selection():
 
         wf_atlas = init_segmentation_wf('atlas')
         names_atlas = [n.name for n in wf_atlas._get_all_nodes()]
-        assert 'fetch_atlas' in names_atlas
+        assert 'atlas_files' in names_atlas
         assert 'warp_atlas' in names_atlas
         assert 'segstats_atlas' not in names_atlas
 
@@ -72,38 +79,3 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
-
-
-def test_templateflow_params_propagate():
-    """Custom TemplateFlow parameters should propagate to fetch_atlas."""
-    with mock_config():
-        config.workflow.seg_template = 'MNI152NLin6Sym'
-        config.workflow.seg_atlas = 'AAL'
-        config.workflow.seg_desc = 'probseg'
-        config.workflow.seg_res = 1
-
-        wf = init_segmentation_wf('atlas')
-        fetch_atlas = wf.get_node('fetch_atlas')
-
-        assert fetch_atlas.inputs.template == 'MNI152NLin6Sym'
-        assert fetch_atlas.inputs.atlas == 'AAL'
-        assert fetch_atlas.inputs.desc == 'probseg'
-        assert fetch_atlas.inputs.resolution == 1
-
-
-@pytest.mark.parametrize('conflict', ['atlas', 'labels', 't1w'])
-def test_fetch_templateflow_atlas_conflicts(monkeypatch, conflict):
-    """Multiple TemplateFlow matches should raise a ValueError."""
-    def mock_get(*, extension=None, suffix=None, **kwargs):
-        if conflict == 'atlas' and suffix == 'dseg' and extension == '.nii.gz':
-            return ['a', 'b']
-        if conflict == 'labels' and extension == '.tsv':
-            return ['a', 'b']
-        if conflict == 't1w' and suffix == 'T1w':
-            return ['a', 'b']
-        return 'single'
-
-    monkeypatch.setattr('templateflow.api.get', mock_get)
-
-    with pytest.raises(ValueError, match='Refine parameters'):
-        _fetch_templateflow_atlas('tpl', 'atl')

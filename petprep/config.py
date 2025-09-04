@@ -547,6 +547,7 @@ del _oc_policy
 
 class workflow(_Config):
     """Configure the particular execution graph of this workflow."""
+    _paths = ('atlas_file', 'tpl_file')
 
     anat_only = False
     """Execute the anatomical preprocessing only."""
@@ -598,19 +599,13 @@ class workflow(_Config):
     """Time point (in seconds) at which head-motion estimation starts."""
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
-    'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
+    'hippocampusAmygdala', 'wm', 'raphe', 'limbic', 'atlas')."""
 
-    seg_template: str | None = None
-    """TemplateFlow template ID used for segmentation."""
+    atlas_file: str | None = None
+    """Path to atlas segmentation file (``dseg.nii[.gz]``)."""
 
-    seg_atlas: str | None = None
-    """Atlas name used for segmentation."""
-
-    seg_desc: str | None = None
-    """Description label for the segmentation."""
-
-    seg_res: str | int | None = None
-    """Resolution of the segmentation or atlas."""
+    tpl_file: str | None = None
+    """Template image corresponding to ``atlas_file``."""
 
     pvc_tool: str | None = None
     """Tool used for partial volume correction."""
