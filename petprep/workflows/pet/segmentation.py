@@ -363,8 +363,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             [
                 (tpl_source, reg, [('tpl_file', 'moving_image')]),
                 (inputnode, reg, [('t1w_preproc', 'fixed_image')]),
-                (reg, warp_atlas, [('forward_transforms', 'transforms')]),
-                (reg, warp_tpl, [('forward_transforms', 'transforms')]),
+                (reg, warp_atlas, [('composite_transform', 'transforms')]),
+                (reg, warp_tpl, [('composite_transform', 'transforms')]),
                 (atlas_source, warp_atlas, [('atlas_file', 'input_image')]),
                 (tpl_source, warp_tpl, [('tpl_file', 'input_image')]),
                 (inputnode, warp_atlas, [('t1w_preproc', 'reference_image')]),
