@@ -155,5 +155,5 @@ def test_atlas_custom_name_outputs():
         names = [n.name for n in wf._get_all_nodes()]
 
         assert 'ds_customseg' in names
-        assert 'make_customdsegtsv' in names
-        assert 'make_custommorphtsv' in names
+        assert 'create_custom_dsegtsv' in names
+        assert 'create_custom_morphtsv' in names
