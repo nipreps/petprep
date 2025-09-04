@@ -14,6 +14,7 @@ def test_segmentation_node_selection(tmp_path):
     with mock_config():
         config.workflow.tpl_file = 'tpl.nii.gz'
         config.workflow.atlas_file = 'atlas_dseg.nii.gz'
+        config.workflow.seg = 'atlas'
 
         wf_gtm = init_segmentation_wf('gtm')
         names_gtm = [n.name for n in wf_gtm._get_all_nodes()]
@@ -33,9 +34,18 @@ def test_segmentation_node_selection(tmp_path):
         assert 'atlas_source' in names_atlas
         assert 'warp_atlas' in names_atlas
         assert 'warp_tpl' in names_atlas
-        assert 'ds_atlas_t1w' in names_atlas
         assert 'ds_tpl_t1w' in names_atlas
+        assert 'ds_atlasseg' in names_atlas
+        assert 'ds_atlasdsegtsv' in names_atlas
+        assert 'ds_atlasmorphtsv' in names_atlas
         assert 'segstats_atlas' not in names_atlas
+
+        ds_tpl = wf_atlas.get_node('ds_tpl_t1w')
+        assert ds_tpl.inputs.desc == 'tpl'
+        assert ds_tpl.inputs.suffix == 'T1w'
+
+        ds_seg = wf_atlas.get_node('ds_atlasseg')
+        assert ds_seg.inputs.seg == config.workflow.seg
 
 
 def test_merge_ha_labels(tmp_path):

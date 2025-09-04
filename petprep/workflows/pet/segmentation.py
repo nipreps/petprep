@@ -335,19 +335,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
         warp_tpl = pe.Node(ApplyTransforms(transforms=['identity']), name='warp_tpl')
 
-        ds_atlas = pe.Node(
-            DerivativesDataSink(
-                base_directory=config.execution.petprep_dir,
-                desc='atlas',
-                suffix='T1w',
-                datatype='anat',
-                compress=True,
-            ),
-            name='ds_atlas_t1w',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-
         ds_tpl = pe.Node(
             DerivativesDataSink(
                 base_directory=config.execution.petprep_dir,
@@ -373,9 +360,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, warp_tpl, [('t1w_preproc', 'reference_image')]),
                 (warp_atlas, nodes['convert_seg'], [('output_image', 'in_file')]),
                 (inputnode, nodes['convert_seg'], [('t1w_preproc', 'reslice_like')]),
-                (warp_atlas, ds_atlas, [('output_image', 'in_file')]),
-                (inputnode, ds_atlas, [('t1w_preproc', 'source_file')]),
-                (nodes['sources'], ds_atlas, [('out', 'Sources')]),
                 (warp_tpl, ds_tpl, [('output_image', 'in_file')]),
                 (inputnode, ds_tpl, [('t1w_preproc', 'source_file')]),
                 (nodes['sources'], ds_tpl, [('out', 'Sources')]),
