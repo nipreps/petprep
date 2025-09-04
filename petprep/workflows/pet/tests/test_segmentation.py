@@ -2,6 +2,7 @@ import nibabel as nb
 import numpy as np
 import pytest
 from pathlib import Path
+from nipype.interfaces.base import Undefined
 
 from .... import config
 from ...tests import mock_config
@@ -111,3 +112,17 @@ def test_atlas_file_path():
 
         assert isinstance(atlas_source.inputs.labels_file, str)
         assert atlas_source.inputs.labels_file.endswith('atlas_dseg.tsv')
+
+
+def test_atlas_warp_transforms():
+    """Warp nodes should have transforms defined after initialization."""
+    with mock_config():
+        config.workflow.tpl_file = 'tpl.nii.gz'
+        config.workflow.atlas_file = 'atlas_dseg.nii.gz'
+
+        wf = init_segmentation_wf('atlas')
+        warp_atlas = wf.get_node('warp_atlas')
+        warp_tpl = wf.get_node('warp_tpl')
+
+        assert warp_atlas.inputs.transforms is not Undefined
+        assert warp_tpl.inputs.transforms is not Undefined

@@ -328,10 +328,12 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         ]
         reg.inputs.use_histogram_matching = [True, True, True]
         reg.inputs.write_composite_transform = True
+        # Define warp nodes with an identity transform so the input exists after initialization.
         warp_atlas = pe.Node(
-            ApplyTransforms(interpolation='NearestNeighbor'), name='warp_atlas'
+            ApplyTransforms(transforms=['identity'], interpolation='NearestNeighbor'),
+            name='warp_atlas',
         )
-        warp_tpl = pe.Node(ApplyTransforms(), name='warp_tpl')
+        warp_tpl = pe.Node(ApplyTransforms(transforms=['identity']), name='warp_tpl')
 
         ds_atlas = pe.Node(
             DerivativesDataSink(
