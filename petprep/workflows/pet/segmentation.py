@@ -297,7 +297,10 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         )
         atlas_source.inputs.atlas_file = config.workflow.atlas_file
         if config.workflow.atlas_file:
-            atlas_source.inputs.labels_file = config.workflow.atlas_file.replace('.nii.gz', '.tsv')
+            atlas_path = Path(config.workflow.atlas_file)
+            atlas_source.inputs.labels_file = str(
+                atlas_path.with_name(atlas_path.name.replace('.nii.gz', '.tsv'))
+            )
 
         reg = pe.Node(Registration(), name='tpl_to_t1w')
         warp_atlas = pe.Node(

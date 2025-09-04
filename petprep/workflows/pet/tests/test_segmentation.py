@@ -1,6 +1,7 @@
 import nibabel as nb
 import numpy as np
 import pytest
+from pathlib import Path
 
 from .... import config
 from ...tests import mock_config
@@ -97,3 +98,16 @@ def test_atlas_label_connections():
 
         assert ('labels_file', 'seg_file') in edge_dseg['connect']
         assert ('labels_file', 'seg_file') in edge_morph['connect']
+
+
+def test_atlas_file_path():
+    """Path inputs for atlas_file are accepted."""
+    with mock_config():
+        config.workflow.tpl_file = 'tpl.nii.gz'
+        config.workflow.atlas_file = Path('atlas_dseg.nii.gz')
+
+        wf = init_segmentation_wf('atlas')
+        atlas_source = wf.get_node('atlas_source')
+
+        assert isinstance(atlas_source.inputs.labels_file, str)
+        assert atlas_source.inputs.labels_file.endswith('atlas_dseg.tsv')
