@@ -71,4 +71,7 @@ jobs:
           export PATH="${WORKBENCH_PATH}:${PATH}"
           export FSLDIR="${FSLDIR}"
           export FSL_OUTPUT_TYPE="${FSL_OUTPUT_TYPE}"
-          petprep "${DATA_DIR}" "${DATA_DIR}/derivatives/petprep" participant --fs-license-file "${FREESURFER_HOME}/license.txt" --sloppy --derivatives anat=${DATA_DIR}/derivatives/smriprep --fs-subjects-dir ${DATA_DIR}/derivatives/freesurfer 
+          petprep "${DATA_DIR}" "${DATA_DIR}/derivatives/petprep" participant \
+            --fs-license-file "${FREESURFER_HOME}/license.txt" \
+            --fs-subjects-dir ${DATA_DIR}/derivatives/freesurfer --fs-no-resume \
+            --sloppy -vv --derivatives anat=${DATA_DIR}/derivatives/smriprep
