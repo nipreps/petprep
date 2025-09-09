@@ -61,3 +61,7 @@ jobs:
           cache-to: type=inline
         env:
           TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+
+      - uses: CircleCI-Public/trigger-circleci-pipeline-action@v1.2.0
+        with:
+          GHA_Meta: ${{ github.base_ref || github.ref_name }}
