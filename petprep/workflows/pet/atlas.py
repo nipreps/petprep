@@ -25,7 +25,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from nipype.interfaces import utility as niu
 from nipype.interfaces.ants import Registration
@@ -43,6 +42,7 @@ DEFAULT_MEMORY_MIN_GB = config.DEFAULT_MEMORY_MIN_GB
 
 def _atlas_morph_tsv(segmentation: str, labels_tsv: str) -> str:
     """Generate a TSV table of region volumes from a segmentation."""
+    from pathlib import Path
     import nibabel as nb
     import numpy as np
     import pandas as pd
@@ -125,21 +125,29 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
 
     reg = pe.Node(
         Registration(
-            float=True,
-            output_inverse_warped_image=True,
-            output_warped_image=True,
-            transforms=["Rigid", "Affine"],
-            transform_parameters=[(0.1,), (0.1,)],
-            metric=["MI", "MI"],
-            metric_weight=[1, 1],
-            radius_or_number_of_bins=[32, 32],
-            sampling_strategy=["Regular", "Regular"],
-            sampling_percentage=[0.25, 0.25],
-            convergence_threshold=[1e-6, 1e-6],
-            convergence_window_size=[10, 10],
-            number_of_iterations=[[1000, 500, 250, 100]] * 2,
-            shrink_factors=[[8, 4, 2, 1]] * 2,
-            smoothing_sigmas=[[3, 2, 1, 0]] * 2,
+            transforms=['Rigid', 'Affine', 'SyN'],
+            transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
+            metric=['Mattes', 'Mattes', 'CC'],
+            metric_weight=[1, 1, 1],
+            radius_or_number_of_bins=[32, 32, 4],
+            sampling_strategy=['Regular', 'Regular', None],
+            sampling_percentage=[0.25, 0.25, None],
+            sigma_units=['vox', 'vox', 'vox'],
+            number_of_iterations=[
+                [1000, 500, 250, 0],
+                [1000, 500, 250, 0],
+                [100, 70, 50, 10],
+            ],
+            shrink_factors=[
+                [8, 4, 2, 1],
+                [8, 4, 2, 1],
+                [8, 4, 2, 1],
+            ],
+            smoothing_sigmas=[
+                [3, 2, 1, 0],
+                [3, 2, 1, 0],
+                [3, 2, 1, 0],
+            ],
             use_histogram_matching=True,
             write_composite_transform=True,
         ),
