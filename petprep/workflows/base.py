@@ -272,6 +272,13 @@ It is released under the [CC0]\
                 )
             )
 
+    if atlas_tpl:
+        atlas_xfm = anatomical_cache.get('std2anat_xfm', {}).get(atlas_tpl)
+        if atlas_xfm is not None:
+            anatomical_cache['mni2009c2anat_xfm'] = atlas_xfm
+        else:
+            spaces.add(Reference(atlas_tpl, {}))
+
     inputnode = pe.Node(niu.IdentityInterface(fields=['subjects_dir']), name='inputnode')
 
     bidssrc = pe.Node(
