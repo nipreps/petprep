@@ -21,6 +21,7 @@ from .ref_tacs import init_pet_ref_tacs_wf
 from .registration import init_pet_reg_wf
 from .resampling import init_pet_surf_wf
 from .tacs import init_pet_tacs_wf
+from .atlas import init_atlas_wf
 
 __all__ = [
     'init_pet_confs_wf',
@@ -29,4 +30,5 @@ __all__ = [
     'init_pet_surf_wf',
     'init_pet_tacs_wf',
     'init_pet_ref_tacs_wf',
+    'init_atlas_wf',
 ]
