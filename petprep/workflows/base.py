@@ -391,19 +391,17 @@ It is released under the [CC0]\
 
     # Set up the template iterator once, if used
     template_iterator_wf = None
-    select_atlas_tpl_xfm = None
-    if atlas_tpl and atlas_tpl in spaces.get_spaces():
-        select_atlas_tpl_xfm = pe.Node(
-            KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
-            name='select_atlas_tpl_xfm',
-            run_without_submitting=True,
-        )
-        workflow.connect([
-            (anat_fit_wf, select_atlas_tpl_xfm, [
-                ('outputnode.std2anat_xfm', 'std2anat_xfm'),
-                ('outputnode.template', 'keys'),
-            ]),
-        ])  # fmt:skip
+    select_atlas_tpl_xfm = pe.Node(
+        KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
+        name='select_atlas_tpl_xfm',
+        run_without_submitting=True,
+    )
+    workflow.connect([
+        (anat_fit_wf, select_atlas_tpl_xfm, [
+            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+            ('outputnode.template', 'keys'),
+        ]),
+    ])  # fmt:skip
     if config.workflow.level == 'full':
         if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
             template_iterator_wf = init_template_iterator_wf(
@@ -556,22 +554,10 @@ It is released under the [CC0]\
             config_file=str(atlas_config),
             name=f'pet_{config.workflow.atlas}_atlas_wf',
         )
-        workflow.connect(
-            [
-                (anat_fit_wf, seg_wf, [('outputnode.t1w_preproc', 'inputnode.t1w_preproc')]),
-            ]
-        )
-
-        if select_atlas_tpl_xfm is not None:
-            workflow.connect(
-                [
-                    (
-                        select_atlas_tpl_xfm,
-                        seg_wf,
-                        [('std2anat_xfm', 'inputnode.tpl2anat_xfm')],
-                    ),
-                ]
-            )
+        workflow.connect([
+            (anat_fit_wf, seg_wf, [('outputnode.t1w_preproc', 'inputnode.t1w_preproc')]),
+            (select_atlas_tpl_xfm, seg_wf, [('std2anat_xfm', 'inputnode.tpl2anat_xfm')]),
+        ])
     else:
         seg_wf = init_segmentation_wf(
             seg=config.workflow.seg,
@@ -693,7 +679,7 @@ segmented with the {seg_ref}."""
                     ]),
                 ])  # fmt:skip
 
-            if select_atlas_tpl_xfm is not None:
+            if config.workflow.atlas:
                 workflow.connect([
                     (select_atlas_tpl_xfm, pet_wf, [
                         ('std2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
