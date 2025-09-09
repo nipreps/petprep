@@ -32,6 +32,7 @@ PETPrep base processing workflows
 import os
 import sys
 import warnings
+import json
 from copy import deepcopy
 
 from nipype.interfaces import utility as niu
@@ -531,9 +532,10 @@ It is released under the [CC0]\
         except Exception:  # pragma: no cover - Py<3.9 fallback
             from importlib_resources import files as ir_files
 
+        atlas_config = ir_files('petprep.data.atlas') / 'config.json'
         seg_wf = init_atlas_wf(
             atlas=config.workflow.atlas,
-            config_file=str(ir_files('petprep.data.atlas') / 'config.json'),
+            config_file=str(atlas_config),
             name=f'pet_{config.workflow.atlas}_atlas_wf',
         )
         workflow.connect(
@@ -541,6 +543,36 @@ It is released under the [CC0]\
                 (anat_fit_wf, seg_wf, [('outputnode.t1w_preproc', 'inputnode.t1w_preproc')]),
             ]
         )
+
+        atlas_tpl = (
+            json.loads(atlas_config.read_text())
+            .get(config.workflow.atlas, {})
+            .get('atlas', {})
+            .get('tpl')
+        )
+        if atlas_tpl and atlas_tpl in spaces.get_spaces():
+            select_atlas_tpl_xfm = pe.Node(
+                KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
+                name='select_atlas_tpl_xfm',
+                run_without_submitting=True,
+            )
+            workflow.connect(
+                [
+                    (
+                        anat_fit_wf,
+                        select_atlas_tpl_xfm,
+                        [
+                            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+                            ('outputnode.template', 'keys'),
+                        ],
+                    ),
+                    (
+                        select_atlas_tpl_xfm,
+                        seg_wf,
+                        [('std2anat_xfm', 'inputnode.tpl2anat_xfm')],
+                    ),
+                ]
+            )
     else:
         seg_wf = init_segmentation_wf(
             seg=config.workflow.seg,

@@ -150,7 +150,10 @@ def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
         from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 
         wf = Workflow(name=name)
-        inputnode = pe.Node(niu.IdentityInterface(fields=['t1w_preproc']), name='inputnode')
+        inputnode = pe.Node(
+            niu.IdentityInterface(fields=['t1w_preproc', 'tpl2anat_xfm']),
+            name='inputnode',
+        )
         outputnode = pe.Node(
             niu.IdentityInterface(fields=['segmentation', 'dseg_tsv']),
             name='outputnode',
@@ -161,7 +164,7 @@ def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
     monkeypatch.setattr('petprep.workflows.pet.init_atlas_wf', _dummy_atlas_wf)
 
     with mock_config(bids_dir=multisession_bids_root):
-        config.workflow.atlas = 'foo'
+        config.workflow.atlas = 'DKT31'
         wf = init_single_subject_wf('01')
 
     flatgraph = wf._create_flat_graph()
@@ -185,6 +188,10 @@ def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
         assert ('outputnode.segmentation', 'inputnode.segmentation') in edge['connect']
         assert ('outputnode.dseg_tsv', 'inputnode.dseg_tsv') in edge['connect']
         assert all('_atlas_wf' not in n for n in pet_node.list_node_names())
+
+    select_node = wf.get_node('select_atlas_tpl_xfm')
+    edge = wf._graph.get_edge_data(select_node, atlas_node)
+    assert ('std2anat_xfm', 'inputnode.tpl2anat_xfm') in edge['connect']
 
     pet_node = wf.get_node(pet_wf_names[0])
     assert config.workflow.atlas in pet_node.__desc__
