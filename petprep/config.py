@@ -599,7 +599,8 @@ class workflow(_Config):
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
-
+    atlas: str | None = None
+    """Atlas defining regional segmentation. If set, FreeSurfer segmentation is skipped."""
     pvc_tool: str | None = None
     """Tool used for partial volume correction."""
     pvc_method: str | None = None

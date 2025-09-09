@@ -554,6 +554,13 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Segmentation method to use.',
     )
 
+    g_seg.add_argument(
+        '--atlas',
+        action='store',
+        default=None,
+        help='Atlas to use for segmentation instead of FreeSurfer.',
+    )
+
     g_refmask = parser.add_argument_group('Options for reference mask generation')
     g_refmask.add_argument(
         '--ref-mask-name',
@@ -726,6 +733,10 @@ def parse_args(args=None, namespace=None):
 
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+
+    if opts.atlas is not None:
+        config.workflow.atlas = opts.atlas
+        config.workflow.seg = None
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):

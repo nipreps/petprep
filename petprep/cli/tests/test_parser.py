@@ -158,6 +158,24 @@ def test_parse_args(tmp_path, minimal_bids):
     _reset_config()
 
 
+def test_atlas_overrides_seg(tmp_path, minimal_bids):
+    """Ensure --atlas sets atlas and disables segmentation."""
+    out_dir = tmp_path / 'out'
+    parse_args(
+        args=[
+            str(minimal_bids),
+            str(out_dir),
+            'participant',
+            '--skip-bids-validation',
+            '--atlas',
+            'MyAtlas',
+        ]
+    )
+    assert config.workflow.atlas == 'MyAtlas'
+    assert config.workflow.seg is None
+    _reset_config()
+
+
 def test_bids_filter_file(tmp_path, capsys):
     bids_path = tmp_path / 'data'
     out_path = tmp_path / 'out'
