@@ -692,14 +692,19 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         Path(pet_file).with_suffix('').with_suffix('.json')
     )
 
+    entity = (
+        ('seg', config.workflow.atlas)
+        if config.workflow.atlas
+        else ('seg', config.workflow.seg)
+    )
     ds_pet_tacs = pe.Node(
         DerivativesDataSink(
             base_directory=petprep_dir,
             suffix='tacs',
-            seg=config.workflow.seg,
             desc='preproc',
-            allowed_entities=('seg',),
+            allowed_entities=(entity[0],),
             TaskName=all_metadata[0].get('TaskName'),
+            **{entity[0]: entity[1]},
             **prepare_timing_parameters(all_metadata[0]),
         ),
         name='ds_pet_tacs',
@@ -726,15 +731,21 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         )
         pet_ref_tacs_wf.inputs.inputnode.ref_mask_name = config.workflow.ref_mask_name
 
+        entity = (
+            ('seg', config.workflow.atlas)
+            if config.workflow.atlas
+            else ('seg', config.workflow.seg)
+        )
+
         ds_ref_tacs = pe.Node(
             DerivativesDataSink(
                 base_directory=petprep_dir,
                 suffix='tacs',
-                seg=config.workflow.seg,
                 desc='preproc',
                 ref=config.workflow.ref_mask_name,
-                allowed_entities=('seg', 'ref'),
+                allowed_entities=(entity[0], 'ref'),
                 TaskName=all_metadata[0].get('TaskName'),
+                **{entity[0]: entity[1]},
                 **prepare_timing_parameters(all_metadata[0]),
             ),
             name='ds_ref_tacs',

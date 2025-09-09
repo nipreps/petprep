@@ -254,6 +254,31 @@ def test_pet_ref_tacs_wf_connections(bids_root: Path):
     assert ('outputnode.timeseries', 'in_file') in edge_ds['connect']
 
 
+def test_seg_entity_freesurfer(bids_root: Path):
+    """TACs datasinks use FreeSurfer segmentation metadata by default."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.ref_mask_name = 'cerebellum'
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert wf.get_node('ds_pet_tacs').inputs.seg == config.workflow.seg
+    assert wf.get_node('ds_ref_tacs').inputs.seg == config.workflow.seg
+
+
+def test_seg_entity_atlas(bids_root: Path):
+    """TACs datasinks use atlas metadata when configured."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.atlas = 'foo'
+        config.workflow.ref_mask_name = 'cerebellum'
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert wf.get_node('ds_pet_tacs').inputs.seg == config.workflow.atlas
+    assert wf.get_node('ds_ref_tacs').inputs.seg == config.workflow.atlas
+
+
 def test_psf_metadata_propagation(bids_root: Path):
     """PSF values should be passed to datasinks when using AGTM."""
     pet_series = _prep_pet_series(bids_root)
