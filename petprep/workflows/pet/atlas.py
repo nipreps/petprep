@@ -84,11 +84,33 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
         Label table for the atlas.
     """
     with open(config_file) as f:
-        cfg = json.load(f)
+       data = json.load(f)
 
-    template_t1w = str(get_template(**cfg["t1w"]))
-    atlas_img = str(get_template(atlas=atlas, **cfg["atlas"]))
-    labels_tsv = str(get_template(atlas=atlas, **cfg["labels"]))
+    if atlas not in data:
+        raise ValueError(
+            f"Atlas '{atlas}' not found in {config_file}. "
+            f"Available atlases: {', '.join(sorted(data.keys()))}"
+        )
+
+    cfg = data[atlas]
+    required = {"t1w", "atlas", "labels"}
+    missing = required - cfg.keys()
+    if missing:
+        raise ValueError(
+            f"Atlas '{atlas}' missing required keys: {', '.join(sorted(missing))}"
+        )
+
+    def _tf_kwargs(d: dict) -> dict:
+        out = dict(d)
+        if "tpl" in out:
+            out["template"] = out.pop("tpl")
+        if "res" in out:
+            out["resolution"] = out.pop("res")
+        return out
+
+    template_t1w = str(get_template(**_tf_kwargs(cfg["t1w"])))
+    atlas_img = str(get_template(**_tf_kwargs(cfg["atlas"])))
+    labels_tsv = str(get_template(**_tf_kwargs(cfg["labels"])))
 
     workflow = Workflow(name=name)
 

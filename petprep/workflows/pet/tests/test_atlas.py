@@ -1,8 +1,8 @@
-import json
-
 import nibabel as nb
 import numpy as np
 import pandas as pd
+import pytest
+from importlib.resources import files as ir_files
 
 from petprep import config
 from ..atlas import init_atlas_wf, _atlas_morph_tsv
@@ -20,18 +20,12 @@ def test_init_atlas_wf_build(tmp_path, monkeypatch):
     labels_file = tmp_path / 'labels.tsv'
     labels_file.write_text('index\tname\n0\tbackground\n')
 
-    cfg = {
-        't1w': {'suffix': 'T1w'},
-        'atlas': {'suffix': 'dseg'},
-        'labels': {'suffix': 'dseg', 'extension': '.tsv'},
-    }
-    cfg_file = tmp_path / 'cfg.json'
-    cfg_file.write_text(json.dumps(cfg))
+    cfg_file = ir_files('petprep.data.atlas') / 'config.json'
 
     def fake_get(**kwargs):
         if kwargs.get('suffix') == 'T1w':
             return str(t1_file)
-        if kwargs.get('extension') == '.tsv':
+        if kwargs.get('extension') == 'tsv':
             return str(labels_file)
         return str(atlas_file)
 
@@ -40,13 +34,22 @@ def test_init_atlas_wf_build(tmp_path, monkeypatch):
     config.execution.petprep_dir = tmp_path
     config.execution.dataset_links = {}
 
-    wf = init_atlas_wf(atlas='foo', config_file=str(cfg_file))
+    wf = init_atlas_wf(
+        atlas='MIAL67ThalamicNuclei',
+        config_file=str(cfg_file),
+    )
     node_names = [n.name for n in wf._get_all_nodes()]
     assert 'apply_atlas' in node_names
     assert wf.get_node('label_source').inputs.dseg_tsv == str(labels_file)
-    assert wf.get_node('ds_seg').inputs.seg == 'foo'
-    assert wf.get_node('ds_dseg_tsv').inputs.seg == 'foo'
-    assert wf.get_node('ds_morph_tsv').inputs.seg == 'foo'
+    assert wf.get_node('ds_seg').inputs.seg == 'MIAL67ThalamicNuclei'
+    assert wf.get_node('ds_dseg_tsv').inputs.seg == 'MIAL67ThalamicNuclei'
+    assert wf.get_node('ds_morph_tsv').inputs.seg == 'MIAL67ThalamicNuclei'
+
+
+def test_init_atlas_wf_bad_name(tmp_path):
+    cfg_file = ir_files('petprep.data.atlas') / 'config.json'
+    with pytest.raises(ValueError, match="not found"):
+        init_atlas_wf(atlas='notreal', config_file=str(cfg_file))
 
 
 def test_atlas_morph_tsv(tmp_path):

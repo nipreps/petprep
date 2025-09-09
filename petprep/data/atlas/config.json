@@ -1,8 +1,24 @@
 {
   "MIAL67ThalamicNuclei": {
-    "tpl": "MNI152NLin2009cAsym",
-    "template_file": "tpl-MNI152NLin2009cAsym_res-01_desc-brain_T1w.nii.gz",
-    "atlas_file": "tpl-MNI152NLin2009cAsym_res-01_atlas-MIAL67ThalamicNuclei_dseg.nii.gz",
-    "label_file": "tpl-MNI152NLin2009cAsym_atlas-MIAL67ThalamicNuclei_dseg.tsv"
+   "t1w": {
+      "tpl": "MNI152NLin2009cAsym",
+      "desc": "brain",
+      "suffix": "T1w",
+      "res": "01",
+      "extension": "nii.gz"
+    },
+    "atlas": {
+      "tpl": "MNI152NLin2009cAsym",
+      "atlas": "MIAL67ThalamicNuclei",
+      "suffix": "dseg",
+      "res": "01",
+      "extension": "nii.gz"
+    },
+    "labels": {
+      "tpl": "MNI152NLin2009cAsym",
+      "atlas": "MIAL67ThalamicNuclei",
+      "suffix": "dseg",
+      "extension": "tsv"
+    }
   }
 }
