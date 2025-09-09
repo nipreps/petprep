@@ -141,6 +141,7 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
             shrink_factors=[[8, 4, 2, 1]] * 2,
             smoothing_sigmas=[[3, 2, 1, 0]] * 2,
             use_histogram_matching=True,
+            write_composite_transform=True,
         ),
         name="t1_to_tpl",
     )
