@@ -109,6 +109,45 @@ def fetch_fsLR():
     tf.get('fsLR', density='32k')
 
 
+def fetch_SUIT():
+    """
+    Expected templates:
+
+    tpl-SUIT/tpl-SUIT_T1w.nii.gz
+    tpl-SUIT/tpl-SUIT_atlas-Diedrichsen2009_dseg.nii.gz
+    tpl-SUIT/tpl-SUIT_atlas-Diedrichsen2009_dseg.tsv
+    tpl-SUIT/tpl-SUIT_atlas-Buckner2011_seg-7n_dseg.nii.gz
+    tpl-SUIT/tpl-SUIT_atlas-Buckner2011_seg-7n_dseg.tsv
+    tpl-SUIT/tpl-SUIT_atlas-Buckner2011_seg-17n_dseg.nii.gz
+    tpl-SUIT/tpl-SUIT_atlas-Buckner2011_seg-17n_dseg.tsv
+    """
+    template = 'SUIT'
+
+    tf.get(template, suffix='T1w')
+    tf.get(template, atlas='Diedrichsen2009', suffix='dseg')
+    tf.get(template, atlas='Diedrichsen2009', suffix='dseg', extension='tsv')
+
+    tf.get(template, atlas='Buckner2011', seg='7n', suffix='dseg', invalid_filters='allow')
+    tf.get(
+        template,
+        atlas='Buckner2011',
+        seg='7n',
+        suffix='dseg',
+        extension='tsv',
+        invalid_filters='allow',
+    )
+
+    tf.get(template, atlas='Buckner2011', seg='17n', suffix='dseg', invalid_filters='allow')
+    tf.get(
+        template,
+        atlas='Buckner2011',
+        seg='17n',
+        suffix='dseg',
+        extension='tsv',
+        invalid_filters='allow',
+    )
+
+
 def fetch_all():
     fetch_MNI2009()
     fetch_MNI6()
