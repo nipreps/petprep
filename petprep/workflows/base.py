@@ -239,11 +239,29 @@ It is released under the [CC0]\
     spaces = config.workflow.spaces
     msm_sulc = config.workflow.run_msmsulc
 
+    atlas_config = None
+    atlas_tpl = None
+    if config.workflow.atlas:
+        try:  # Py>=3.9
+            from importlib.resources import files as ir_files
+        except Exception:  # pragma: no cover - Py<3.9 fallback
+            from importlib_resources import files as ir_files
+
+        atlas_config = ir_files('petprep.data.atlas') / 'config.json'
+        atlas_tpl = (
+            json.loads(atlas_config.read_text())
+            .get(config.workflow.atlas, {})
+            .get('atlas', {})
+            .get('tpl')
+        )
+
     anatomical_cache = {}
     if config.execution.derivatives:
         from smriprep.utils.bids import collect_derivatives as collect_anat_derivatives
 
         std_spaces = spaces.get_spaces(nonstandard=False, dim=(3,))
+        if atlas_tpl and atlas_tpl not in std_spaces:
+            std_spaces.append(atlas_tpl)
         std_spaces.append('fsnative')
         for deriv_dir in config.execution.derivatives.values():
             anatomical_cache.update(
@@ -366,7 +384,19 @@ It is released under the [CC0]\
 
     # Set up the template iterator once, if used
     template_iterator_wf = None
-    select_MNI2009c_xfm = None
+    select_atlas_tpl_xfm = None
+    if atlas_tpl and atlas_tpl in spaces.get_spaces():
+        select_atlas_tpl_xfm = pe.Node(
+            KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
+            name='select_atlas_tpl_xfm',
+            run_without_submitting=True,
+        )
+        workflow.connect([
+            (anat_fit_wf, select_atlas_tpl_xfm, [
+                ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+                ('outputnode.template', 'keys'),
+            ]),
+        ])  # fmt:skip
     if config.workflow.level == 'full':
         if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
             template_iterator_wf = init_template_iterator_wf(
@@ -395,19 +425,6 @@ It is released under the [CC0]\
                     ('outputnode.space', 'inputnode.space'),
                     ('outputnode.cohort', 'inputnode.cohort'),
                     ('outputnode.resolution', 'inputnode.resolution'),
-                ]),
-            ])  # fmt:skip
-
-        if 'MNI152NLin2009cAsym' in spaces.get_spaces():
-            select_MNI2009c_xfm = pe.Node(
-                KeySelect(fields=['std2anat_xfm'], key='MNI152NLin2009cAsym'),
-                name='select_MNI2009c_xfm',
-                run_without_submitting=True,
-            )
-            workflow.connect([
-                (anat_fit_wf, select_MNI2009c_xfm, [
-                    ('outputnode.std2anat_xfm', 'std2anat_xfm'),
-                    ('outputnode.template', 'keys'),
                 ]),
             ])  # fmt:skip
 
@@ -527,12 +544,6 @@ It is released under the [CC0]\
             ])  # fmt:skip
 
     if config.workflow.atlas:
-        try:  # Py>=3.9
-            from importlib.resources import files as ir_files
-        except Exception:  # pragma: no cover - Py<3.9 fallback
-            from importlib_resources import files as ir_files
-
-        atlas_config = ir_files('petprep.data.atlas') / 'config.json'
         seg_wf = init_atlas_wf(
             atlas=config.workflow.atlas,
             config_file=str(atlas_config),
@@ -544,28 +555,9 @@ It is released under the [CC0]\
             ]
         )
 
-        atlas_tpl = (
-            json.loads(atlas_config.read_text())
-            .get(config.workflow.atlas, {})
-            .get('atlas', {})
-            .get('tpl')
-        )
-        if atlas_tpl and atlas_tpl in spaces.get_spaces():
-            select_atlas_tpl_xfm = pe.Node(
-                KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
-                name='select_atlas_tpl_xfm',
-                run_without_submitting=True,
-            )
+        if select_atlas_tpl_xfm is not None:
             workflow.connect(
                 [
-                    (
-                        anat_fit_wf,
-                        select_atlas_tpl_xfm,
-                        [
-                            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
-                            ('outputnode.template', 'keys'),
-                        ],
-                    ),
                     (
                         select_atlas_tpl_xfm,
                         seg_wf,
@@ -694,9 +686,9 @@ segmented with the {seg_ref}."""
                     ]),
                 ])  # fmt:skip
 
-            if select_MNI2009c_xfm is not None:
+            if select_atlas_tpl_xfm is not None:
                 workflow.connect([
-                    (select_MNI2009c_xfm, pet_wf, [
+                    (select_atlas_tpl_xfm, pet_wf, [
                         ('std2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
                     ]),
                 ])  # fmt:skip
