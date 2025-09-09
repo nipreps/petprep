@@ -408,8 +408,14 @@ def init_pet_fit_wf(
             f'PET Stage 4: Generating {config.workflow.ref_mask_name} reference mask'
         )
 
+        entity = (
+            ('seg', config.workflow.atlas)
+            if config.workflow.atlas
+            else ('seg', config.workflow.seg)
+        )
+
         refmask_wf = init_pet_refmask_wf(
-            segmentation=config.workflow.seg,
+            segmentation=entity[1],
             ref_mask_name=config.workflow.ref_mask_name,
             ref_mask_index=list(config.workflow.ref_mask_index)
             if config.workflow.ref_mask_index
@@ -443,11 +449,11 @@ def init_pet_fit_wf(
                 DerivativesDataSink(
                     base_directory=config.execution.petprep_dir,
                     suffix='tacs',
-                    seg=config.workflow.seg,
                     desc='preproc',
                     ref=config.workflow.ref_mask_name,
-                    allowed_entities=('seg', 'ref'),
+                    allowed_entities=(entity[0], 'ref'),
                     TaskName=metadata.get('TaskName'),
+                    **{entity[0]: entity[1]},
                     **timing_parameters,
                 ),
                 name='ds_ref_tacs',

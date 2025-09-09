@@ -255,6 +255,42 @@ def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method)
         assert 'ds_ref_tacs' not in wf.list_node_names()
 
 
+def test_seg_entity_atlas(bids_root: Path, tmp_path: Path):
+    """Reference outputs use atlas metadata when configured."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    dummy_ref = str(tmp_path / 'dummy.nii')
+    dummy_xfm = str(tmp_path / 'dummy.txt')
+    img.to_filename(dummy_ref)
+    np.savetxt(dummy_xfm, np.eye(4))
+    precomputed = {
+        'petref': dummy_ref,
+        'transforms': {'hmc': dummy_xfm, 'petref2anat': dummy_xfm},
+    }
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.atlas = 'foo'
+        config.workflow.ref_mask_name = 'cerebellum'
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed=precomputed,
+            omp_nthreads=1,
+        )
+
+    extract = wf.get_node('pet_refmask_wf').get_node('extract_refregion')
+    assert extract.inputs.segmentation_type == config.workflow.atlas
+    ds_tacs = wf.get_node('ds_ref_tacs')
+    assert ds_tacs.inputs.seg == config.workflow.atlas
+    edge = wf._graph.get_edge_data(wf.get_node('inputnode'), wf.get_node('pet_refmask_wf'))
+    assert ('segmentation', 'inputnode.seg_file') in edge['connect']
+
+
 def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     """Stage 1 should run only when HMC derivatives are missing."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
