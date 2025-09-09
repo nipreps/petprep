@@ -1,4 +1,71 @@
 {
+    "Buckner201117n": {
+    "atlas": {
+      "atlas": "Buckner2011",
+      "seg": "17n",
+      "extension": "nii.gz",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "labels": {
+      "atlas": "Buckner2011",
+      "seg": "17n",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "SUIT"
+    }
+  },
+  "Buckner20117n": {
+    "atlas": {
+      "atlas": "Buckner2011",
+      "seg": "7n",
+      "extension": "nii.gz",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "labels": {
+      "atlas": "Buckner2011",
+      "seg": "7n",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "SUIT"
+    }
+  },
+  "Diedrichsen2009": {
+    "atlas": {
+      "atlas": "Diedrichsen2009",
+      "extension": "nii.gz",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "labels": {
+      "atlas": "Diedrichsen2009",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "SUIT"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "SUIT"
+    }
+  },
   "DKT31": {
     "atlas": {
       "desc": "DKT31",
