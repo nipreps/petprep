@@ -59,7 +59,12 @@ def _atlas_morph_tsv(segmentation: str, labels_tsv: str) -> str:
     return str(out_file)
 
 
-def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> Workflow:
+def init_atlas_wf(
+    atlas: str,
+    config_file: str,
+    tpl2anat_xfm: str | None = None,
+    name: str = "pet_atlas_wf",
+) -> Workflow:
     """Map a template atlas into T1w space and compute regional volumes.
 
     Parameters
@@ -68,6 +73,10 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
         Name of atlas (used in outputs and TemplateFlow queries).
     config_file : :class:`str`
         JSON file with query parameters for TemplateFlow ``get`` calls.
+    tpl2anat_xfm : :class:`str`, optional
+        Precomputed transform from template space to T1w space. When
+        provided, template-to-anatomical registration is skipped and this
+        transform is used directly to map the atlas into T1w space.
     name : :class:`str`
         Workflow name (default: ``pet_atlas_wf``).
 
@@ -75,6 +84,9 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
     ------
     t1w_preproc
         Preprocessed T1-weighted image.
+    tpl2anat_xfm
+        (Optional) Transform from template space to T1w space. If defined,
+        it will be used instead of estimating a new registration.
 
     Outputs
     -------
@@ -114,7 +126,12 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
 
     workflow = Workflow(name=name)
 
-    inputnode = pe.Node(niu.IdentityInterface(fields=["t1w_preproc"]), name="inputnode")
+    inputnode = pe.Node(
+        niu.IdentityInterface(fields=["t1w_preproc", "tpl2anat_xfm"]),
+        name="inputnode",
+    )
+    if tpl2anat_xfm:
+        inputnode.inputs.tpl2anat_xfm = tpl2anat_xfm
     outputnode = pe.Node(
         niu.IdentityInterface(fields=["segmentation", "dseg_tsv"]),
         name="outputnode",
@@ -123,37 +140,41 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
     label_source = pe.Node(niu.IdentityInterface(fields=["dseg_tsv"]), name="label_source")
     label_source.inputs.dseg_tsv = labels_tsv
 
-    reg = pe.Node(
-        Registration(
-            transforms=['Rigid', 'Affine', 'SyN'],
-            transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
-            metric=['Mattes', 'Mattes', 'CC'],
-            metric_weight=[1, 1, 1],
-            radius_or_number_of_bins=[32, 32, 4],
-            sampling_strategy=['Regular', 'Regular', None],
-            sampling_percentage=[0.25, 0.25, None],
-            sigma_units=['vox', 'vox', 'vox'],
-            number_of_iterations=[
-                [1000, 500, 250, 0],
-                [1000, 500, 250, 0],
-                [100, 70, 50, 10],
-            ],
-            shrink_factors=[
-                [8, 4, 2, 1],
-                [8, 4, 2, 1],
-                [8, 4, 2, 1],
-            ],
-            smoothing_sigmas=[
-                [3, 2, 1, 0],
-                [3, 2, 1, 0],
-                [3, 2, 1, 0],
-            ],
-            use_histogram_matching=True,
-            write_composite_transform=True,
-        ),
-        name="t1_to_tpl",
-    )
-    reg.inputs.fixed_image = template_t1w
+    # Decide whether to compute template-to-anatomical registration or reuse a provided transform
+    if not tpl2anat_xfm:
+        reg = pe.Node(
+            Registration(
+                transforms=['Rigid', 'Affine', 'SyN'],
+                transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
+                metric=['Mattes', 'Mattes', 'CC'],
+                metric_weight=[1, 1, 1],
+                radius_or_number_of_bins=[32, 32, 4],
+                sampling_strategy=['Regular', 'Regular', None],
+                sampling_percentage=[0.25, 0.25, None],
+                sigma_units=['vox', 'vox', 'vox'],
+                number_of_iterations=[
+                    [1000, 500, 250, 0],
+                    [1000, 500, 250, 0],
+                    [100, 70, 50, 10],
+                ],
+                shrink_factors=[
+                    [8, 4, 2, 1],
+                    [8, 4, 2, 1],
+                    [8, 4, 2, 1],
+                ],
+                smoothing_sigmas=[
+                    [3, 2, 1, 0],
+                    [3, 2, 1, 0],
+                    [3, 2, 1, 0],
+                ],
+                use_histogram_matching=True,
+                write_composite_transform=True,
+            ),
+            name="t1_to_tpl",
+        )
+        reg.inputs.fixed_image = template_t1w
+    else:
+        reg = None
 
     apply_inv = pe.Node(ApplyTransforms(interpolation="NearestNeighbor"), name="apply_atlas")
     apply_inv.inputs.input_image = atlas_img
@@ -221,25 +242,33 @@ def init_atlas_wf(atlas: str, config_file: str, name: str = "pet_atlas_wf") -> W
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
 
-    workflow.connect(
-        [
-            (inputnode, reg, [("t1w_preproc", "moving_image")]),
-            (reg, apply_inv, [("inverse_composite_transform", "transforms")]),
-            (inputnode, apply_inv, [("t1w_preproc", "reference_image")]),
-            (apply_inv, outputnode, [("output_image", "segmentation")]),
-            (label_source, outputnode, [("dseg_tsv", "dseg_tsv")]),
-            (inputnode, sources, [("t1w_preproc", "in1")]),
-            (apply_inv, ds_seg, [("output_image", "in_file")]),
-            (inputnode, ds_seg, [("t1w_preproc", "source_file")]),
-            (sources, ds_seg, [("out", "Sources")]),
-            (label_source, ds_dseg_tsv, [("dseg_tsv", "in_file")]),
-            (inputnode, ds_dseg_tsv, [("t1w_preproc", "source_file")]),
-            (sources, ds_dseg_tsv, [("out", "Sources")]),
-            (apply_inv, gen_morph, [("output_image", "segmentation")]),
-            (gen_morph, ds_morph_tsv, [("out_file", "in_file")]),
-            (inputnode, ds_morph_tsv, [("t1w_preproc", "source_file")]),
-            (sources, ds_morph_tsv, [("out", "Sources")]),
-        ]
-    )  # fmt:skip
+    connections = [
+        (inputnode, apply_inv, [("t1w_preproc", "reference_image")]),
+        (apply_inv, outputnode, [("output_image", "segmentation")]),
+        (label_source, outputnode, [("dseg_tsv", "dseg_tsv")]),
+        (inputnode, sources, [("t1w_preproc", "in1")]),
+        (apply_inv, ds_seg, [("output_image", "in_file")]),
+        (inputnode, ds_seg, [("t1w_preproc", "source_file")]),
+        (sources, ds_seg, [("out", "Sources")]),
+        (label_source, ds_dseg_tsv, [("dseg_tsv", "in_file")]),
+        (inputnode, ds_dseg_tsv, [("t1w_preproc", "source_file")]),
+        (sources, ds_dseg_tsv, [("out", "Sources")]),
+        (apply_inv, gen_morph, [("output_image", "segmentation")]),
+        (gen_morph, ds_morph_tsv, [("out_file", "in_file")]),
+        (inputnode, ds_morph_tsv, [("t1w_preproc", "source_file")]),
+        (sources, ds_morph_tsv, [("out", "Sources")]),
+    ]
+
+    if reg is not None:
+        connections.extend(
+            [
+                (inputnode, reg, [("t1w_preproc", "moving_image")]),
+                (reg, apply_inv, [("inverse_composite_transform", "transforms")]),
+            ]
+        )
+    else:
+        connections.append((inputnode, apply_inv, [("tpl2anat_xfm", "transforms")]))
+
+    workflow.connect(connections)  # fmt:skip
 
     return workflow

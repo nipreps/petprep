@@ -46,6 +46,46 @@ def test_init_atlas_wf_build(tmp_path, monkeypatch):
     assert wf.get_node('ds_morph_tsv').inputs.seg == 'MIAL67ThalamicNuclei'
 
 
+def test_init_atlas_wf_with_xfm(tmp_path, monkeypatch):
+    t1_img = nb.Nifti1Image(np.zeros((2, 2, 2)), np.eye(4))
+    t1_file = tmp_path / 't1w.nii.gz'
+    t1_img.to_filename(t1_file)
+
+    atlas_img = nb.Nifti1Image(np.zeros((2, 2, 2)), np.eye(4))
+    atlas_file = tmp_path / 'atlas.nii.gz'
+    atlas_img.to_filename(atlas_file)
+
+    labels_file = tmp_path / 'labels.tsv'
+    labels_file.write_text('index\tname\n0\tbackground\n')
+
+    cfg_file = ir_files('petprep.data.atlas') / 'config.json'
+
+    def fake_get(**kwargs):
+        if kwargs.get('suffix') == 'T1w':
+            return str(t1_file)
+        if kwargs.get('extension') == 'tsv':
+            return str(labels_file)
+        return str(atlas_file)
+
+    monkeypatch.setattr('petprep.workflows.pet.atlas.get_template', fake_get)
+
+    config.execution.petprep_dir = tmp_path
+    config.execution.dataset_links = {}
+
+    xfm = tmp_path / 'tpl2anat.txt'
+    xfm.write_text('0')
+
+    wf = init_atlas_wf(
+        atlas='MIAL67ThalamicNuclei',
+        config_file=str(cfg_file),
+        tpl2anat_xfm=str(xfm),
+    )
+
+    node_names = [n.name for n in wf._get_all_nodes()]
+    assert 't1_to_tpl' not in node_names
+    assert wf.get_node('inputnode').inputs.tpl2anat_xfm == str(xfm)
+
+
 def test_init_atlas_wf_bad_name(tmp_path):
     cfg_file = ir_files('petprep.data.atlas') / 'config.json'
     with pytest.raises(ValueError, match="not found"):
