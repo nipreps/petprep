@@ -241,6 +241,7 @@ It is released under the [CC0]\
 
     atlas_config = None
     atlas_tpl = None
+    atlas_xfm = None
     if config.workflow.atlas:
         try:  # Py>=3.9
             from importlib.resources import files as ir_files
@@ -554,13 +555,17 @@ It is released under the [CC0]\
         seg_wf = init_atlas_wf(
             atlas=config.workflow.atlas,
             config_file=str(atlas_config),
-            tpl2anat_xfm=None,
+            tpl2anat_xfm=atlas_xfm,
             name=f'pet_{config.workflow.atlas}_atlas_wf',
         )
-        workflow.connect([
+        seg_connect = [
             (anat_fit_wf, seg_wf, [('outputnode.t1w_preproc', 'inputnode.t1w_preproc')]),
-            (select_atlas_tpl_xfm, seg_wf, [('std2anat_xfm', 'inputnode.tpl2anat_xfm')]),
-        ])
+        ]
+        if atlas_xfm is None and select_atlas_tpl_xfm is not None:
+            seg_connect.append(
+                (select_atlas_tpl_xfm, seg_wf, [('std2anat_xfm', 'inputnode.tpl2anat_xfm')])
+            )
+        workflow.connect(seg_connect)
     else:
         seg_wf = init_segmentation_wf(
             seg=config.workflow.seg,

@@ -198,6 +198,54 @@ def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
     assert config.workflow.seg not in pet_node.__desc__
 
 
+def test_atlas_uses_precomputed_xfm(monkeypatch, multisession_bids_root, tmp_path):
+    """init_atlas_wf should be initialized with a cached transform."""
+
+    seen = {}
+
+    def _dummy_atlas_wf(atlas, config_file, tpl2anat_xfm=None, name='pet_atlas_wf'):
+        from nipype.interfaces import utility as niu
+        from nipype.pipeline import engine as pe
+        from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+
+        seen['tpl2anat_xfm'] = tpl2anat_xfm
+
+        wf = Workflow(name=name)
+        inputnode = pe.Node(
+            niu.IdentityInterface(fields=['t1w_preproc', 'tpl2anat_xfm']),
+            name='inputnode',
+        )
+        outputnode = pe.Node(
+            niu.IdentityInterface(fields=['segmentation', 'dseg_tsv']),
+            name='outputnode',
+        )
+        wf.add_nodes([inputnode, outputnode])
+        return wf
+
+    monkeypatch.setattr('petprep.workflows.pet.init_atlas_wf', _dummy_atlas_wf)
+
+    atlas_tpl = 'MNI152NLin2009cAsym'
+    xfm_file = tmp_path / 'tpl2anat_xfm.txt'
+    xfm_file.write_text('0')
+
+    def fake_collect_derivatives(derivatives_dir, subject_id, std_spaces):
+        return {'std2anat_xfm': {atlas_tpl: str(xfm_file)}}
+
+    monkeypatch.setattr('smriprep.utils.bids.collect_derivatives', fake_collect_derivatives)
+
+    with mock_config(bids_dir=multisession_bids_root):
+        config.workflow.atlas = 'DKT31'
+        config.execution.derivatives = {'smriprep': tmp_path}
+        wf = init_single_subject_wf('01')
+
+    assert seen['tpl2anat_xfm'] == str(xfm_file)
+
+    atlas_wf_name = f'pet_{config.workflow.atlas}_atlas_wf'
+    atlas_node = wf.get_node(atlas_wf_name)
+    select_node = wf.get_node('select_atlas_tpl_xfm')
+    assert not wf._graph.has_edge(select_node, atlas_node)
+
+
 def _make_params(
     pet2anat_init: str = 'auto',
     medial_surface_nan: bool = False,
