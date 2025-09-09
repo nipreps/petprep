@@ -37,6 +37,7 @@ def test_init_atlas_wf_build(tmp_path, monkeypatch):
     wf = init_atlas_wf(
         atlas='MIAL67ThalamicNuclei',
         config_file=str(cfg_file),
+        tpl2anat_xfm=None,
     )
     node_names = [n.name for n in wf._get_all_nodes()]
     assert 'apply_atlas' in node_names
@@ -89,7 +90,7 @@ def test_init_atlas_wf_with_xfm(tmp_path, monkeypatch):
 def test_init_atlas_wf_bad_name(tmp_path):
     cfg_file = ir_files('petprep.data.atlas') / 'config.json'
     with pytest.raises(ValueError, match="not found"):
-        init_atlas_wf(atlas='notreal', config_file=str(cfg_file))
+        init_atlas_wf(atlas='notreal', config_file=str(cfg_file), tpl2anat_xfm=None)
 
 
 def test_atlas_morph_tsv(tmp_path):

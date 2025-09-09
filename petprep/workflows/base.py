@@ -391,17 +391,19 @@ It is released under the [CC0]\
 
     # Set up the template iterator once, if used
     template_iterator_wf = None
-    select_atlas_tpl_xfm = pe.Node(
-        KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
-        name='select_atlas_tpl_xfm',
-        run_without_submitting=True,
-    )
-    workflow.connect([
-        (anat_fit_wf, select_atlas_tpl_xfm, [
-            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
-            ('outputnode.template', 'keys'),
-        ]),
-    ])  # fmt:skip
+    select_atlas_tpl_xfm = None
+    if atlas_tpl:
+        select_atlas_tpl_xfm = pe.Node(
+            KeySelect(fields=['std2anat_xfm'], key=atlas_tpl),
+            name='select_atlas_tpl_xfm',
+            run_without_submitting=True,
+        )
+        workflow.connect([
+            (anat_fit_wf, select_atlas_tpl_xfm, [
+                ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+                ('outputnode.template', 'keys'),
+            ]),
+        ])  # fmt:skip
     if config.workflow.level == 'full':
         if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
             template_iterator_wf = init_template_iterator_wf(
@@ -552,6 +554,7 @@ It is released under the [CC0]\
         seg_wf = init_atlas_wf(
             atlas=config.workflow.atlas,
             config_file=str(atlas_config),
+            tpl2anat_xfm=None,
             name=f'pet_{config.workflow.atlas}_atlas_wf',
         )
         workflow.connect([

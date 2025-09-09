@@ -144,7 +144,7 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
 
 
 def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
-    def _dummy_atlas_wf(atlas, config_file, name='pet_atlas_wf'):
+    def _dummy_atlas_wf(atlas, config_file, tpl2anat_xfm=None, name='pet_atlas_wf'):
         from nipype.interfaces import utility as niu
         from nipype.pipeline import engine as pe
         from niworkflows.engine.workflows import LiterateWorkflow as Workflow
