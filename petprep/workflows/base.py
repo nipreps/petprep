@@ -164,6 +164,7 @@ def init_single_subject_wf(subject_id: str):
     )
 
     from petprep.workflows.pet.base import init_pet_wf
+    from petprep.workflows.pet import init_atlas_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
     workflow = Workflow(name=f'sub_{subject_id}_wf')
@@ -524,29 +525,52 @@ It is released under the [CC0]\
                 ]),
             ])  # fmt:skip
 
-    segmentation_wf = init_segmentation_wf(
-        seg=config.workflow.seg,
-        name=f'pet_{config.workflow.seg}_seg_wf',
-    )
-    workflow.connect(
-        [
-            (
-                anat_fit_wf,
-                segmentation_wf,
-                [
-                    ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
-                    ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
-                    ('outputnode.subject_id', 'inputnode.subject_id'),
-                ],
-            ),
-        ]
-    )
+    if config.workflow.atlas:
+        try:  # Py>=3.9
+            from importlib.resources import files as ir_files
+        except Exception:  # pragma: no cover - Py<3.9 fallback
+            from importlib_resources import files as ir_files
+
+        seg_wf = init_atlas_wf(
+            atlas=config.workflow.atlas,
+            config_file=str(ir_files('petprep.data.atlas') / 'config.json'),
+            name=f'pet_{config.workflow.atlas}_atlas_wf',
+        )
+        workflow.connect(
+            [
+                (anat_fit_wf, seg_wf, [('outputnode.t1w_preproc', 'inputnode.t1w_preproc')]),
+            ]
+        )
+    else:
+        seg_wf = init_segmentation_wf(
+            seg=config.workflow.seg,
+            name=f'pet_{config.workflow.seg}_seg_wf',
+        )
+        workflow.connect(
+            [
+                (
+                    anat_fit_wf,
+                    seg_wf,
+                    [
+                        ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
+                        ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
+                        ('outputnode.subject_id', 'inputnode.subject_id'),
+                    ],
+                ),
+            ]
+        )
 
     if config.workflow.anat_only:
         return clean_datasinks(workflow)
 
     # Append the PET section to the existing anatomical excerpt
     # That way we do not need to filter down the number of PET datasets
+    seg_ref = (
+        f'``{config.workflow.atlas}`` atlas'
+        if config.workflow.atlas
+        else f'``{config.workflow.seg}`` segmentation workflow from FreeSurfer'
+    )
+
     pet_pre_desc = f"""
 PET data preprocessing
 
@@ -555,7 +579,7 @@ tasks and sessions), the following preprocessing steps were performed. Robust he
 motion estimation and correction were carried out after generating a
 reference image, which was subsequently coregistered to the T1-weighted
 anatomical image. A brain mask was computed and the structural image was
-segmented with the ``{config.workflow.seg}`` segmentation workflow from FreeSurfer."""
+segmented with the {seg_ref}."""
 
     if config.workflow.pvc_tool and config.workflow.pvc_method:
         pet_pre_desc += (
@@ -619,7 +643,7 @@ segmented with the ``{config.workflow.seg}`` segmentation workflow from FreeSurf
                     'inputnode.sphere_reg_fsLR',
                 ),
             ]),
-            (segmentation_wf, pet_wf, [
+            (seg_wf, pet_wf, [
                 ('outputnode.segmentation', 'inputnode.segmentation'),
                 ('outputnode.dseg_tsv', 'inputnode.dseg_tsv'),
             ]),

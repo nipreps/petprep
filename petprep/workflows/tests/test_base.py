@@ -143,6 +143,54 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
         assert all('_seg_wf' not in n for n in pet_node.list_node_names())
 
 
+def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
+    def _dummy_atlas_wf(atlas, config_file, name='pet_atlas_wf'):
+        from nipype.interfaces import utility as niu
+        from nipype.pipeline import engine as pe
+        from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+
+        wf = Workflow(name=name)
+        inputnode = pe.Node(niu.IdentityInterface(fields=['t1w_preproc']), name='inputnode')
+        outputnode = pe.Node(
+            niu.IdentityInterface(fields=['segmentation', 'dseg_tsv']),
+            name='outputnode',
+        )
+        wf.add_nodes([inputnode, outputnode])
+        return wf
+
+    monkeypatch.setattr('petprep.workflows.pet.init_atlas_wf', _dummy_atlas_wf)
+
+    with mock_config(bids_dir=multisession_bids_root):
+        config.workflow.atlas = 'foo'
+        wf = init_single_subject_wf('01')
+
+    flatgraph = wf._create_flat_graph()
+    generate_expanded_graph(flatgraph)
+
+    atlas_wf_name = f'pet_{config.workflow.atlas}_atlas_wf'
+    atlas_nodes = [n for n in wf.list_node_names() if n.startswith(atlas_wf_name)]
+    assert atlas_nodes
+
+    pet_wf_names = [
+        n
+        for n in {name.split('.')[0] for name in wf.list_node_names() if name.startswith('pet_')}
+        if n != atlas_wf_name
+    ]
+    assert len(pet_wf_names) == 2
+
+    atlas_node = wf.get_node(atlas_wf_name)
+    for name in pet_wf_names:
+        pet_node = wf.get_node(name)
+        edge = wf._graph.get_edge_data(atlas_node, pet_node)
+        assert ('outputnode.segmentation', 'inputnode.segmentation') in edge['connect']
+        assert ('outputnode.dseg_tsv', 'inputnode.dseg_tsv') in edge['connect']
+        assert all('_atlas_wf' not in n for n in pet_node.list_node_names())
+
+    pet_node = wf.get_node(pet_wf_names[0])
+    assert config.workflow.atlas in pet_node.__desc__
+    assert config.workflow.seg not in pet_node.__desc__
+
+
 def _make_params(
     pet2anat_init: str = 'auto',
     medial_surface_nan: bool = False,
