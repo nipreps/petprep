@@ -1,24 +1,659 @@
 {
-  "MIAL67ThalamicNuclei": {
-   "t1w": {
-      "tpl": "MNI152NLin2009cAsym",
-      "desc": "brain",
-      "suffix": "T1w",
-      "res": "01",
-      "extension": "nii.gz"
-    },
+  "DKT31": {
     "atlas": {
-      "tpl": "MNI152NLin2009cAsym",
-      "atlas": "MIAL67ThalamicNuclei",
-      "suffix": "dseg",
+      "desc": "DKT31",
+      "extension": "nii.gz",
       "res": "01",
-      "extension": "nii.gz"
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
     },
     "labels": {
-      "tpl": "MNI152NLin2009cAsym",
-      "atlas": "MIAL67ThalamicNuclei",
+      "desc": "DKT31",
+      "extension": "tsv",
       "suffix": "dseg",
-      "extension": "tsv"
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPALth0": {
+    "atlas": {
+      "atlas": "HOCPAL",
+      "desc": "th0",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOCPAL",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPALth25": {
+    "atlas": {
+      "atlas": "HOCPAL",
+      "desc": "th25",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOCPAL",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPALth50": {
+    "atlas": {
+      "atlas": "HOCPAL",
+      "desc": "th50",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOCPAL",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPAth0": {
+    "atlas": {
+      "atlas": "HOCPA",
+      "desc": "th0",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOCPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPAth25": {
+    "atlas": {
+      "atlas": "HOCPA",
+      "desc": "th25",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOCPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOCPAth50": {
+    "atlas": {
+      "atlas": "HOCPA",
+      "desc": "th50",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+       "atlas": "HOCPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOSPAth0": {
+    "atlas": {
+      "atlas": "HOSPA",
+      "desc": "th0",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOSPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOSPAth25": {
+    "atlas": {
+      "atlas": "HOSPA",
+      "desc": "th25",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOSPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "HOSPAth50": {
+    "atlas": {
+      "atlas": "HOSPA",
+      "desc": "th50",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "HOSPA",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin6Asym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "MIAL67ThalamicNuclei": {
+    "atlas": {
+      "atlas": "MIAL67ThalamicNuclei",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "MIAL67ThalamicNuclei",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer20181000Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "1000Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "1000Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer20181000Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "1000Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "1000Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018100Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "100Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "100Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018100Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "100Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "100Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018200Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "200Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "200Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018200Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "200Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "200Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018300Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "300Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "300Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018300Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "300Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "300Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018400Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "400Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "400Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018400Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "400Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "400Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018500Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "500Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "500Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018500Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "500Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "500Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018600Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "600Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "600Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018600Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "600Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "600Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018800Parcels17Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "800Parcels17Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "800Parcels17Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "Schaefer2018800Parcels7Networks": {
+    "atlas": {
+      "atlas": "Schaefer2018",
+      "desc": "800Parcels7Networks",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "atlas": "Schaefer2018",
+      "desc": "800Parcels7Networks",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
+    }
+  },
+  "carpet": {
+    "atlas": {
+      "desc": "carpet",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "labels": {
+      "desc": "carpet",
+      "extension": "tsv",
+      "suffix": "dseg",
+      "tpl": "MNI152NLin2009cAsym"
+    },
+    "t1w": {
+      "desc": "brain",
+      "extension": "nii.gz",
+      "res": "01",
+      "suffix": "T1w",
+      "tpl": "MNI152NLin2009cAsym"
     }
   }
 }
