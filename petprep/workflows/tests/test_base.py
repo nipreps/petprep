@@ -198,6 +198,15 @@ def test_atlas_replaces_segmentation(monkeypatch, multisession_bids_root):
     assert config.workflow.seg not in pet_node.__desc__
 
 
+def test_accepts_suit_atlas(bids_root):
+    with mock_config(bids_dir=bids_root):
+        config.workflow.atlas = 'Buckner201117n'
+        try:
+            init_single_subject_wf('01')
+        except ValueError as e:  # pragma: no cover - explicit failure capture
+            pytest.fail(f'init_single_subject_wf raised {e!r}')
+
+
 def test_atlas_uses_precomputed_xfm(monkeypatch, multisession_bids_root, tmp_path):
     """init_atlas_wf should be initialized with a cached transform."""
 

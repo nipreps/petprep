@@ -154,6 +154,7 @@ def fetch_all():
     fetch_OASIS()
     fetch_fsaverage()
     fetch_fsLR()
+    fetch_SUIT()
 
 
 if __name__ == '__main__':

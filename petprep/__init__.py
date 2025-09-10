@@ -26,3 +26,15 @@ try:
     from ._version import __version__
 except ImportError:
     __version__ = '0+unknown'
+
+# Ensure niworkflows recognizes the SUIT template.
+try:  # pragma: no cover - if niworkflows is unavailable, skip patching
+    from niworkflows.utils import spaces as _spaces
+
+    if 'SUIT' not in _spaces.Reference._standard_spaces:
+        _spaces.Reference._standard_spaces = (
+            *_spaces.Reference._standard_spaces,
+            'SUIT',
+        )
+except Exception:  # pragma: no cover
+    pass
