@@ -40,6 +40,8 @@ dependencies = [
     "transforms3d >= 0.4",
     "toml >= 0.10",
     "codecarbon >= 2",
+    "datalad",
+    "datalad-osf",
     "APScheduler >= 3.10",
 ]
 dynamic = ["version"]
