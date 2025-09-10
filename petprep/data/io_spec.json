@@ -38,6 +38,14 @@
         "mode": "image",
         "suffix": "xfm",
         "extension": ".txt"
+        },
+      "tpl2anat": {
+        "datatype": "anat",
+        "from": ["MNI152NLin2009cAsym", "MNI152NLin6Asym", "SUIT"],
+        "to": ["T1w", "anat"],
+        "mode": "image",
+        "suffix": "xfm",
+        "extension": [".h5", ".txt"]
       }
     }
   },

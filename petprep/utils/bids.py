@@ -86,6 +86,13 @@ def collect_derivatives(
         item = layout.get(return_type='filename', **query)
         if not item:
             continue
+        if xfm == 'tpl2anat':
+            tpl_cache = transforms_cache.setdefault('tpl2anat', {})
+            for fname in item:
+                tpl = layout.parse_file_entities(fname).get('from')
+                if tpl:
+                    tpl_cache[tpl] = fname
+            continue
         transforms_cache[xfm] = item[0] if len(item) == 1 else item
     derivs_cache['transforms'] = transforms_cache
     return derivs_cache

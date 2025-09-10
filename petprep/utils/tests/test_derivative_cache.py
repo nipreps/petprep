@@ -56,3 +56,28 @@ def test_transforms_found_as_str(tmp_path: Path, xfm: str):
         entities=entities,
     )
     assert derivs == {'transforms': {xfm: str(to_find)}}
+
+
+def test_tpl2anat_transform_found(tmp_path: Path):
+    subject = '01'
+    tpl = 'MNI152NLin2009cAsym'
+    to_find = tmp_path.joinpath(
+        f'sub-{subject}',
+        'anat',
+        f'sub-{subject}_from-{tpl}_to-T1w_mode-image_xfm.h5',
+    )
+    to_find.parent.mkdir(parents=True)
+    to_find.touch()
+
+    entities = {
+        'subject': subject,
+        'suffix': 'pet',
+        'extension': '.nii.gz',
+    }
+
+    derivs = bids.collect_derivatives(
+        derivatives_dir=tmp_path,
+        entities=entities,
+    )
+
+    assert derivs == {'transforms': {'tpl2anat': {tpl: str(to_find)}}}
