@@ -41,6 +41,7 @@ def test_init_atlas_wf_build(tmp_path, monkeypatch):
     )
     node_names = [n.name for n in wf._get_all_nodes()]
     assert 'apply_atlas' in node_names
+    assert 't1_to_tpl' in node_names
     assert wf.get_node('label_source').inputs.dseg_tsv == str(labels_file)
     assert wf.get_node('ds_seg').inputs.seg == 'MIAL67ThalamicNuclei'
     assert wf.get_node('ds_dseg_tsv').inputs.seg == 'MIAL67ThalamicNuclei'
@@ -79,12 +80,19 @@ def test_init_atlas_wf_with_xfm(tmp_path, monkeypatch):
     wf = init_atlas_wf(
         atlas='MIAL67ThalamicNuclei',
         config_file=str(cfg_file),
-        tpl2anat_xfm=str(xfm),
+        tpl2anat_xfm=None,
     )
 
-    node_names = [n.name for n in wf._get_all_nodes()]
-    assert 't1_to_tpl' not in node_names
-    assert wf.get_node('inputnode').inputs.tpl2anat_xfm == str(xfm)
+    t1_to_tpl = wf.get_node('t1_to_tpl')
+    t1_to_tpl.inputs.tpl2anat_xfm = str(xfm)
+    t1_to_tpl.inputs.t1w_preproc = str(t1_file)
+
+    def _fail_run(self, *args, **kwargs):
+        raise AssertionError('Registration should not run')
+
+    monkeypatch.setattr('petprep.workflows.pet.atlas.Registration.run', _fail_run)
+    result = t1_to_tpl.run()
+    assert result.outputs.tpl2anat_xfm == str(xfm)
 
 
 def test_init_atlas_wf_bad_name(tmp_path):

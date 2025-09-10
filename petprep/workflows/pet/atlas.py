@@ -144,41 +144,49 @@ def init_atlas_wf(
     label_source = pe.Node(niu.IdentityInterface(fields=["dseg_tsv"]), name="label_source")
     label_source.inputs.dseg_tsv = labels_tsv
 
-    # Atlas registration is handled upstream; estimate a transform only if none is provided
-    if not tpl2anat_xfm:
-        reg = pe.Node(
-            Registration(
-                transforms=['Rigid', 'Affine', 'SyN'],
-                transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
-                metric=['Mattes', 'Mattes', 'CC'],
-                metric_weight=[1, 1, 1],
-                radius_or_number_of_bins=[32, 32, 4],
-                sampling_strategy=['Regular', 'Regular', None],
-                sampling_percentage=[0.25, 0.25, None],
-                sigma_units=['vox', 'vox', 'vox'],
-                number_of_iterations=[
-                    [1000, 500, 250, 0],
-                    [1000, 500, 250, 0],
-                    [100, 70, 50, 10],
-                ],
-                shrink_factors=[
-                    [8, 4, 2, 1],
-                    [8, 4, 2, 1],
-                    [8, 4, 2, 1],
-                ],
-                smoothing_sigmas=[
-                    [3, 2, 1, 0],
-                    [3, 2, 1, 0],
-                    [3, 2, 1, 0],
-                ],
-                use_histogram_matching=True,
-                write_composite_transform=True,
-            ),
-            name="t1_to_tpl",
+    def _get_xfm(tpl2anat_xfm: str | None, t1w_preproc: str, template_t1w: str) -> str:
+        if tpl2anat_xfm:
+            return tpl2anat_xfm
+        reg = Registration(
+            transforms=['Rigid', 'Affine', 'SyN'],
+            transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
+            metric=['Mattes', 'Mattes', 'CC'],
+            metric_weight=[1, 1, 1],
+            radius_or_number_of_bins=[32, 32, 4],
+            sampling_strategy=['Regular', 'Regular', None],
+            sampling_percentage=[0.25, 0.25, None],
+            sigma_units=['vox', 'vox', 'vox'],
+            number_of_iterations=[
+                [1000, 500, 250, 0],
+                [1000, 500, 250, 0],
+                [100, 70, 50, 10],
+            ],
+            shrink_factors=[
+                [8, 4, 2, 1],
+                [8, 4, 2, 1],
+                [8, 4, 2, 1],
+            ],
+            smoothing_sigmas=[
+                [3, 2, 1, 0],
+                [3, 2, 1, 0],
+                [3, 2, 1, 0],
+            ],
+            use_histogram_matching=True,
+            write_composite_transform=True,
         )
         reg.inputs.fixed_image = template_t1w
-    else:
-        reg = None
+        reg.inputs.moving_image = t1w_preproc
+        return reg.run().outputs.inverse_composite_transform
+
+    xfm_source = pe.Node(
+        niu.Function(
+            input_names=["tpl2anat_xfm", "t1w_preproc", "template_t1w"],
+            output_names=["tpl2anat_xfm"],
+            function=_get_xfm,
+        ),
+        name="t1_to_tpl",
+    )
+    xfm_source.inputs.template_t1w = template_t1w
 
     apply_inv = pe.Node(ApplyTransforms(interpolation="NearestNeighbor"), name="apply_atlas")
     apply_inv.inputs.input_image = atlas_img
@@ -248,6 +256,8 @@ def init_atlas_wf(
 
     connections = [
         (inputnode, apply_inv, [("t1w_preproc", "reference_image")]),
+        (inputnode, xfm_source, [("tpl2anat_xfm", "tpl2anat_xfm"), ("t1w_preproc", "t1w_preproc")]),
+        (xfm_source, apply_inv, [("tpl2anat_xfm", "transforms")]),
         (apply_inv, outputnode, [("output_image", "segmentation")]),
         (label_source, outputnode, [("dseg_tsv", "dseg_tsv")]),
         (inputnode, sources, [("t1w_preproc", "in1")]),
@@ -262,16 +272,6 @@ def init_atlas_wf(
         (inputnode, ds_morph_tsv, [("t1w_preproc", "source_file")]),
         (sources, ds_morph_tsv, [("out", "Sources")]),
     ]
-
-    if reg is not None:
-        connections.extend(
-            [
-                (inputnode, reg, [("t1w_preproc", "moving_image")]),
-                (reg, apply_inv, [("inverse_composite_transform", "transforms")]),
-            ]
-        )
-    else:
-        connections.append((inputnode, apply_inv, [("tpl2anat_xfm", "transforms")]))
 
     workflow.connect(connections)  # fmt:skip
 
