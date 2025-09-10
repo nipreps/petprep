@@ -111,9 +111,12 @@ def test_atlas_morph_tsv(tmp_path):
     seg.to_filename(seg_file)
 
     labels = tmp_path / 'labels.tsv'
-    labels.write_text('index\tname\n0\tbg\n1\tregion\n')
+    labels.write_text(
+        'index\tname\tcolor\n0\tbg\t#000000\n1\tregion\t#ff0000\n'
+    )
 
     out = _atlas_morph_tsv(str(seg_file), str(labels))
     df = pd.read_csv(out, sep='\t')
+    assert list(df.columns) == ['index', 'name', 'volume-mm3']
     volume = df.loc[df['index'] == 1, 'volume-mm3'].iloc[0]
     assert volume == 4

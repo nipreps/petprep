@@ -50,10 +50,10 @@ def _atlas_morph_tsv(segmentation: str, labels_tsv: str) -> str:
     seg_img = nb.load(segmentation)
     data = np.asanyarray(seg_img.dataobj)
     voxvol = np.prod(seg_img.header.get_zooms()[:3])
-    labels = pd.read_csv(labels_tsv, sep="\t")
+    labels = pd.read_csv(labels_tsv, sep="\t", usecols=["index", "name"])
     volumes = [(data == int(idx)).sum() * voxvol for idx in labels["index"]]
-    out = labels.copy()
-    out["volume-mm3"] = volumes
+    out = labels.assign(**{"volume-mm3": volumes})
+    out = out[["index", "name", "volume-mm3"]]
     out_file = Path("morph.tsv").absolute()
     out.to_csv(out_file, sep="\t", index=False)
     return str(out_file)
