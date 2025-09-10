@@ -289,11 +289,15 @@ It is released under the [CC0]\
 
             anatomical_cache.update(derivs)
 
+    mni2009c_xfm = anatomical_cache.get('std2anat_xfm', {}).get('MNI152NLin2009cAsym')
+    if mni2009c_xfm is not None:
+        anatomical_cache['mni2009c2anat_xfm'] = mni2009c_xfm
+    else:
+        spaces.add(Reference('MNI152NLin2009cAsym', {}))
+
     if atlas_tpl:
         atlas_xfm = anatomical_cache.get('std2anat_xfm', {}).get(atlas_tpl)
-        if atlas_xfm is not None:
-            anatomical_cache['mni2009c2anat_xfm'] = atlas_xfm
-        else:
+        if atlas_xfm is None:
             spaces.add(Reference(atlas_tpl, {}))
 
     inputnode = pe.Node(niu.IdentityInterface(fields=['subjects_dir']), name='inputnode')
@@ -408,6 +412,11 @@ It is released under the [CC0]\
 
     # Set up the template iterator once, if used
     template_iterator_wf = None
+    select_MNI2009c_xfm = pe.Node(
+        KeySelect(fields=['std2anat_xfm'], key='MNI152NLin2009cAsym'),
+        name='select_MNI2009c_xfm',
+        run_without_submitting=True,
+    )
     select_atlas_tpl_xfm = None
     if atlas_tpl:
         select_atlas_tpl_xfm = pe.Node(
@@ -421,6 +430,12 @@ It is released under the [CC0]\
                 ('outputnode.template', 'keys'),
             ]),
         ])  # fmt:skip
+    workflow.connect([
+        (anat_fit_wf, select_MNI2009c_xfm, [
+            ('outputnode.std2anat_xfm', 'std2anat_xfm'),
+            ('outputnode.template', 'keys'),
+        ]),
+    ])  # fmt:skip
     if config.workflow.level == 'full':
         if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
             template_iterator_wf = init_template_iterator_wf(
@@ -703,12 +718,11 @@ segmented with the {seg_ref}."""
                     ]),
                 ])  # fmt:skip
 
-            if config.workflow.atlas:
-                workflow.connect([
-                    (select_atlas_tpl_xfm, pet_wf, [
-                        ('std2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
-                    ]),
-                ])  # fmt:skip
+            workflow.connect([
+                (select_MNI2009c_xfm, pet_wf, [
+                    ('std2anat_xfm', 'inputnode.mni2009c2anat_xfm'),
+                ]),
+            ])  # fmt:skip
 
             # Thread MNI152NLin6Asym standard outputs to CIFTI subworkflow, skipping
             # the iterator, which targets only output spaces.
