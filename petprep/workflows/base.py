@@ -265,13 +265,29 @@ It is released under the [CC0]\
             std_spaces.append(atlas_tpl)
         std_spaces.append('fsnative')
         for deriv_dir in config.execution.derivatives.values():
-            anatomical_cache.update(
-                collect_anat_derivatives(
-                    derivatives_dir=deriv_dir,
-                    subject_id=subject_id,
-                    std_spaces=std_spaces,
-                )
+            derivs = collect_anat_derivatives(
+                derivatives_dir=deriv_dir,
+                subject_id=subject_id,
+                std_spaces=std_spaces,
             )
+
+            transforms = derivs.pop('transforms', {})
+            if transforms:
+                std2anat = anatomical_cache.setdefault('std2anat_xfm', {})
+                anat2std = anatomical_cache.setdefault('anat2std_xfm', {})
+                for space, xfm in transforms.items():
+                    fwd = xfm.get('forward')
+                    rev = xfm.get('reverse')
+                    if isinstance(fwd, list):
+                        fwd = fwd[0]
+                    if isinstance(rev, list):
+                        rev = rev[0]
+                    if fwd:
+                        anat2std[space] = fwd
+                    if rev:
+                        std2anat[space] = rev
+
+            anatomical_cache.update(derivs)
 
     if atlas_tpl:
         atlas_xfm = anatomical_cache.get('std2anat_xfm', {}).get(atlas_tpl)

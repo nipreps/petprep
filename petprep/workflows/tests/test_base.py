@@ -229,7 +229,7 @@ def test_atlas_uses_precomputed_xfm(monkeypatch, multisession_bids_root, tmp_pat
     xfm_file.write_text('0')
 
     def fake_collect_derivatives(derivatives_dir, subject_id, std_spaces):
-        return {'std2anat_xfm': {atlas_tpl: str(xfm_file)}}
+        return {'transforms': {atlas_tpl: {'reverse': str(xfm_file)}}}
 
     monkeypatch.setattr('smriprep.utils.bids.collect_derivatives', fake_collect_derivatives)
 
