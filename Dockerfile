@@ -51,10 +51,12 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # FreeSurfer 7.4.1
-# FROM downloader AS freesurfer
-# COPY docker/files/freesurfer7.4.1-exclude.txt /usr/local/etc/freesurfer7.4.1-exclude.txt
-# RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-ubuntu22_amd64-7.4.1.tar.gz \
-#      | tar zxv --no-same-owner -C /opt --exclude-from=/usr/local/etc/freesurfer7.4.1-exclude.txt
+FROM downloader AS freesurfer
+COPY docker/files/freesurfer7.4.1-exclude.txt /tmp/freesurfer7.4.1-exclude.txt
+RUN curl -sSL https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/7.4.1/freesurfer-linux-ubuntu22_amd64-7.4.1.tar.gz -o /tmp/freesurfer.tar.gz \
+    && tar -xzf /tmp/freesurfer.tar.gz --no-same-owner -C /opt --exclude-from=/tmp/freesurfer7.4.1-exclude.txt \
+    && rm -rf /tmp/freesurfer.tar.gz /tmp/freesurfer7.4.1-exclude.txt \
+    && rm -rf /opt/freesurfer/{docs,subjects/bert,subjects/cvs_avg35,subjects/cvs_avg35_inMNI152,subjects/fsaverage3,subjects/fsaverage4,subjects/fsaverage_sym,subjects/lh.EC_average,subjects/rh.EC_average,subjects/sample-001.mgz,subjects/sample-002.mgz,subjects/V1_average,trctrain,matlab,mni-1.4,mni/bin,mni/include,mni/share,lib/qt,lib/vtk}
 
 # AFNI
 FROM downloader AS afni
@@ -173,7 +175,7 @@ RUN apt-get update -qq \
     && ldconfig
 
 # Install files from stages
-COPY --from=freesurfer/freesurfer:7.4.1 /usr/local/freesurfer /opt/freesurfer
+COPY --from=freesurfer /opt/freesurfer /opt/freesurfer
 COPY --from=afni /opt/afni-latest /opt/afni-latest
 COPY --from=petpvc /usr/local /usr/local
 
