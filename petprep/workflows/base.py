@@ -440,6 +440,11 @@ It is released under the [CC0]\
             # Create CIFTI morphometrics
             curv_wf = init_gifti_morphometrics_wf(morphometrics=['curv'], name='curv_wf')
             hcp_morphometrics_wf = init_hcp_morphometrics_wf(omp_nthreads=omp_nthreads)
+            cortex_mask_source = (
+                'outputnode.cortex_masks'
+                if 'cortex_masks' in hcp_morphometrics_wf.get_node('outputnode').outputs.traits()
+                else 'outputnode.roi'
+            )
             morph_grayords_wf = init_morph_grayords_wf(
                 grayord_density=config.workflow.cifti_output,
                 omp_nthreads=omp_nthreads,
@@ -498,7 +503,7 @@ It is released under the [CC0]\
                     ('outputnode.curv', 'inputnode.curv'),
                     ('outputnode.thickness', 'inputnode.thickness'),
                     ('outputnode.sulc', 'inputnode.sulc'),
-                    ('outputnode.roi', 'inputnode.roi'),
+                    (cortex_mask_source, 'inputnode.roi'),
                 ]),
                 (resample_surfaces_wf, morph_grayords_wf, [
                     ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
@@ -653,11 +658,11 @@ segmented with the ``{config.workflow.seg}`` segmentation workflow from FreeSurf
                 workflow.connect([
                     (select_MNI6_xfm, pet_wf, [('anat2std_xfm', 'inputnode.anat2mni6_xfm')]),
                     (select_MNI6_tpl, pet_wf, [('brain_mask', 'inputnode.mni6_mask')]),
-                    (hcp_morphometrics_wf, pet_wf, [
-                        ('outputnode.roi', 'inputnode.cortex_mask'),
-                    ]),
                     (resample_surfaces_wf, pet_wf, [
                         ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
+                    ]),
+                    (hcp_morphometrics_wf, pet_wf, [
+                        (cortex_mask_source, 'inputnode.cortex_mask'),
                     ]),
                 ])  # fmt:skip
 
