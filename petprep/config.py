@@ -600,6 +600,10 @@ class workflow(_Config):
     """Index of initial frame for head-motion estimation ('auto' selects highest uptake)."""
     hmc_fix_frame: bool = False
     """Whether to fix the reference frame during head-motion estimation."""
+    volume_fwhm: float | None = None
+    """Full-width at half-maximum for volumetric smoothing (``None`` disables smoothing)."""
+    surface_fwhm: float | None = None
+    """Full-width at half-maximum for surface smoothing (``None`` disables smoothing)."""
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
