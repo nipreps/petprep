@@ -56,6 +56,30 @@ def test_reset_config():
     assert execution.bids_dir == 'TESTING'
 
 
+def test_workflow_smoothing_defaults():
+    """Ensure smoothing options default to ``None``."""
+    _reset_config()
+    assert config.workflow.volume_fwhm is None
+    assert config.workflow.surface_fwhm is None
+
+
+def test_workflow_smoothing_roundtrip(tmp_path):
+    """Verify smoothing settings persist across serialization."""
+    _reset_config()
+    config.workflow.volume_fwhm = 6.0
+    config.workflow.surface_fwhm = 5.0
+    cfg_file = tmp_path / 'settings.toml'
+    config.to_filename(cfg_file)
+
+    _reset_config()
+    assert config.workflow.volume_fwhm is None
+    assert config.workflow.surface_fwhm is None
+
+    config.load(cfg_file)
+    assert config.workflow.volume_fwhm == 6.0
+    assert config.workflow.surface_fwhm == 5.0
+
+
 def test_config_spaces():
     """Check that all necessary spaces are recorded in the config."""
     settings = loads(data.load.readable('tests/config.toml').read_text())

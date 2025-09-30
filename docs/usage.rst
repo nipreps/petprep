@@ -287,6 +287,25 @@ For example, to extract a mask of thalamus to use as a reference region, you can
 
 The indices of the regions from a given segmentation can be found in the corresponding ``/anat/sub-<participant_label>_seg-<segmentation>_morph.tsv``.
 
+Additional smoothing outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+By default, *PETPrep* writes unsmoothed PET derivatives in each requested
+output space. The following options can generate additional, smoothed
+derivatives alongside those defaults:
+
+* ``--volume-fwhm`` accepts one full-width at half maximum (FWHM)
+  value millimeters. This triggers an extra volumetric derivative
+  that is smoothed with a Gaussian kernel before it is written to disk.
+* ``--surface-fwhm`` follows the same pattern for surface-based derivatives
+  (for example, meshes in ``fsaverage`` or ``fsnative`` space).
+
+The unsmoothed files remain available regardless of the smoothing options
+selected. Smoothed derivatives receive a ``desc-sm{value}`` label in their
+filenames. For instance, ``--volume-fwhm 6`` produces extra derivatives named
+``desc-sm6`` in addition to the unsmoothed ``desc-preproc``
+files. The same naming rule applies to surface outputs requested via
+``--surface-fwhm``.
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the

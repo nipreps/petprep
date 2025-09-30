@@ -112,6 +112,13 @@ def _build_parser(**kwargs):
         else:
             return value
 
+    def _nonnegative_float(value, parser):
+        """Ensure an argument is a non-negative float."""
+        value = float(value)
+        if value < 0:
+            raise parser.error("Argument can't be negative.")
+        return value
+
     def _filter_pybids_none_any(dct):
         d = {}
         for k, v in dct.items():
@@ -145,6 +152,7 @@ def _build_parser(**kwargs):
     PathExists = partial(_path_exists, parser=parser)
     IsFile = partial(_is_file, parser=parser)
     PositiveInt = partial(_min_one, parser=parser)
+    NonNegativeFloat = partial(_nonnegative_float, parser=parser)
     BIDSFilter = partial(_bids_filter, parser=parser)
 
     # Arguments as specified by BIDS-Apps
@@ -430,6 +438,20 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         action='store_false',
         dest='run_msmsulc',
         help='Disable Multimodal Surface Matching surface registration.',
+    )
+    g_outputs.add_argument(
+        '--volume-fwhm',
+        action='store',
+        type=NonNegativeFloat,
+        default=None,
+        help='Apply Gaussian smoothing with the specified FWHM (in mm) to volumetric outputs.',
+    )
+    g_outputs.add_argument(
+        '--surface-fwhm',
+        action='store',
+        type=NonNegativeFloat,
+        default=None,
+        help='Apply Gaussian smoothing with the specified FWHM (in mm) to surface outputs.',
     )
 
     g_confounds = parser.add_argument_group('Options relating to confounds')
@@ -767,6 +789,11 @@ def parse_args(args=None, namespace=None):
         config.workflow.pvc_method = opts.pvc_method
     if opts.pvc_psf is not None:
         config.workflow.pvc_psf = tuple(opts.pvc_psf)
+
+    if opts.volume_fwhm is not None:
+        config.workflow.volume_fwhm = opts.volume_fwhm
+    if opts.surface_fwhm is not None:
+        config.workflow.surface_fwhm = opts.surface_fwhm
 
     if not config.execution.notrack:
         import importlib.util
