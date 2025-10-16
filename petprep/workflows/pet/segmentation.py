@@ -3,9 +3,11 @@
 
 from nipype import Function
 from nipype.interfaces import utility as niu
+from nipype.interfaces.ants import Registration
 from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 
 from ... import config
 from ...data import load as load_data
@@ -21,6 +23,8 @@ from ...interfaces.segmentation import (
     SegStats,
 )
 from ...utils.segmentation import (
+    atlas_copy_dsegtsv,
+    atlas_seg_to_stats,
     ctab_to_dsegtsv,
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
@@ -56,6 +60,28 @@ def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
     out_img.set_data_dtype(np.int16)
 
     out_file = Path('hippocampusAmygdala_dseg.nii.gz').absolute()
+    out_img.to_filename(out_file)
+    return str(out_file)
+
+
+def _cast_segmentation(seg_file: str) -> str:
+    """Round segmentation labels to integers and enforce ``int16`` dtype."""
+
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    seg_path = Path(seg_file)
+    seg_img = nb.load(seg_path)
+    data = np.rint(seg_img.get_fdata()).astype(np.int16)
+
+    out_img = seg_img.__class__(data, seg_img.affine, seg_img.header)
+    out_img.set_data_dtype(np.int16)
+
+    suffix = ''.join(seg_path.suffixes)
+    stem = seg_path.name[: -len(suffix)] if suffix else seg_path.name
+    out_file = seg_path.with_name(f'{stem}_int16.nii.gz')
     out_img.to_filename(out_file)
     return str(out_file)
 
@@ -119,6 +145,62 @@ SEGMENTATIONS = {
         'inputs': [('t1w_preproc', 'in_file')],
         'color_table': str(load_data('segmentation/sclimbic_cleaned.ctab')),
     },
+    'subcortex': {
+        'desc': 'subcortex',
+        'atlas': {
+            'template': str(
+                load_data(
+                    'segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_T1w.nii.gz'
+                )
+            ),
+            'dseg': str(
+                load_data(
+                    'segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.nii.gz'
+                )
+            ),
+            'labels': str(
+                load_data(
+                    'segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv'
+                )
+            ),
+        },
+        'segstats': False,
+        'skip_conversion': True,
+        'dseg_func': atlas_copy_dsegtsv,
+        'dseg_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv')
+            ),
+            'seg': 'subcortex',
+        },
+        'morph_func': atlas_seg_to_stats,
+        'morph_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv')
+            ),
+            'seg': 'subcortex',
+        },
+    },
+    'hammers': {
+        'desc': 'hammers',
+        'atlas': {
+            'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_T1w.nii.gz')),
+            'dseg': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.nii.gz')),
+            'labels': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
+        },
+        'segstats': False,
+        'skip_conversion': True,
+        'dseg_func': atlas_copy_dsegtsv,
+        'dseg_kwargs': {
+            'labels_file': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
+            'seg': 'hammers',
+        },
+        'morph_func': atlas_seg_to_stats,
+        'morph_kwargs': {
+            'labels_file': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
+            'seg': 'hammers',
+        },
+    },
 }
 
 
@@ -131,6 +213,9 @@ def _build_nodes(
     merge_ha: bool = False,
     dseg_func=ctab_to_dsegtsv,
     morph_func=summary_to_stats,
+    skip_conversion: bool = False,
+    dseg_kwargs: dict | None = None,
+    morph_kwargs: dict | None = None,
 ):
     """Create common segmentation nodes."""
     nodes = {}
@@ -150,11 +235,13 @@ def _build_nodes(
             name='merge_ha_seg',
         )
         seg_source = nodes['merge_seg']
-    else:
+    elif not skip_conversion:
         nodes['convert_seg'] = pe.Node(
             MRIConvert(out_type='niigz', resample_type='nearest'), name=f'convert_{seg}seg'
         )
         seg_source = nodes['convert_seg']
+    else:
+        seg_source = None
 
     nodes['sources'] = pe.Node(
         BIDSURI(
@@ -199,10 +286,16 @@ def _build_nodes(
             name=f'create_{seg}_dsegtsv',
         )
     else:
+        dseg_kwargs = dseg_kwargs or {}
+        morph_kwargs = morph_kwargs or {}
+
+        dseg_inputs = ['subjects_dir', 'subject_id', 'seg_file'] + list(dseg_kwargs.keys())
+        morph_inputs = ['subjects_dir', 'subject_id', 'seg_file'] + list(morph_kwargs.keys())
+
         nodes['make_dseg'] = pe.Node(
             niu.Function(
                 function=dseg_func,
-                input_names=['subjects_dir', 'subject_id', 'seg_file'],
+                input_names=dseg_inputs,
                 output_names=['out_file'],
             ),
             name=f'make_{seg}dsegtsv',
@@ -210,11 +303,16 @@ def _build_nodes(
         nodes['make_morph'] = pe.Node(
             niu.Function(
                 function=morph_func,
-                input_names=['subjects_dir', 'subject_id', 'seg_file'],
+                input_names=morph_inputs,
                 output_names=['out_file'],
             ),
             name=f'make_{seg}morphtsv',
         )
+
+        for key, value in dseg_kwargs.items():
+            setattr(nodes['make_dseg'].inputs, key, value)
+        for key, value in morph_kwargs.items():
+            setattr(nodes['make_morph'].inputs, key, value)
 
     nodes['ds_dseg_tsv'] = pe.Node(
         DerivativesDataSink(
@@ -268,11 +366,70 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
         return workflow
 
-    interface = spec['interface']
-    seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+    atlas_spec = spec.get('atlas')
 
-    for in_field, out_field in spec.get('inputs', []):
-        workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
+    if atlas_spec:
+        reg_node = pe.Node(
+            Registration(
+                fixed_image=atlas_spec['template'],
+                transforms=['Rigid', 'Affine', 'SyN'],
+                transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
+                metric=['MI', 'MI', 'CC'],
+                metric_weight=[1, 1, 1],
+                radius_or_number_of_bins=[32, 32, 4],
+                sampling_strategy=['Regular', 'Regular', None],
+                sampling_percentage=[0.25, 0.25, 1],
+                convergence_threshold=[1e-6, 1e-6, 1e-6],
+                convergence_window_size=[10, 10, 10],
+                smoothing_sigmas=[[3, 2, 1, 0], [3, 2, 1, 0], [3, 2, 1, 0]],
+                shrink_factors=[[8, 4, 2, 1], [8, 4, 2, 1], [8, 4, 2, 1]],
+                use_histogram_matching=[False, False, True],
+                winsorize_lower_quantile=0.005,
+                winsorize_upper_quantile=0.995,
+                initial_moving_transform_com=True,
+                write_composite_transform=True,
+                collapse_output_transforms=True,
+                output_warped_image=False,
+                num_threads=config.nipype.omp_nthreads,
+            ),
+            name=f'{seg}_atlas_reg',
+        )
+
+        apply_node = pe.Node(
+            ApplyTransforms(
+                interpolation='MultiLabel',
+                input_image=atlas_spec['dseg'],
+                output_image=f'{seg}_atlas_to_t1w.nii.gz',
+                num_threads=config.nipype.omp_nthreads,
+            ),
+            name=f'{seg}_atlas_to_native',
+        )
+
+        cast_node = pe.Node(
+            Function(
+                input_names=['in_file'],
+                output_names=['out_file'],
+                function=_cast_segmentation,
+            ),
+            name=f'cast_{seg}_seg',
+        )
+
+        workflow.connect(
+            [
+                (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+                (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
+                (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
+                (apply_node, cast_node, [('output_image', 'in_file')]),
+            ]
+        )
+
+        seg_node = cast_node
+    else:
+        interface = spec['interface']
+        seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+
+        for in_field, out_field in spec.get('inputs', []):
+            workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
 
     nodes = _build_nodes(
         seg,
@@ -282,8 +439,13 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         merge_ha=spec.get('merge_ha', False),
         dseg_func=spec.get('dseg_func', ctab_to_dsegtsv),
         morph_func=spec.get('morph_func', summary_to_stats),
+        skip_conversion=spec.get('skip_conversion', False),
+        dseg_kwargs=spec.get('dseg_kwargs'),
+        morph_kwargs=spec.get('morph_kwargs'),
     )
 
+    if atlas_spec:
+        nodes['seg_source'] = seg_node
     if spec.get('merge_ha', False):
         workflow.connect(
             [
@@ -295,7 +457,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (nodes['convert_rh'], nodes['merge_seg'], [('out_file', 'rh_file')]),
             ]
         )
-    else:
+    elif not spec.get('skip_conversion', False):
         workflow.connect(
             [
                 (seg_node, nodes['convert_seg'], [('out_file', 'in_file')]),

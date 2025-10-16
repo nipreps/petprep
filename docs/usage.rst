@@ -210,10 +210,13 @@ Segmentation
 ----------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``.
+Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, ``limbic``, ``subcortex`` and ``hammers``.
 
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
-cerebral cortex, subcortical structures, and cerebellum.
+cerebral cortex, subcortical structures, and cerebellum. Atlas-based
+segmentations (``subcortex`` and ``hammers``) are registered to their
+native template before being transformed back to the individual anatomy,
+so they can be used interchangeably with the FreeSurfer-derived outputs.
 
 To run the segmentation with the default ``gtm`` method, use: ::
 

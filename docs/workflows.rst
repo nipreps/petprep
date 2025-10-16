@@ -549,15 +549,18 @@ Segmentation workflows
 
 *PETPrep* ships with optional segmentation routines that can be selected via
 the ``--seg`` command-line argument. Supported values are ``gtm`` (the default),
-``brainstem``, ``thalamicNuclei``, ``hippocampusAmygdala``, ``wm``, ``raphe`` and
-``limbic``.
+``brainstem``, ``thalamicNuclei``, ``hippocampusAmygdala``, ``wm``, ``raphe``,
+``limbic``, ``subcortex`` and ``hammers``.
 
 These workflows rely on pretrained segmentation models distributed with
 ``petprep.data.segmentation``. The first time a particular model is requested it
 will be automatically downloaded to the *PETPrep* cache directory, so ensure
-sufficient disk space is available. Each segmentation produces a labeled NIfTI
-image ``seg-<seg>_dseg.nii.gz`` and a TSV table of region volumes
-``seg-<seg>_morph.tsv`` saved under the ``anat/`` derivatives folder.
+sufficient disk space is available. Atlas-driven options (``subcortex`` and
+``hammers``) are first registered to their native template space before being
+warped back to the subject anatomy, enabling the atlases to be used alongside
+other segmentations. Each segmentation produces a labeled NIfTI image
+``seg-<seg>_dseg.nii.gz`` and a TSV table of region volumes ``seg-<seg>_morph.tsv``
+saved under the ``anat/`` derivatives folder.
 
 Reference masks generated via ``--ref-mask-name`` create a similar
 ``label-<name>_desc-ref_morph.tsv`` file. These TSVs share the same columns as the
