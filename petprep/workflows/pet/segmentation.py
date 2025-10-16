@@ -86,6 +86,28 @@ def _cast_segmentation(in_file: str) -> str:
     return str(out_file)
 
 
+def _mask_from_segmentation(seg_file: str) -> str:
+    """Generate a binary mask from a segmentation image."""
+
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    seg_path = Path(seg_file)
+    seg_img = nb.load(seg_path)
+    data = np.asanyarray(seg_img.dataobj) > 0
+
+    out_img = seg_img.__class__(data.astype(np.uint8), seg_img.affine, seg_img.header)
+    out_img.set_data_dtype(np.uint8)
+
+    suffix = ''.join(seg_path.suffixes)
+    stem = seg_path.name[: -len(suffix)] if suffix else seg_path.name
+    out_file = Path.cwd() / f'{stem}_mask.nii.gz'
+    out_img.to_filename(out_file)
+    return str(out_file)
+
+
 SEGMENTATIONS = {
     'gtm': {
         'interface': SegmentGTM,
@@ -352,7 +374,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(fields=['t1w_preproc', 't1w_mask', 'subjects_dir', 'subject_id']),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -369,6 +391,16 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     atlas_spec = spec.get('atlas')
 
     if atlas_spec:
+        mask_node = pe.Node(
+            Function(
+                input_names=['seg_file'],
+                output_names=['out_file'],
+                function=_mask_from_segmentation,
+            ),
+            name=f'{seg}_atlas_mask',
+        )
+        mask_node.inputs.seg_file = atlas_spec['dseg']
+
         reg_node = pe.Node(
             Registration(
                 fixed_image=atlas_spec['template'],
@@ -418,9 +450,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect(
             [
                 (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+                (inputnode, reg_node, [('t1w_mask', 'moving_image_mask')]),
                 (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
                 (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
                 (apply_node, cast_node, [('output_image', 'in_file')]),
+                (mask_node, reg_node, [('out_file', 'fixed_image_mask')]),
             ]
         )
 
