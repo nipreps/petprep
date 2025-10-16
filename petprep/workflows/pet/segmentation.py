@@ -64,7 +64,7 @@ def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
     return str(out_file)
 
 
-def _cast_segmentation(seg_file: str) -> str:
+def _cast_segmentation(in_file: str) -> str:
     """Round segmentation labels to integers and enforce ``int16`` dtype."""
 
     from pathlib import Path
@@ -72,7 +72,7 @@ def _cast_segmentation(seg_file: str) -> str:
     import nibabel as nb
     import numpy as np
 
-    seg_path = Path(seg_file)
+    seg_path = Path(in_file)
     seg_img = nb.load(seg_path)
     data = np.rint(seg_img.get_fdata()).astype(np.int16)
 
@@ -374,19 +374,20 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 fixed_image=atlas_spec['template'],
                 transforms=['Rigid', 'Affine', 'SyN'],
                 transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
-                metric=['MI', 'MI', 'CC'],
+                metric=['Mattes', 'Mattes', 'CC'],
                 metric_weight=[1, 1, 1],
                 radius_or_number_of_bins=[32, 32, 4],
                 sampling_strategy=['Regular', 'Regular', None],
-                sampling_percentage=[0.25, 0.25, 1],
-                convergence_threshold=[1e-6, 1e-6, 1e-6],
-                convergence_window_size=[10, 10, 10],
-                smoothing_sigmas=[[3, 2, 1, 0], [3, 2, 1, 0], [3, 2, 1, 0]],
+                sampling_percentage=[0.25, 0.25, None],
+                sigma_units=['vox', 'vox', 'vox'],
+                number_of_iterations=[
+                    [1000, 500, 250, 0],
+                    [1000, 500, 250, 0],
+                    [100, 70, 50, 10],
+                ],
                 shrink_factors=[[8, 4, 2, 1], [8, 4, 2, 1], [8, 4, 2, 1]],
-                use_histogram_matching=[False, False, True],
-                winsorize_lower_quantile=0.005,
-                winsorize_upper_quantile=0.995,
-                initial_moving_transform_com=True,
+                smoothing_sigmas=[[3, 2, 1, 0], [3, 2, 1, 0], [3, 2, 1, 0]],
+                use_histogram_matching=True,
                 write_composite_transform=True,
                 collapse_output_transforms=True,
                 output_warped_image=False,
