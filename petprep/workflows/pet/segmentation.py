@@ -86,32 +86,6 @@ def _cast_segmentation(in_file: str) -> str:
     return str(out_file)
 
 
-def _mask_image(in_file: str, mask_file: str) -> str:
-    """Apply a binary mask to an anatomical image."""
-
-    from pathlib import Path
-
-    import nibabel as nb
-    import numpy as np
-
-    img = nb.load(in_file)
-    mask = nb.load(mask_file)
-
-    if not np.allclose(img.affine, mask.affine) or img.shape != mask.shape:
-        raise ValueError('Mask and image do not align')
-
-    data = img.get_fdata(dtype=np.float32)
-    mask_data = mask.get_fdata(dtype=np.float32) > 0
-    masked = np.where(mask_data, data, 0)
-
-    out_img = img.__class__(masked, img.affine, img.header)
-    out_img.set_data_dtype(img.get_data_dtype())
-
-    out_file = Path('masked_anat.nii.gz').absolute()
-    out_img.to_filename(out_file)
-    return str(out_file)
-
-
 SEGMENTATIONS = {
     'gtm': {
         'interface': SegmentGTM,
@@ -378,9 +352,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(
-            fields=['t1w_preproc', 't1w_mask', 'subjects_dir', 'subject_id']
-        ),
+        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -424,15 +396,6 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name=f'{seg}_atlas_reg',
         )
 
-        mask_node = pe.Node(
-            Function(
-                input_names=['in_file', 'mask_file'],
-                output_names=['out_file'],
-                function=_mask_image,
-            ),
-            name=f'mask_{seg}_target',
-        )
-
         apply_node = pe.Node(
             ApplyTransforms(
                 interpolation='MultiLabel',
@@ -454,10 +417,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
         workflow.connect(
             [
-                (inputnode, mask_node, [('t1w_preproc', 'in_file'), ('t1w_mask', 'mask_file')]),
-                (mask_node, reg_node, [('out_file', 'moving_image')]),
-                (inputnode, reg_node, [('t1w_mask', 'moving_image_mask')]),
-                (mask_node, apply_node, [('out_file', 'reference_image')]),
+                (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+                (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
                 (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
                 (apply_node, cast_node, [('output_image', 'in_file')]),
             ]
