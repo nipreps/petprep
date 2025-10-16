@@ -190,6 +190,7 @@ def atlas_copy_dsegtsv(
     """Copy a static atlas label table next to the generated segmentation."""
 
     import shutil
+    from pathlib import Path
 
     seg_path = Path(seg_file)
     out_file = seg_path.with_name(f'{seg}_dseg.tsv')
@@ -207,7 +208,10 @@ def atlas_seg_to_stats(
 ) -> str:
     """Generate a TSV table with atlas-derived ROI volumes."""
 
+    import numpy as np
     import nibabel as nb
+    from pathlib import Path
+    import pandas as pd
 
     seg_path = Path(seg_file)
     atlas_img = nb.load(seg_path)
