@@ -65,3 +65,16 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
+
+
+def test_atlas_segmentation_nodes():
+    """Atlas-based segmentations should add registration and casting nodes."""
+
+    with mock_config():
+        wf = init_segmentation_wf('subcortex')
+        node_names = {node.name for node in wf._get_all_nodes()}
+
+        assert 'subcortex_atlas_reg' in node_names
+        assert 'subcortex_atlas_to_native' in node_names
+        assert 'cast_subcortex_seg' in node_names
+        assert 'convert_subcortexseg' not in node_names
