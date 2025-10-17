@@ -572,6 +572,8 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
             'wm',
             'raphe',
             'limbic',
+            'subcortex',
+            'hammers',
         ],
         help='Segmentation method to use.',
     )

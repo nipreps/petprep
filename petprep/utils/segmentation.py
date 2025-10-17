@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -174,5 +175,61 @@ def ctab_to_dsegtsv(ctab_file: str) -> str:
     ctab_file = Path(ctab_file)
     df = pd.read_csv(ctab_file, header=None, sep=r'\s+', usecols=[0, 1], names=['index', 'name'])
     out_file = ctab_file.with_suffix('.tsv')
+    df.to_csv(out_file, sep='\t', index=False)
+    return str(out_file)
+
+
+def atlas_copy_dsegtsv(
+    subjects_dir: str,
+    subject_id: str,
+    seg_file: str,
+    *,
+    labels_file: str,
+    seg: str,
+) -> str:
+    """Copy a static atlas label table next to the generated segmentation."""
+
+    import shutil
+    from pathlib import Path
+
+    seg_path = Path(seg_file)
+    out_file = seg_path.with_name(f'{seg}_dseg.tsv')
+    shutil.copyfile(labels_file, out_file)
+    return str(out_file)
+
+
+def atlas_seg_to_stats(
+    subjects_dir: str,
+    subject_id: str,
+    seg_file: str,
+    *,
+    labels_file: str,
+    seg: str,
+) -> str:
+    """Generate a TSV table with atlas-derived ROI volumes."""
+
+    import numpy as np
+    import nibabel as nb
+    from pathlib import Path
+    import pandas as pd
+
+    seg_path = Path(seg_file)
+    atlas_img = nb.load(seg_path)
+    data = np.rint(atlas_img.get_fdata()).astype(np.int16)
+    zooms = atlas_img.header.get_zooms()
+    voxel_volume = float(np.prod(zooms[:3]))
+
+    labels = pd.read_csv(labels_file, sep='\t')
+    if 'index' not in labels or 'name' not in labels:
+        raise ValueError(f'Atlas label table {labels_file} lacks required columns')
+
+    volumes = []
+    for index, name in labels[['index', 'name']].itertuples(index=False):
+        idx = int(index)
+        count = int(np.count_nonzero(data == idx))
+        volumes.append({'index': idx, 'name': name, 'volume-mm3': count * voxel_volume})
+
+    df = pd.DataFrame(volumes).sort_values('index').reset_index(drop=True)
+    out_file = seg_path.with_name(f'{seg}_morph.tsv')
     df.to_csv(out_file, sep='\t', index=False)
     return str(out_file)
