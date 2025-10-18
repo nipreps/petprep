@@ -8,6 +8,7 @@ from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+from niworkflows.interfaces.nibabel import ApplyMask
 
 from ... import config
 from ...data import load as load_data
@@ -388,7 +389,9 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(
+            fields=['t1w_preproc', 't1w_mask', 'subjects_dir', 'subject_id']
+        ),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -405,6 +408,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     atlas_spec = spec.get('atlas')
 
     if atlas_spec:
+        mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_t1w')
+
         reg_node = pe.Node(
             Registration(
                 fixed_image=atlas_spec['template'],
@@ -463,7 +468,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
         workflow.connect(
             [
-                (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+                (inputnode, mask_node, [
+                    ('t1w_preproc', 'in_file'),
+                    ('t1w_mask', 'in_mask'),
+                ]),
+                (mask_node, reg_node, [('out_file', 'moving_image')]),
                 (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
                 (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
                 (apply_node, cast_node, [('output_image', 'in_file')]),
