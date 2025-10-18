@@ -181,10 +181,46 @@ SEGMENTATIONS = {
             'seg': 'subcortex',
         },
     },
+    'glasser': {
+        'desc': 'glasser',
+        'atlas': {
+            'template': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_T1w.nii.gz'
+                )
+            ),
+            'dseg': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.nii.gz'
+                )
+            ),
+            'labels': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv'
+                )
+            ),
+        },
+        'segstats': False,
+        'skip_conversion': True,
+        'dseg_func': atlas_copy_dsegtsv,
+        'dseg_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv')
+            ),
+            'seg': 'subcortex',
+        },
+        'morph_func': atlas_seg_to_stats,
+        'morph_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv')
+            ),
+            'seg': 'glasser',
+        },
+    },
     'hammers': {
         'desc': 'hammers',
         'atlas': {
-            'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_T1w.nii.gz')),
+            'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_T1w.nii.gz')),
             'dseg': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.nii.gz')),
             'labels': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
         },
@@ -373,24 +409,34 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             Registration(
                 fixed_image=atlas_spec['template'],
                 transforms=['Rigid', 'Affine', 'SyN'],
-                transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
+                transform_parameters=[(0.05,), (0.05,), (0.01, 4.0, 0.0)],
                 metric=['Mattes', 'Mattes', 'CC'],
                 metric_weight=[1, 1, 1],
                 radius_or_number_of_bins=[32, 32, 4],
                 sampling_strategy=['Regular', 'Regular', None],
-                sampling_percentage=[0.25, 0.25, None],
+                sampling_percentage=[0.3, 0.3, None],
                 sigma_units=['vox', 'vox', 'vox'],
                 number_of_iterations=[
-                    [1000, 500, 250, 0],
-                    [1000, 500, 250, 0],
-                    [100, 70, 50, 10],
+                    [100, 100],
+                    [100, 100],
+                    [100, 30, 20],
                 ],
-                shrink_factors=[[8, 4, 2, 1], [8, 4, 2, 1], [8, 4, 2, 1]],
-                smoothing_sigmas=[[3, 2, 1, 0], [3, 2, 1, 0], [3, 2, 1, 0]],
+                shrink_factors=[
+                    [2, 1],
+                    [2, 1],
+                    [4, 2, 1],
+                ],
+                smoothing_sigmas=[
+                    [2, 1],
+                    [2, 1],
+                    [1, 0.5, 0],
+                ],
                 use_histogram_matching=True,
-                write_composite_transform=True,
                 collapse_output_transforms=True,
-                output_warped_image=False,
+                write_composite_transform=True,
+                output_transform_prefix='ants_t1_to_mni',
+                output_warped_image=True,
+                interpolation='LanczosWindowedSinc',
                 num_threads=config.nipype.omp_nthreads,
             ),
             name=f'{seg}_atlas_reg',
