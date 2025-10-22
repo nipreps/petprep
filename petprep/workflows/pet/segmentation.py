@@ -8,6 +8,7 @@ from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+from niworkflows.interfaces.nibabel import ApplyMask
 
 from ... import config
 from ...data import load as load_data
@@ -181,10 +182,46 @@ SEGMENTATIONS = {
             'seg': 'subcortex',
         },
     },
+    'glasser': {
+        'desc': 'glasser',
+        'atlas': {
+            'template': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_T1w.nii.gz'
+                )
+            ),
+            'dseg': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.nii.gz'
+                )
+            ),
+            'labels': str(
+                load_data(
+                    'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv'
+                )
+            ),
+        },
+        'segstats': False,
+        'skip_conversion': True,
+        'dseg_func': atlas_copy_dsegtsv,
+        'dseg_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv')
+            ),
+            'seg': 'subcortex',
+        },
+        'morph_func': atlas_seg_to_stats,
+        'morph_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_dseg.tsv')
+            ),
+            'seg': 'glasser',
+        },
+    },
     'hammers': {
         'desc': 'hammers',
         'atlas': {
-            'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_T1w.nii.gz')),
+            'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_T1w.nii.gz')),
             'dseg': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.nii.gz')),
             'labels': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
         },
@@ -352,7 +389,9 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(
+            fields=['t1w_preproc', 't1w_mask', 'subjects_dir', 'subject_id']
+        ),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -369,29 +408,50 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     atlas_spec = spec.get('atlas')
 
     if atlas_spec:
+        mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_t1w')
+
         reg_node = pe.Node(
             Registration(
-                fixed_image=atlas_spec['template'],
-                transforms=['Rigid', 'Affine', 'SyN'],
-                transform_parameters=[(0.1,), (0.1,), (0.1, 3, 0)],
-                metric=['Mattes', 'Mattes', 'CC'],
-                metric_weight=[1, 1, 1],
-                radius_or_number_of_bins=[32, 32, 4],
-                sampling_strategy=['Regular', 'Regular', None],
-                sampling_percentage=[0.25, 0.25, None],
-                sigma_units=['vox', 'vox', 'vox'],
-                number_of_iterations=[
-                    [1000, 500, 250, 0],
-                    [1000, 500, 250, 0],
-                    [100, 70, 50, 10],
+                fixed_image = atlas_spec['template'],
+                transforms = ['Rigid', 'Affine', 'SyN'],
+                transform_parameters = [
+                    (0.05,),
+                    (0.05,),
+                    (0.01, 4.0, 0.0),
                 ],
-                shrink_factors=[[8, 4, 2, 1], [8, 4, 2, 1], [8, 4, 2, 1]],
-                smoothing_sigmas=[[3, 2, 1, 0], [3, 2, 1, 0], [3, 2, 1, 0]],
-                use_histogram_matching=True,
-                write_composite_transform=True,
-                collapse_output_transforms=True,
-                output_warped_image=False,
-                num_threads=config.nipype.omp_nthreads,
+                metric = ['Mattes', 'Mattes', ['Mattes', 'CC']],
+                metric_weight = [1, 1, [0.5, 0.5]],
+                radius_or_number_of_bins = [32, 32, [32, 4]],
+                sampling_strategy = ['Regular', 'Regular', [None, None]],
+                sampling_percentage = [0.3, 0.3, [None, None]],
+                sigma_units = ['vox', 'vox', 'vox'],
+                number_of_iterations = [
+                    [100, 100],
+                    [100, 100],
+                    [80, 20, 10],
+                ],
+                shrink_factors = [
+                    [2, 1],
+                    [2, 1],
+                    [4, 2, 1],
+                ],
+                smoothing_sigmas = [
+                    [2, 1],
+                    [2, 1],
+                    [1, 0.5, 0],
+                ],
+                use_histogram_matching = [False, False, True],
+                winsorize_lower_quantile = 0.005,
+                winsorize_upper_quantile = 0.995,
+                collapse_output_transforms = True,
+                write_composite_transform = True,
+                output_transform_prefix = 'ants_t1_to_mni',
+                output_warped_image = True,
+                interpolation = 'LanczosWindowedSinc',
+                dimension = 3,
+                convergence_threshold = [1e-8, 1e-8, -0.01],
+                convergence_window_size = [20, 20, 5],
+                num_threads = config.nipype.omp_nthreads,
             ),
             name=f'{seg}_atlas_reg',
         )
@@ -417,7 +477,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
         workflow.connect(
             [
-                (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+                (inputnode, mask_node, [
+                    ('t1w_preproc', 'in_file'),
+                    ('t1w_mask', 'in_mask'),
+                ]),
+                (mask_node, reg_node, [('out_file', 'moving_image')]),
                 (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
                 (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
                 (apply_node, cast_node, [('output_image', 'in_file')]),
