@@ -211,6 +211,17 @@ It is released under the [CC0]\
         queries=queries,
     )[0]
 
+    participant_record = {
+        'anat_only': config.workflow.anat_only,
+        'has_pet': bool(subject_data['pet']),
+        'has_native_t1w': bool(subject_data['t1w']),
+        'has_derivative_t1w': False,
+        'has_any_t1w': bool(subject_data['t1w']),
+        'n_pet_runs': len(subject_data['pet']),
+        'notes': [],
+    }
+    config.execution.participant_data[subject_id] = participant_record
+
     if 'flair' in config.workflow.ignore:
         subject_data['flair'] = []
     if 't2w' in config.workflow.ignore:
@@ -219,6 +230,9 @@ It is released under the [CC0]\
     anat_only = config.workflow.anat_only
     # Make sure we always go through these two checks
     if not anat_only and not subject_data['pet']:
+        notes = participant_record.setdefault('notes', [])
+        if 'Missing PET images' not in notes:
+            notes.append('Missing PET images')
         raise RuntimeError(
             f'No PET images found for participant {subject_id}.All workflows require PET images.'
         )
@@ -251,6 +265,22 @@ It is released under the [CC0]\
                     std_spaces=std_spaces,
                 )
             )
+
+    notes = participant_record.setdefault('notes', [])
+    derivative_available = bool(anatomical_cache.get('t1w_preproc'))
+    participant_record['has_derivative_t1w'] = derivative_available
+    participant_record['has_any_t1w'] = bool(
+        participant_record.get('has_native_t1w') or derivative_available
+    )
+    if derivative_available and not participant_record.get('has_native_t1w'):
+        if 'Used derivative anatomical input' not in notes:
+            notes.append('Used derivative anatomical input')
+    if not participant_record['has_any_t1w']:
+        if 'Missing anatomical images' not in notes:
+            notes.append('Missing anatomical images')
+    participant_record['n_sessions'] = len(
+        config.execution.layout.get_sessions(subject=subject_id)
+    )
 
     inputnode = pe.Node(niu.IdentityInterface(fields=['subjects_dir']), name='inputnode')
 

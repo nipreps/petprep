@@ -442,6 +442,8 @@ class execution(_Config):
     """Write out the computational graph corresponding to the planned preprocessing."""
     dataset_links = {}
     """A dictionary of dataset links to be used to track Sources in sidecars."""
+    participant_data = {}
+    """Metadata about inputs and processing state for each participant."""
 
     _layout = None
 

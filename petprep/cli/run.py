@@ -34,6 +34,7 @@ def main():
     from pathlib import Path
 
     from ..utils.bids import write_bidsignore, write_derivative_description
+    from ..utils.status import collect_participant_status, write_participant_log
     from .parser import parse_args
     from .workflow import build_workflow
 
@@ -200,6 +201,22 @@ def main():
             config.execution.run_uuid,
             session_list=session_list,
         )
+        participant_rows = collect_participant_status(
+            config.execution.petprep_dir,
+            config.execution.run_uuid,
+            participants=config.execution.participant_label,
+            metadata=getattr(config.execution, 'participant_data', {}),
+            failed_reports=failed_reports,
+        )
+        if participant_rows:
+            status_file = write_participant_log(
+                config.execution.petprep_dir / 'logs',
+                config.execution.run_uuid,
+                participant_rows,
+            )
+            message = f'Participant summary written to {status_file}'
+            config.loggers.workflow.log(25, message)
+            config.loggers.cli.log(25, message)
         write_derivative_description(
             config.execution.bids_dir,
             config.execution.petprep_dir,
