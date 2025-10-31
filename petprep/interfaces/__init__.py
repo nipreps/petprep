@@ -2,6 +2,8 @@
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 from niworkflows.interfaces.bids import DerivativesDataSink as _DDSink
 
+from .ants import TimedRegistration
+from .atlas_reg_report import AtlasRegistrationReport
 from .cifti import GeneratePetCifti
 from .tacs import ExtractRefTAC, ExtractTACs
 
@@ -15,4 +17,6 @@ __all__ = (
     'GeneratePetCifti',
     'ExtractTACs',
     'ExtractRefTAC',
+    'AtlasRegistrationReport',
+    'TimedRegistration',
 )

@@ -1,9 +1,11 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 """Segmentation workflows."""
 
+import json
+from pathlib import Path
+
 from nipype import Function
 from nipype.interfaces import utility as niu
-from nipype.interfaces.ants import Registration
 from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
@@ -12,7 +14,7 @@ from niworkflows.interfaces.nibabel import ApplyMask
 
 from ... import config
 from ...data import load as load_data
-from ...interfaces import DerivativesDataSink
+from ...interfaces import AtlasRegistrationReport, DerivativesDataSink, TimedRegistration
 from ...interfaces.bids import BIDSURI
 from ...interfaces.segmentation import (
     MRISclimbicSeg,
@@ -31,6 +33,7 @@ from ...utils.segmentation import (
     gtm_to_dsegtsv,
     summary_to_stats,
 )
+from ...utils.atlas_reg import AtlasRegConfigError, load_parameter_set
 
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
@@ -85,6 +88,14 @@ def _cast_segmentation(in_file: str) -> str:
     out_file = seg_path.with_name(f'{stem}_int16.nii.gz')
     out_img.to_filename(out_file)
     return str(out_file)
+
+
+def _sanitize_entity(value: str) -> str:
+    """Return a lower-case alphanumeric token safe to use as a BIDS entity."""
+
+    cleaned = ''.join(ch.lower() if ch.isalnum() else '-' for ch in value)
+    cleaned = cleaned.strip('-')
+    return cleaned or 'default'
 
 
 SEGMENTATIONS = {
@@ -149,6 +160,7 @@ SEGMENTATIONS = {
     'subcortex': {
         'desc': 'subcortex',
         'atlas': {
+            'param_config': 'subcortex',
             'template': str(
                 load_data(
                     'segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_T1w.nii.gz'
@@ -185,6 +197,7 @@ SEGMENTATIONS = {
     'glasser': {
         'desc': 'glasser',
         'atlas': {
+            'param_config': 'glasser',
             'template': str(
                 load_data(
                     'segmentation/glasser/tpl-AFNIMNI1522009_desc-brain_T1w.nii.gz'
@@ -221,6 +234,7 @@ SEGMENTATIONS = {
     'hammers': {
         'desc': 'hammers',
         'atlas': {
+            'param_config': 'hammers',
             'template': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_T1w.nii.gz')),
             'dseg': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.nii.gz')),
             'labels': str(load_data('segmentation/hammers/tpl-SPM_space-MNI152_desc-brain_dseg.tsv')),
@@ -408,59 +422,43 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     atlas_spec = spec.get('atlas')
 
     if atlas_spec:
-        mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_t1w')
+        config_key = atlas_spec.get('param_config', seg)
+        config_override = config.execution.atlas_reg_config_paths.get(seg)
+        try:
+            parameter_set = load_parameter_set(
+                config_key,
+                config_path=config_override,
+            )
+        except AtlasRegConfigError as exc:
+            raise RuntimeError(f'Failed to load atlas registration parameters for "{seg}": {exc}') from exc
 
-        reg_node = pe.Node(
-            Registration(
-                fixed_image = atlas_spec['template'],
-                transforms = ['Rigid', 'Affine', 'SyN'],
-                transform_parameters = [
-                    (0.05,),
-                    (0.05,),
-                    (0.01, 4.0, 0.0),
-                ],
-                metric = ['Mattes', 'Mattes', ['Mattes', 'CC']],
-                metric_weight = [1, 1, [0.5, 0.5]],
-                radius_or_number_of_bins = [32, 32, [32, 4]],
-                sampling_strategy = ['Regular', 'Regular', [None, None]],
-                sampling_percentage = [0.3, 0.3, [None, None]],
-                sigma_units = ['vox', 'vox', 'vox'],
-                number_of_iterations = [
-                    [100, 100],
-                    [100, 100],
-                    [80, 20, 10],
-                ],
-                shrink_factors = [
-                    [2, 1],
-                    [2, 1],
-                    [4, 2, 1],
-                ],
-                smoothing_sigmas = [
-                    [2, 1],
-                    [2, 1],
-                    [1, 0.5, 0],
-                ],
-                use_histogram_matching = [False, False, True],
-                winsorize_lower_quantile = 0.005,
-                winsorize_upper_quantile = 0.995,
-                collapse_output_transforms = True,
-                write_composite_transform = True,
-                output_transform_prefix = 'ants_t1_to_mni',
-                output_warped_image = True,
-                interpolation = 'LanczosWindowedSinc',
-                dimension = 3,
-                convergence_threshold = [1e-8, 1e-8, -0.01],
-                convergence_window_size = [20, 20, 5],
-                num_threads = config.nipype.omp_nthreads,
-            ),
-            name=f'{seg}_atlas_reg',
+        reg_kwargs = dict(parameter_set.registration)
+        reg_kwargs.setdefault('fixed_image', atlas_spec['template'])
+        reg_kwargs.setdefault('collapse_output_transforms', True)
+        reg_kwargs.setdefault('write_composite_transform', True)
+        reg_kwargs.setdefault('output_warped_image', True)
+        reg_kwargs.setdefault('output_inverse_warped_image', True)
+        reg_kwargs.setdefault('interpolation', 'LanczosWindowedSinc')
+        reg_kwargs.setdefault('dimension', 3)
+        reg_kwargs.setdefault('num_threads', config.nipype.omp_nthreads)
+
+        config.loggers.workflow.log(
+            25,
+            'Atlas "%s" registration uses parameter set "%s" (source: %s).',
+            seg,
+            parameter_set.parameter_id,
+            parameter_set.config_path,
         )
 
+        mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_t1w')
+        reg_node = pe.Node(TimedRegistration(**reg_kwargs), name=f'{seg}_atlas_reg')
+
+        param_token = _sanitize_entity(parameter_set.parameter_id)
         apply_node = pe.Node(
             ApplyTransforms(
                 interpolation='MultiLabel',
                 input_image=atlas_spec['dseg'],
-                output_image=f'{seg}_atlas_to_t1w.nii.gz',
+                output_image=f'{seg}_{param_token}_atlas_to_t1w.nii.gz',
                 num_threads=config.nipype.omp_nthreads,
             ),
             name=f'{seg}_atlas_to_native',
@@ -475,6 +473,59 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name=f'cast_{seg}_seg',
         )
 
+        atlas_root = Path(config.execution.petprep_dir).absolute()
+        if atlas_root.name != 'atlas_reg':
+            atlas_root = atlas_root / 'atlas_reg'
+        atlas_root.mkdir(parents=True, exist_ok=True)
+        atlas_reg_dir = str(atlas_root)
+        template_sink = pe.Node(
+            DerivativesDataSink(
+                base_directory=atlas_reg_dir,
+                seg=seg,
+                suffix='T1w',
+                desc=f'{param_token}template',
+                space='T1w',
+                datatype='anat',
+                allowed_entities=('seg', 'suffix', 'desc', 'space', 'datatype'),
+                compress=True,
+            ),
+            name=f'ds_{seg}_atlas_template',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        atlas_sink = pe.Node(
+            DerivativesDataSink(
+                base_directory=atlas_reg_dir,
+                seg=seg,
+                suffix='dseg',
+                desc=f'{param_token}atlas',
+                space='T1w',
+                datatype='anat',
+                allowed_entities=('seg', 'suffix', 'desc', 'space', 'datatype'),
+                compress=True,
+            ),
+            name=f'ds_{seg}_atlas_seg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        report_node = pe.Node(
+            AtlasRegistrationReport(),
+            name=f'{seg}_atlas_reg_report',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        report_node.inputs.atlas_name = seg
+        report_node.inputs.parameter_id = parameter_set.parameter_id
+        report_node.inputs.parameter_description = parameter_set.description
+        report_node.inputs.config_path = str(parameter_set.config_path)
+        report_node.inputs.registration_params = json.loads(json.dumps(reg_kwargs, default=str))
+        report_node.inputs.template_file = atlas_spec['template']
+        report_node.inputs.atlas_file = atlas_spec['dseg']
+        report_node.inputs.output_dir = atlas_reg_dir
+        report_node.inputs.run_uuid = config.execution.run_uuid
+
         workflow.connect(
             [
                 (inputnode, mask_node, [
@@ -485,10 +536,30 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
                 (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
                 (apply_node, cast_node, [('output_image', 'in_file')]),
+                (reg_node, template_sink, [('inverse_warped_image', 'in_file')]),
+                (inputnode, template_sink, [('t1w_preproc', 'source_file')]),
+                (cast_node, atlas_sink, [('out_file', 'in_file')]),
+                (inputnode, atlas_sink, [('t1w_preproc', 'source_file')]),
+                (inputnode, report_node, [
+                    ('t1w_preproc', 't1w_file'),
+                    ('subjects_dir', 'subjects_dir'),
+                    ('subject_id', 'subject_id'),
+                ]),
+                (reg_node, report_node, [
+                    ('inverse_warped_image', 'template_registered_file'),
+                    ('runtime_seconds', 'runtime_seconds'),
+                ]),
+                (cast_node, report_node, [('out_file', 'atlas_registered_file')]),
             ]
         )
 
         seg_node = cast_node
+
+        atlas_nodes = {
+            'atlas_template_sink': template_sink,
+            'atlas_seg_sink': atlas_sink,
+            'atlas_report': report_node,
+        }
     else:
         interface = spec['interface']
         seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
@@ -510,6 +581,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     )
 
     if atlas_spec:
+        nodes.update(atlas_nodes)
         nodes['seg_source'] = seg_node
     if spec.get('merge_ha', False):
         workflow.connect(

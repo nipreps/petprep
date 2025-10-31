@@ -579,6 +579,15 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Segmentation method to use.',
     )
 
+    g_atlas = parser.add_argument_group('Atlas registration testing')
+    g_atlas.add_argument(
+        '--atlas-reg-config',
+        action='append',
+        default=[],
+        metavar='ATLAS=FILE',
+        help='Use a custom YAML definition for an atlas registration (e.g., hammers=/path/to/file.yml).',
+    )
+
     g_refmask = parser.add_argument_group('Options for reference mask generation')
     g_refmask.add_argument(
         '--ref-mask-name',
@@ -738,6 +747,7 @@ discourage its usage.""",
 def parse_args(args=None, namespace=None):
     """Parse args and run further checks on the command line."""
     import logging
+    from pathlib import Path
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
 
@@ -751,6 +761,22 @@ def parse_args(args=None, namespace=None):
 
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+
+    atlas_config_paths = {}
+    for entry in opts.atlas_reg_config or []:
+        if '=' not in entry:
+            parser.error(
+                f'Invalid --atlas-reg-config "{entry}". Expected format ATLAS=/path/to/file.yml.'
+            )
+        atlas_key, path_str = entry.split('=', 1)
+        atlas_key = atlas_key.strip()
+        path_str = path_str.strip()
+        if not atlas_key or not path_str:
+            parser.error(
+                f'Invalid --atlas-reg-config "{entry}". Atlas and path must be non-empty.'
+            )
+        atlas_config_paths[atlas_key] = str(Path(path_str).expanduser())
+    config.execution.atlas_reg_config_paths = atlas_config_paths
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):

@@ -442,6 +442,8 @@ class execution(_Config):
     """Write out the computational graph corresponding to the planned preprocessing."""
     dataset_links = {}
     """A dictionary of dataset links to be used to track Sources in sidecars."""
+    atlas_reg_config_paths = {}
+    """Optional mapping of atlas identifiers to custom YAML configuration paths."""
 
     _layout = None
 
