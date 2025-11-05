@@ -98,6 +98,30 @@ class AtlasRegistrationReport(SimpleInterface):
             fs_seg_data,
         ) = self._load_data(subject)
 
+        skull_sources = _find_skull_stripped_sources(subject_dir, subject_label)
+        t1_brain_data: np.ndarray | None = None
+        template_brain_data: np.ndarray | None = None
+        t1_brain_range: tuple[float, float] | None = None
+        template_brain_range: tuple[float, float] | None = None
+
+        t1_brain_path = skull_sources.get('t1')
+        if t1_brain_path is not None:
+            try:
+                t1_brain_data = _load_skull_stripped_data(t1_brain_path)
+                t1_brain_range = _intensity_range(t1_brain_data)
+            except Exception:
+                t1_brain_data = None
+                t1_brain_range = None
+
+        template_brain_path = skull_sources.get('template')
+        if template_brain_path is not None:
+            try:
+                template_brain_data = _load_skull_stripped_data(template_brain_path)
+                template_brain_range = _intensity_range(template_brain_data)
+            except Exception:
+                template_brain_data = None
+                template_brain_range = None
+
         t1_vmin, t1_vmax = _intensity_range(t1_data)
         template_vmin, template_vmax = _intensity_range(template_data)
         template_reg_vmin, template_reg_vmax = _intensity_range(template_reg_data)
@@ -113,6 +137,10 @@ class AtlasRegistrationReport(SimpleInterface):
             t1_range=(t1_vmin, t1_vmax),
             template_range=(template_vmin, template_vmax),
             template_reg_range=(template_reg_vmin, template_reg_vmax),
+            t1_brain_data=t1_brain_data,
+            template_brain_data=template_brain_data,
+            t1_brain_range=t1_brain_range,
+            template_brain_range=template_brain_range,
         )
 
         html_path = atlas_root / f'{subject_label}.html'
@@ -207,6 +235,10 @@ def _generate_figures(
     t1_range: tuple[float, float],
     template_range: tuple[float, float],
     template_reg_range: tuple[float, float],
+    t1_brain_data: np.ndarray | None = None,
+    template_brain_data: np.ndarray | None = None,
+    t1_brain_range: tuple[float, float] | None = None,
+    template_brain_range: tuple[float, float] | None = None,
 ) -> dict[str, Path]:
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -219,6 +251,10 @@ def _generate_figures(
         'template_overlay': run_dir / 'template_overlay.png',
         'atlas_overlay': run_dir / 'atlas_overlay.png',
     }
+    if t1_brain_data is not None:
+        figure_paths['t1_brain'] = run_dir / 't1_brain.png'
+    if template_brain_data is not None:
+        figure_paths['template_brain'] = run_dir / 'template_brain.png'
 
     base_indices = _compute_slice_indices(t1_data.shape, SLICE_COUNT)
     template_indices = _compute_slice_indices(template_data.shape, SLICE_COUNT)
@@ -237,6 +273,20 @@ def _generate_figures(
         template_reg_data, base_indices, figure_paths['template_overlay'], vmin=template_reg_range[0], vmax=template_reg_range[1]
     )
     _save_segmentation_overlay(atlas_reg_data, base_indices, figure_paths['atlas_overlay'])
+    if t1_brain_data is not None:
+        t1_brain_indices = _compute_slice_indices(t1_brain_data.shape, SLICE_COUNT)
+        vmin, vmax = t1_brain_range if t1_brain_range is not None else (None, None)
+        _save_scalar_mosaic(t1_brain_data, t1_brain_indices, figure_paths['t1_brain'], vmin=vmin, vmax=vmax)
+    if template_brain_data is not None:
+        template_brain_indices = _compute_slice_indices(template_brain_data.shape, SLICE_COUNT)
+        vmin, vmax = template_brain_range if template_brain_range is not None else (None, None)
+        _save_scalar_mosaic(
+            template_brain_data,
+            template_brain_indices,
+            figure_paths['template_brain'],
+            vmin=vmin,
+            vmax=vmax,
+        )
     return figure_paths
 
 
@@ -444,6 +494,98 @@ def _save_scalar_overlay(
     plt.close(fig)
 
 
+def _find_skull_stripped_sources(subject_dir: Path, subject_label: str) -> dict[str, Path]:
+    anat_dir = subject_dir / 'anat'
+    if not anat_dir.exists():
+        return {}
+
+    def _pick(patterns: list[str]) -> Path | None:
+        for pattern in patterns:
+            matches = sorted(anat_dir.glob(pattern))
+            for candidate in matches:
+                if candidate.is_file():
+                    return candidate
+        return None
+
+    t1_patterns = [
+        f'{subject_label}_desc-brain_T1w.nii.gz',
+        f'{subject_label}_desc-preproc_T1w.nii.gz',
+    ]
+    template_patterns = [
+        f'{subject_label}_space-T1w_desc-*template*_T1w.nii.gz',
+        f'{subject_label}_space-*_desc-brain_T1w.nii.gz',
+        f'{subject_label}_space-*_desc-preproc_T1w.nii.gz',
+    ]
+
+    sources: dict[str, Path] = {}
+    t1_path = _pick(t1_patterns)
+    if t1_path is not None:
+        sources['t1'] = t1_path
+    template_path = _pick(template_patterns)
+    if template_path is not None:
+        sources['template'] = template_path
+    return sources
+
+
+def _load_skull_stripped_data(image_path: Path) -> np.ndarray:
+    image = as_closest_canonical(nb.load(str(image_path)))
+    data = _ensure_3d(image.get_fdata())
+
+    skull_flag = _read_skull_stripped_flag(image_path)
+    if skull_flag is True:
+        return data
+
+    mask_path = _infer_mask_path(image_path)
+    if mask_path is None or not mask_path.exists():
+        return data
+
+    mask_img = as_closest_canonical(nb.load(str(mask_path)))
+    if mask_img.shape != image.shape or not np.allclose(mask_img.affine, image.affine):
+        mask_img = resample_from_to(mask_img, image, order=0)
+    mask_data = _ensure_3d(mask_img.get_fdata()) > 0.5
+    return np.where(mask_data, data, 0)
+
+
+def _read_skull_stripped_flag(image_path: Path) -> bool | None:
+    meta_path = _metadata_path(image_path)
+    if meta_path is None or not meta_path.exists():
+        return None
+    try:
+        metadata = json.loads(meta_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    flag = metadata.get('SkullStripped')
+    if isinstance(flag, bool):
+        return flag
+    if isinstance(flag, str):
+        return flag.strip().lower() == 'true'
+    return None
+
+
+def _metadata_path(image_path: Path) -> Path | None:
+    if image_path.suffix == '.gz' and image_path.name.endswith('.nii.gz'):
+        return image_path.with_suffix('').with_suffix('.json')
+    return image_path.with_suffix('.json')
+
+
+def _infer_mask_path(image_path: Path) -> Path | None:
+    name = image_path.name
+    parent = image_path.parent
+    candidates: list[str] = []
+    if '_desc-preproc_T1w' in name:
+        candidates.append(name.replace('_desc-preproc_T1w', '_desc-brain_mask'))
+    if '_desc-preproc_' in name and name.endswith('_T1w.nii.gz'):
+        candidates.append(
+            name.replace('_desc-preproc_', '_desc-brain_').replace('_T1w.nii.gz', '_mask.nii.gz')
+        )
+    if '_T1w' in name:
+        candidates.append(name.replace('_T1w', '_mask'))
+    for candidate in candidates:
+        path = parent / candidate
+        if path.exists():
+            return path
+    return None
+
 
 def _build_html_header(subject: str) -> str:
     return f"""<!DOCTYPE html>
@@ -469,13 +611,12 @@ def _build_html_header(subject: str) -> str:
     }}
     .grid {{
         display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
+        flex-direction: column;
+        gap: 1.25rem;
         margin-bottom: 1rem;
     }}
     .panel {{
-        flex: 1 1 30%;
-        min-width: 220px;
+        width: 100%;
     }}
     .panel h3 {{
         font-size: 1rem;
@@ -568,6 +709,27 @@ def _render_block(
         </div>
         """
 
+    def _image_panel(title: str, key: str) -> str:
+        if key not in relative_map:
+            return ''
+        return f"""
+        <div class="panel">
+            <h3>{title}</h3>
+            <img src="{relative_map[key].as_posix()}" alt="{title}" />
+        </div>
+        """
+
+    primary_panels: list[tuple[str, str]] = [
+        ('Native T1', 't1_static'),
+        ('Atlas template', 'template_static'),
+        ('Atlas labels (template space)', 'atlas_static'),
+    ]
+    if 't1_brain' in relative_map:
+        primary_panels.append(('Skull-stripped T1', 't1_brain'))
+    if 'template_brain' in relative_map:
+        primary_panels.append(('Skull-stripped template', 'template_brain'))
+    primary_html = ''.join(_image_panel(title, key) for title, key in primary_panels if key in relative_map)
+
     return f"""
 <div class="run-block">
     <h2>{atlas_name} – parameter set “{parameter_id}”</h2>
@@ -575,18 +737,7 @@ def _render_block(
        <strong>Config:</strong> {Path(config_path).name} ({config_path})<br />
        <strong>Runtime:</strong> {runtime_str}</p>
     <div class="grid">
-        <div class="panel">
-            <h3>Native T1</h3>
-            <img src="{relative_map['t1_static'].as_posix()}" alt="Native T1" />
-        </div>
-        <div class="panel">
-            <h3>Atlas template</h3>
-            <img src="{relative_map['template_static'].as_posix()}" alt="Atlas template" />
-        </div>
-        <div class="panel">
-            <h3>Atlas labels (template space)</h3>
-            <img src="{relative_map['atlas_static'].as_posix()}" alt="Atlas segmentation template" />
-        </div>
+        {primary_html}
     </div>
     <div class="grid">
         {_slider_block('fs_overlay', 'FreeSurfer segmentation on T1')}
