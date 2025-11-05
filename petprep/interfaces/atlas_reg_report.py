@@ -98,29 +98,35 @@ class AtlasRegistrationReport(SimpleInterface):
             fs_seg_data,
         ) = self._load_data(subject)
 
-        skull_sources = _find_skull_stripped_sources(subject_dir, subject_label)
+        atlas_mask = atlas_reg_data > 0
+        brain_mask = _load_brain_mask(subject_label, atlas_root, t1_img)
+        mask_bool: np.ndarray | None = None
         t1_brain_data: np.ndarray | None = None
-        template_brain_data: np.ndarray | None = None
         t1_brain_range: tuple[float, float] | None = None
+
+        if brain_mask is not None:
+            mask_bool = brain_mask > 0.5
+            t1_brain_data = np.where(mask_bool, t1_data, 0)
+            t1_brain_range = _intensity_range(t1_brain_data)
+        else:
+            skull_sources = _find_skull_stripped_sources(subject_label, atlas_root)
+            t1_brain_path = skull_sources.get('t1')
+            if t1_brain_path is not None:
+                try:
+                    t1_brain_data = _load_skull_stripped_data(t1_brain_path)
+                    t1_brain_range = _intensity_range(t1_brain_data)
+                except Exception:
+                    t1_brain_data = None
+                    t1_brain_range = None
+
+        template_brain_data: np.ndarray | None = None
         template_brain_range: tuple[float, float] | None = None
-
-        t1_brain_path = skull_sources.get('t1')
-        if t1_brain_path is not None:
-            try:
-                t1_brain_data = _load_skull_stripped_data(t1_brain_path)
-                t1_brain_range = _intensity_range(t1_brain_data)
-            except Exception:
-                t1_brain_data = None
-                t1_brain_range = None
-
-        template_brain_path = skull_sources.get('template')
-        if template_brain_path is not None:
-            try:
-                template_brain_data = _load_skull_stripped_data(template_brain_path)
-                template_brain_range = _intensity_range(template_brain_data)
-            except Exception:
-                template_brain_data = None
-                template_brain_range = None
+        if np.any(atlas_mask):
+            template_brain_data = np.where(atlas_mask, template_reg_data, 0)
+            template_brain_range = _intensity_range(template_reg_data[atlas_mask])
+        else:
+            template_brain_data = template_reg_data
+            template_brain_range = _intensity_range(template_reg_data)
 
         t1_vmin, t1_vmax = _intensity_range(t1_data)
         template_vmin, template_vmax = _intensity_range(template_data)
@@ -141,6 +147,7 @@ class AtlasRegistrationReport(SimpleInterface):
             template_brain_data=template_brain_data,
             t1_brain_range=t1_brain_range,
             template_brain_range=template_brain_range,
+            brain_mask=mask_bool,
         )
 
         html_path = atlas_root / f'{subject_label}.html'
@@ -239,6 +246,7 @@ def _generate_figures(
     template_brain_data: np.ndarray | None = None,
     t1_brain_range: tuple[float, float] | None = None,
     template_brain_range: tuple[float, float] | None = None,
+    brain_mask: np.ndarray | None = None,
 ) -> dict[str, Path]:
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -255,6 +263,8 @@ def _generate_figures(
         figure_paths['t1_brain'] = run_dir / 't1_brain.png'
     if template_brain_data is not None:
         figure_paths['template_brain'] = run_dir / 'template_brain.png'
+    if brain_mask is not None:
+        figure_paths['t1_mask_overlay'] = run_dir / 't1_mask_overlay.png'
 
     base_indices = _compute_slice_indices(t1_data.shape, SLICE_COUNT)
     template_indices = _compute_slice_indices(template_data.shape, SLICE_COUNT)
@@ -286,6 +296,15 @@ def _generate_figures(
             figure_paths['template_brain'],
             vmin=vmin,
             vmax=vmax,
+        )
+    if brain_mask is not None:
+        _save_mask_overlay(
+            t1_data,
+            brain_mask,
+            base_indices,
+            figure_paths['t1_mask_overlay'],
+            vmin=t1_range[0],
+            vmax=t1_range[1],
         )
     return figure_paths
 
@@ -494,17 +513,103 @@ def _save_scalar_overlay(
     plt.close(fig)
 
 
-def _find_skull_stripped_sources(subject_dir: Path, subject_label: str) -> dict[str, Path]:
-    anat_dir = subject_dir / 'anat'
-    if not anat_dir.exists():
-        return {}
+def _save_mask_overlay(
+    base_data: np.ndarray,
+    mask_data: np.ndarray,
+    indices: dict[str, list[int]],
+    out_file: Path,
+    *,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    alpha: float = 0.45,
+    cmap: str = 'autumn',
+) -> None:
+    if mask_data.shape != base_data.shape:
+        raise ValueError('Mask data must share the same shape as the base volume.')
+    mask_slices = _extract_slices(mask_data, indices)
+    rows = len(AXIS_ORDER)
+    cols = len(indices[AXIS_ORDER[0]])
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 3, rows * 3), facecolor='none')
+    fig.patch.set_alpha(0)
+    axes = np.atleast_2d(axes)
+    for row, axis_name in enumerate(AXIS_ORDER):
+        label = AXIS_LABELS[axis_name]
+        for col, mask_slice in enumerate(mask_slices[axis_name]):
+            ax = axes[row, col]
+            ax.set_facecolor((0, 0, 0, 0))
+            masked = np.ma.masked_where(mask_slice <= 0.5, mask_slice)
+            ax.imshow(masked, cmap=cmap, origin='lower', alpha=alpha, interpolation='nearest')
+            ax.axis('off')
+            if col == 0:
+                ax.text(
+                    0.02,
+                    0.95,
+                    label,
+                    color='white',
+                    fontsize=10,
+                    fontweight='bold',
+                    ha='left',
+                    va='top',
+                    transform=ax.transAxes,
+                )
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
+    fig.savefig(out_file, dpi=150, bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.close(fig)
+
+
+def _load_brain_mask(
+    subject_label: str, atlas_root: Path, reference_img: nb.spatialimages.SpatialImage
+) -> np.ndarray | None:
+    search_dirs: list[Path] = []
+    candidate = atlas_root / subject_label / 'anat'
+    if candidate.exists():
+        search_dirs.append(candidate)
+    parent = atlas_root.parent
+    if parent != atlas_root:
+        candidate = parent / subject_label / 'anat'
+        if candidate.exists():
+            search_dirs.append(candidate)
+
+    mask_patterns = [
+        f'{subject_label}_desc-brain_mask.nii.gz',
+        f'{subject_label}_space-T1w_desc-brain_mask.nii.gz',
+        f'{subject_label}_space-*_desc-brain_mask.nii.gz',
+    ]
+    for directory in search_dirs:
+        for pattern in mask_patterns:
+            for mask_path in sorted(directory.glob(pattern)):
+                try:
+                    mask_img = as_closest_canonical(nb.load(str(mask_path)))
+                except Exception:
+                    continue
+                if (
+                    mask_img.shape != reference_img.shape
+                    or not np.allclose(mask_img.affine, reference_img.affine)
+                ):
+                    mask_img = resample_from_to(mask_img, reference_img, order=0)
+                mask_data = _ensure_3d(mask_img.get_fdata())
+                return mask_data
+    return None
+
+
+def _find_skull_stripped_sources(subject_label: str, atlas_root: Path) -> dict[str, Path]:
+    search_dirs: list[Path] = []
+    candidate = atlas_root / subject_label / 'anat'
+    if candidate.exists():
+        search_dirs.append(candidate)
+    parent = atlas_root.parent
+    if parent != atlas_root:
+        candidate = parent / subject_label / 'anat'
+        if candidate.exists():
+            search_dirs.append(candidate)
 
     def _pick(patterns: list[str]) -> Path | None:
-        for pattern in patterns:
-            matches = sorted(anat_dir.glob(pattern))
-            for candidate in matches:
-                if candidate.is_file():
-                    return candidate
+        for directory in search_dirs:
+            for pattern in patterns:
+                matches = sorted(directory.glob(pattern))
+                for candidate_path in matches:
+                    if candidate_path.is_file():
+                        return candidate_path
         return None
 
     t1_patterns = [
@@ -687,6 +792,7 @@ def _render_block(
     runtime_str = _format_runtime(runtime_seconds)
     params_json = json.dumps(registration_params, indent=2, sort_keys=True)
     slider_defaults = {
+        't1_mask_overlay': 0.55,
         'fs_overlay': 0.65,
         'template_overlay': 0.5,
         'atlas_overlay': 0.7,
@@ -730,6 +836,16 @@ def _render_block(
         primary_panels.append(('Skull-stripped template', 'template_brain'))
     primary_html = ''.join(_image_panel(title, key) for title, key in primary_panels if key in relative_map)
 
+    overlay_panels: list[tuple[str, str]] = []
+    if 't1_mask_overlay' in relative_map:
+        overlay_panels.append(('t1_mask_overlay', 'T1 brain mask (FreeSurfer)'))
+    overlay_panels.extend([
+        ('fs_overlay', 'FreeSurfer segmentation on T1'),
+        ('template_overlay', 'Template warped to T1'),
+        ('atlas_overlay', 'Atlas labels warped to T1'),
+    ])
+    overlay_html = ''.join(_slider_block(key, title) for key, title in overlay_panels if key in relative_map)
+
     return f"""
 <div class="run-block">
     <h2>{atlas_name} – parameter set “{parameter_id}”</h2>
@@ -740,9 +856,7 @@ def _render_block(
         {primary_html}
     </div>
     <div class="grid">
-        {_slider_block('fs_overlay', 'FreeSurfer segmentation on T1')}
-        {_slider_block('template_overlay', 'Template warped to T1')}
-        {_slider_block('atlas_overlay', 'Atlas labels warped to T1')}
+        {overlay_html}
     </div>
     <details>
         <summary>Registration parameters</summary>
