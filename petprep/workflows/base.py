@@ -236,6 +236,14 @@ It is released under the [CC0]\
 
     spaces = config.workflow.spaces
     msm_sulc = config.workflow.run_msmsulc
+    if config.execution.atlas_reg_stop_after_report:
+        msm_sulc = False
+        if config.workflow.level not in (None, 'minimal'):
+            config.loggers.workflow.info(
+                'atlas_reg_stop_after_report enabled – overriding workflow.level=%s -> minimal',
+                config.workflow.level,
+            )
+        config.workflow.level = 'minimal'
 
     anatomical_cache = {}
     if config.execution.derivatives:
@@ -365,7 +373,7 @@ It is released under the [CC0]\
     # Set up the template iterator once, if used
     template_iterator_wf = None
     select_MNI2009c_xfm = None
-    if config.workflow.level == 'full':
+    if not config.execution.atlas_reg_stop_after_report and config.workflow.level == 'full':
         if spaces.cached.get_spaces(nonstandard=False, dim=(3,)):
             template_iterator_wf = init_template_iterator_wf(
                 spaces=spaces, sloppy=config.execution.sloppy
@@ -543,7 +551,7 @@ It is released under the [CC0]\
         ]
     )
 
-    if config.workflow.anat_only:
+    if config.workflow.anat_only or config.execution.atlas_reg_stop_after_report:
         return clean_datasinks(workflow)
 
     # Append the PET section to the existing anatomical excerpt
@@ -575,7 +583,7 @@ segmented with the ``{config.workflow.seg}`` segmentation workflow from FreeSurf
 
     pet_pre_desc += '\n'
 
-    for pet_series in pet_runs:
+    for pet_series in ([] if config.execution.atlas_reg_stop_after_report else pet_runs):
         pet_cache = {}
         if config.execution.derivatives:
             from petprep.utils.bids import collect_derivatives, extract_entities

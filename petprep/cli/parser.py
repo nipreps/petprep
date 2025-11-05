@@ -415,6 +415,12 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Skip generation of HTML and LaTeX formatted citation with pandoc',
     )
     g_outputs.add_argument(
+        '--atlas-reg-stop-after-report',
+        action='store_true',
+        default=False,
+        help='Stop the pipeline after atlas registration reports are generated (developer shortcut).',
+    )
+    g_outputs.add_argument(
         '--cifti-output',
         nargs='?',
         const='91k',
@@ -789,6 +795,8 @@ def parse_args(args=None, namespace=None):
         config.workflow.ref_mask_name = opts.ref_mask_name
     if opts.ref_mask_index is not None:
         config.workflow.ref_mask_index = tuple(opts.ref_mask_index)
+
+    config.execution.atlas_reg_stop_after_report = opts.atlas_reg_stop_after_report
 
     if opts.pvc_tool is not None:
         config.workflow.pvc_tool = opts.pvc_tool

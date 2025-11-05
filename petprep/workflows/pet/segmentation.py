@@ -90,6 +90,17 @@ def _cast_segmentation(in_file: str) -> str:
     return str(out_file)
 
 
+def _terminate_after_report(html_file: str) -> str:
+    """Log the atlas QC report path when running in report-only mode."""
+    from petprep import config as _config
+
+    _config.loggers.workflow.info(
+        'Atlas registration report written to %s - report-only mode leaves remaining workflows running.',
+        html_file,
+    )
+    return html_file
+
+
 def _sanitize_entity(value: str) -> str:
     """Return a lower-case alphanumeric token safe to use as a BIDS entity."""
 
@@ -420,6 +431,8 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         return workflow
 
     atlas_spec = spec.get('atlas')
+    atlas_nodes: dict[str, pe.Node] = {}
+    stop_after_report = bool(config.execution.atlas_reg_stop_after_report)
 
     if atlas_spec:
         config_key = atlas_spec.get('param_config', seg)
@@ -473,11 +486,77 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name=f'cast_{seg}_seg',
         )
 
+        report_node = pe.Node(
+            AtlasRegistrationReport(),
+            name=f'{seg}_atlas_reg_report',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        report_node.inputs.atlas_name = seg
+        report_node.inputs.parameter_id = parameter_set.parameter_id
+        report_node.inputs.parameter_description = parameter_set.description
+        report_node.inputs.config_path = str(parameter_set.config_path)
+        report_node.inputs.registration_params = json.loads(json.dumps(reg_kwargs, default=str))
+        report_node.inputs.template_file = atlas_spec['template']
+        report_node.inputs.atlas_file = atlas_spec['dseg']
+        report_node.inputs.run_uuid = config.execution.run_uuid
+
         atlas_root = Path(config.execution.petprep_dir).absolute()
         if atlas_root.name != 'atlas_reg':
             atlas_root = atlas_root / 'atlas_reg'
         atlas_root.mkdir(parents=True, exist_ok=True)
         atlas_reg_dir = str(atlas_root)
+        report_node.inputs.output_dir = atlas_reg_dir
+
+        workflow.connect([
+            (
+                inputnode,
+                mask_node,
+                [
+                    ('t1w_preproc', 'in_file'),
+                    ('t1w_mask', 'in_mask'),
+                ],
+            ),
+            (mask_node, reg_node, [('out_file', 'moving_image')]),
+            (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
+            (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
+            (apply_node, cast_node, [('output_image', 'in_file')]),
+            (
+                inputnode,
+                report_node,
+                [
+                    ('t1w_preproc', 't1w_file'),
+                    ('subjects_dir', 'subjects_dir'),
+                    ('subject_id', 'subject_id'),
+                ],
+            ),
+            (
+                reg_node,
+                report_node,
+                [
+                    ('inverse_warped_image', 'template_registered_file'),
+                    ('runtime_seconds', 'runtime_seconds'),
+                ],
+            ),
+            (cast_node, report_node, [('out_file', 'atlas_registered_file')]),
+        ])
+
+        seg_node = cast_node
+
+        if stop_after_report:
+            outputnode.inputs.dseg_tsv = ''
+            workflow.connect([(seg_node, outputnode, [('out_file', 'segmentation')])])
+            terminate_node = pe.Node(
+                Function(
+                    input_names=['html_file'],
+                    output_names=['html_file'],
+                    function=_terminate_after_report,
+                ),
+                name=f'{seg}_stop_after_report',
+            )
+            workflow.connect([(report_node, terminate_node, [('html_file', 'html_file')])])
+            return workflow
+
         template_sink = pe.Node(
             DerivativesDataSink(
                 base_directory=atlas_reg_dir,
@@ -510,50 +589,12 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
 
-        report_node = pe.Node(
-            AtlasRegistrationReport(),
-            name=f'{seg}_atlas_reg_report',
-            run_without_submitting=True,
-            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
-        )
-        report_node.inputs.atlas_name = seg
-        report_node.inputs.parameter_id = parameter_set.parameter_id
-        report_node.inputs.parameter_description = parameter_set.description
-        report_node.inputs.config_path = str(parameter_set.config_path)
-        report_node.inputs.registration_params = json.loads(json.dumps(reg_kwargs, default=str))
-        report_node.inputs.template_file = atlas_spec['template']
-        report_node.inputs.atlas_file = atlas_spec['dseg']
-        report_node.inputs.output_dir = atlas_reg_dir
-        report_node.inputs.run_uuid = config.execution.run_uuid
-
-        workflow.connect(
-            [
-                (inputnode, mask_node, [
-                    ('t1w_preproc', 'in_file'),
-                    ('t1w_mask', 'in_mask'),
-                ]),
-                (mask_node, reg_node, [('out_file', 'moving_image')]),
-                (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
-                (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
-                (apply_node, cast_node, [('output_image', 'in_file')]),
-                (reg_node, template_sink, [('inverse_warped_image', 'in_file')]),
-                (inputnode, template_sink, [('t1w_preproc', 'source_file')]),
-                (cast_node, atlas_sink, [('out_file', 'in_file')]),
-                (inputnode, atlas_sink, [('t1w_preproc', 'source_file')]),
-                (inputnode, report_node, [
-                    ('t1w_preproc', 't1w_file'),
-                    ('subjects_dir', 'subjects_dir'),
-                    ('subject_id', 'subject_id'),
-                ]),
-                (reg_node, report_node, [
-                    ('inverse_warped_image', 'template_registered_file'),
-                    ('runtime_seconds', 'runtime_seconds'),
-                ]),
-                (cast_node, report_node, [('out_file', 'atlas_registered_file')]),
-            ]
-        )
-
-        seg_node = cast_node
+        workflow.connect([
+            (reg_node, template_sink, [('inverse_warped_image', 'in_file')]),
+            (inputnode, template_sink, [('t1w_preproc', 'source_file')]),
+            (cast_node, atlas_sink, [('out_file', 'in_file')]),
+            (inputnode, atlas_sink, [('t1w_preproc', 'source_file')]),
+        ])
 
         atlas_nodes = {
             'atlas_template_sink': template_sink,
