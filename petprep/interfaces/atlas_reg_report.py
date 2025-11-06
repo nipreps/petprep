@@ -753,6 +753,38 @@ def _build_html_header(subject: str) -> str:
     details {{
         margin-top: 0.75rem;
     }}
+    details.section {{
+        background-color: #f8f9fb;
+        border: 1px solid #e5e5e5;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }}
+    details.section summary {{
+        font-weight: 600;
+        cursor: pointer;
+        outline: none;
+    }}
+    details.section .grid {{
+        margin-top: 0.75rem;
+    }}
+    details.panel-item {{
+        margin-top: 0.75rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        background-color: #ffffff;
+    }}
+    details.panel-item summary {{
+        font-weight: 500;
+        cursor: pointer;
+        outline: none;
+    }}
+    details.panel-item:first-of-type {{
+        margin-top: 0;
+    }}
+    details.panel-item .panel {{
+        margin-top: 0.75rem;
+    }}
     pre {{
         background-color: #f0f0f0;
         padding: 0.75rem;
@@ -798,14 +830,15 @@ def _render_block(
         'atlas_overlay': 0.7,
     }
 
-    def _slider_block(key: str, title: str) -> str:
+    def _slider_block(key: str, title: str, *, include_heading: bool = True) -> str:
         container_id = f'overlay-{relative_map["t1_base"].parent.stem}-{key}'
         base_src = relative_map['t1_base'].as_posix()
         overlay_src = relative_map[key].as_posix()
         default_opacity = slider_defaults.get(key, 0.6)
+        heading_html = f'<h3>{title}</h3>' if include_heading else ''
         return f"""
         <div class="panel">
-            <h3>{title}</h3>
+            {heading_html}
             <div class="overlay-container" id="{container_id}">
                 <img src="{base_src}" alt="T1 reference" />
                 <img src="{overlay_src}" class="overlay" alt="{title}" style="opacity:{default_opacity:.2f};" />
@@ -825,26 +858,66 @@ def _render_block(
         </div>
         """
 
-    primary_panels: list[tuple[str, str]] = [
+    params_block = f"""
+    <details class="panel-item params">
+        <summary>Registration parameters</summary>
+        <pre>{params_json}</pre>
+    </details>
+    """
+
+    segmentation_items: list[str] = []
+    if 'fs_overlay' in relative_map:
+        segmentation_items.append(f"""
+            <details class="panel-item" open>
+                <summary>FreeSurfer segmentation on T1</summary>
+                {_slider_block('fs_overlay', 'FreeSurfer segmentation on T1', include_heading=False)}
+            </details>
+        """)
+    if 'atlas_overlay' in relative_map:
+        segmentation_items.append(f"""
+            <details class="panel-item" open>
+                <summary>Atlas labels warped to T1</summary>
+                {_slider_block('atlas_overlay', 'Atlas labels warped to T1', include_heading=False)}
+            </details>
+        """)
+    segmentation_html = ''
+    if segmentation_items:
+        segmentation_html = f"""
+    <details class="section" open>
+        <summary>Inspect segmentations</summary>
+        <div class="grid">
+            {''.join(segmentation_items)}
+        </div>
+    </details>
+    """
+
+    image_panels: list[str] = []
+    image_order: list[tuple[str, str]] = [
         ('Native T1', 't1_static'),
         ('Atlas template', 'template_static'),
         ('Atlas labels (template space)', 'atlas_static'),
+        ('Skull-stripped T1', 't1_brain'),
+        ('Skull-stripped template', 'template_brain'),
+        ('T1 brain mask (FreeSurfer)', 't1_mask_overlay'),
+        ('Template warped to T1', 'template_overlay'),
     ]
-    if 't1_brain' in relative_map:
-        primary_panels.append(('Skull-stripped T1', 't1_brain'))
-    if 'template_brain' in relative_map:
-        primary_panels.append(('Skull-stripped template', 'template_brain'))
-    primary_html = ''.join(_image_panel(title, key) for title, key in primary_panels if key in relative_map)
-
-    overlay_panels: list[tuple[str, str]] = []
-    if 't1_mask_overlay' in relative_map:
-        overlay_panels.append(('t1_mask_overlay', 'T1 brain mask (FreeSurfer)'))
-    overlay_panels.extend([
-        ('fs_overlay', 'FreeSurfer segmentation on T1'),
-        ('template_overlay', 'Template warped to T1'),
-        ('atlas_overlay', 'Atlas labels warped to T1'),
-    ])
-    overlay_html = ''.join(_slider_block(key, title) for key, title in overlay_panels if key in relative_map)
+    for title, key in image_order:
+        if key not in relative_map:
+            continue
+        if key.endswith('_overlay'):
+            image_panels.append(_slider_block(key, title))
+        else:
+            image_panels.append(_image_panel(title, key))
+    images_html = ''
+    if image_panels:
+        images_html = f"""
+    <details class="section">
+        <summary>Inspect images</summary>
+        <div class="grid">
+            {''.join(image_panels)}
+        </div>
+    </details>
+    """
 
     return f"""
 <div class="run-block">
@@ -852,16 +925,9 @@ def _render_block(
     <p><strong>Description:</strong> {parameter_description or 'n/a'}<br />
        <strong>Config:</strong> {Path(config_path).name} ({config_path})<br />
        <strong>Runtime:</strong> {runtime_str}</p>
-    <div class="grid">
-        {primary_html}
-    </div>
-    <div class="grid">
-        {overlay_html}
-    </div>
-    <details>
-        <summary>Registration parameters</summary>
-        <pre>{params_json}</pre>
-    </details>
+    {params_block}
+    {segmentation_html}
+    {images_html}
 </div>
 """
 
