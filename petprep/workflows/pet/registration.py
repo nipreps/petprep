@@ -81,6 +81,10 @@ def init_pet_reg_wf(
         Preprocessed anatomical image
     anat_mask
         Brainmask for anatomical image
+    subjects_dir
+        FreeSurfer SUBJECTS_DIR
+    subject_id
+        FreeSurfer subject ID
 
     Outputs
     -------
@@ -97,7 +101,15 @@ def init_pet_reg_wf(
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['ref_pet_brain', 'anat_preproc', 'anat_mask']),
+        niu.IdentityInterface(
+            fields=[
+                'ref_pet_brain',
+                'anat_preproc',
+                'anat_mask',
+                'subjects_dir',
+                'subject_id',
+            ]
+        ),
         name='inputnode',
     )
 
@@ -119,6 +131,10 @@ def init_pet_reg_wf(
         (inputnode, mask_brain, [
             ('anat_preproc', 'in_file'),
             ('anat_mask', 'in_mask'),
+        ]),
+        (inputnode, mri_coreg, [
+            ('subjects_dir', 'subjects_dir'),
+            ('subject_id', 'subject_id'),
         ]),
         (inputnode, mri_coreg, [('ref_pet_brain', 'source_file')]),
         (mask_brain, mri_coreg, [('out_file', 'reference_file')]),

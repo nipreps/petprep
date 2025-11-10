@@ -352,6 +352,9 @@ def init_pet_fit_wf(
             (inputnode, pet_reg_wf, [
                 ('t1w_preproc', 'inputnode.anat_preproc'),
                 ('t1w_mask', 'inputnode.anat_mask'),
+                ('subjects_dir', 'inputnode.subjects_dir'),
+                ('subject_id', 'inputnode.subject_id'),
+                ('fsnative2t1w_xfm', 'inputnode.fsnative2t1w_xfm'),
             ]),
             (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
             (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
