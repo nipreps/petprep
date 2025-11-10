@@ -48,6 +48,12 @@ def init_pet_reg_wf(
     Build a workflow to run same-subject, PET-to-anat image-registration.
 
     Calculates the registration between a reference PET image and anat-space.
+    The workflow first performs a robust, affine registration using
+    FreeSurfer's ``mri_coreg`` and then refines the alignment with
+    ``bbregister``. The resulting transforms are compared using the
+    displacement heuristic adopted in *fMRIPrep*, falling back to
+    the affine solution if the refinement deviates excessively. This guards
+    against failures caused by high tracer uptake outside of the brain.
 
     Workflow Graph
         .. workflow::
@@ -92,9 +98,12 @@ def init_pet_reg_wf(
         Affine transform from ``ref_pet_brain`` to anatomical space (ITK format)
     itk_anat_to_pet
         Affine transform from anatomical space to PET space (ITK format)
+    fallback
+        Boolean indicating whether the BBR refinement was rejected in favour
+        of the affine registration
 
     """
-    from nipype.interfaces.freesurfer import MRICoreg
+    from nipype.interfaces.freesurfer import BBRegister, MRICoreg
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.nibabel import ApplyMask
     from niworkflows.interfaces.nitransforms import ConcatenateXFMs
@@ -114,7 +123,7 @@ def init_pet_reg_wf(
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['itk_pet_to_t1', 'itk_t1_to_pet']),
+        niu.IdentityInterface(fields=['itk_pet_to_t1', 'itk_t1_to_pet', 'fallback']),
         name='outputnode',
     )
 
@@ -124,6 +133,23 @@ def init_pet_reg_wf(
         name='mri_coreg',
         n_procs=omp_nthreads,
         mem_gb=5,
+    )
+    bbregister = pe.Node(
+        BBRegister(
+            dof=pet2anat_dof,
+            contrast_type='t2',
+            out_lta_file=True,
+            init_cost_file='bbregister.initcost',
+        ),
+        name='bbregister',
+        mem_gb=12,
+    )
+    transforms = pe.Node(niu.Merge(2), run_without_submitting=True, name='transforms')
+    select_transform = pe.Node(
+        niu.Select(index=0), run_without_submitting=True, name='select_transform'
+    )
+    compare_transforms = pe.Node(
+        niu.Function(function=compare_xforms), name='compare_transforms'
     )
     convert_xfm = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm')
 
@@ -138,7 +164,19 @@ def init_pet_reg_wf(
             ('ref_pet_brain', 'source_file'),
         ]),
         (mask_brain, mri_coreg, [('out_file', 'reference_file')]),
-        (mri_coreg, convert_xfm, [('out_lta_file', 'in_xfms')]),
+        (mri_coreg, bbregister, [('out_lta_file', 'init_reg_file')]),
+        (inputnode, bbregister, [
+            ('subjects_dir', 'subjects_dir'),
+            ('subject_id', 'subject_id'),
+            ('ref_pet_brain', 'source_file'),
+        ]),
+        (bbregister, transforms, [('out_lta_file', 'in1')]),
+        (mri_coreg, transforms, [('out_lta_file', 'in2')]),
+        (transforms, compare_transforms, [('out', 'lta_list')]),
+        (compare_transforms, outputnode, [('out', 'fallback')]),
+        (transforms, select_transform, [('out', 'inlist')]),
+        (compare_transforms, select_transform, [('out', 'index')]),
+        (select_transform, convert_xfm, [('out', 'in_xfms')]),
         (convert_xfm, outputnode, [
             ('out_xfm', 'itk_pet_to_t1'),
             ('out_inv', 'itk_t1_to_pet'),
@@ -146,3 +184,16 @@ def init_pet_reg_wf(
     ])  # fmt:skip
 
     return workflow
+
+
+def compare_xforms(lta_list, norm_threshold=15):
+    """Compare LTA transforms and determine whether to fall back to the rigid registration."""
+    import nitransforms as nt
+    from nipype.algorithms.rapidart import _calc_norm_affine
+
+    bbr_affine = nt.linear.load(lta_list[0]).matrix
+    fallback_affine = nt.linear.load(lta_list[1]).matrix
+
+    norm, _ = _calc_norm_affine([fallback_affine, bbr_affine], use_differences=True)
+
+    return norm[1] > norm_threshold
