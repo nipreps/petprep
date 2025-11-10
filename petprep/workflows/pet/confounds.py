@@ -566,7 +566,7 @@ def _binary_union(mask1, mask2):
     return str(out_name)
 
 
-def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
+def _smooth_binarize(in_file, fwhm=10.0, thresh=0.25):
     """Smooth ``in_file`` with a Gaussian kernel, binarize and keep largest cluster."""
     from pathlib import Path
 
