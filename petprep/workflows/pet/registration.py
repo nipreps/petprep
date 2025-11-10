@@ -135,8 +135,8 @@ def init_pet_reg_wf(
         (inputnode, mri_coreg, [
             ('subjects_dir', 'subjects_dir'),
             ('subject_id', 'subject_id'),
+            ('ref_pet_brain', 'source_file'),
         ]),
-        (inputnode, mri_coreg, [('ref_pet_brain', 'source_file')]),
         (mask_brain, mri_coreg, [('out_file', 'reference_file')]),
         (mri_coreg, convert_xfm, [('out_lta_file', 'in_xfms')]),
         (convert_xfm, outputnode, [
