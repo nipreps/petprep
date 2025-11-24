@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from bids.layout import BIDSLayout
 
-from petprep.reports.core import generate_reports
 import petprep.reports.core as core
+from petprep.reports.core import generate_reports
 
 from ... import config, data
 
