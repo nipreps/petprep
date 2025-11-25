@@ -367,7 +367,6 @@ def init_pet_fit_wf(
                 (corrected_pet_for_report, avg_corrected_pet, [('out_file', 'in_file')]),
             ]
         )  # fmt:skip
-
         workflow.connect(
             [(avg_corrected_pet, func_fit_reports_wf, [('out_file', 'inputnode.petref')])]
         )
