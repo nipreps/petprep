@@ -34,9 +34,7 @@ def bids_root(tmp_path_factory):
     generate_bids_skeleton(bids_dir, BASE_LAYOUT)
     pet_sidecar = bids_dir / 'sub-01' / 'pet'
     pet_sidecar.mkdir(parents=True, exist_ok=True)
-    (pet_sidecar / 'sub-01_pet.json').write_text(
-        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
-    )
+    (pet_sidecar / 'sub-01_pet.json').write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
     return bids_dir
 
 
