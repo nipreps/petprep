@@ -177,7 +177,7 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-        'n_volumes, expected_source', [(1, 'petref_buffer'), (2, 'average_corrected_pet')]
+    'n_volumes, expected_source', [(1, 'petref_buffer'), (2, 'average_corrected_pet')]
 )
 def test_petref_report_connections(
     bids_root: Path, tmp_path: Path, n_volumes: int, expected_source: str
@@ -209,7 +209,7 @@ def test_petref_report_connections(
     assert edge is not None
     assert (
         'out_file' if expected_source == 'average_corrected_pet' else 'petref',
-        'inputnode.petref'
+        'inputnode.petref',
     ) in edge['connect']
 
 
