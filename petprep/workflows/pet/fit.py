@@ -377,9 +377,7 @@ def init_pet_fit_wf(
             ]
         )
     else:
-        workflow.connect(
-            [(petref_buffer, func_fit_reports_wf, [('petref', 'inputnode.petref')])]
-        )
+        workflow.connect([(petref_buffer, func_fit_reports_wf, [('petref', 'inputnode.petref')])])
 
     workflow.connect([
         (petref_buffer, outputnode, [
