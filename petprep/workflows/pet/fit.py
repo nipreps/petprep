@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import nibabel as nb
+from nipype.interfaces.fsl import MeanImage
 import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
@@ -335,6 +336,44 @@ def init_pet_fit_wf(
         ref_name=config.workflow.ref_mask_name,
     )
 
+    report_petref_source = petref_buffer
+    report_petref_field = 'petref'
+
+    if pet_tlen > 1:
+        corrected_pet_for_report = pe.Node(
+            ResampleSeries(),
+            name='corrected_pet_for_report',
+            n_procs=omp_nthreads,
+            mem_gb=mem_gb['resampled'],
+        )
+
+        avg_corrected_pet = pe.Node(
+            MeanImage(dimension='T'),
+            name='average_corrected_pet',
+        )
+
+        workflow.connect(
+            [
+                (
+                    petref_buffer,
+                    corrected_pet_for_report,
+                    [
+                        ('petref', 'ref_file'),
+                        ('pet_file', 'in_file'),
+                    ],
+                ),
+                (
+                    hmc_buffer,
+                    corrected_pet_for_report,
+                    [('hmc_xforms', 'transforms')],
+                ),
+                (corrected_pet_for_report, avg_corrected_pet, [('out_file', 'in_file')]),
+            ]
+        )  # fmt:skip
+
+        report_petref_source = avg_corrected_pet
+        report_petref_field = 'out_file'
+
     workflow.connect([
         (petref_buffer, outputnode, [
             ('petref', 'petref'),
@@ -351,7 +390,7 @@ def init_pet_fit_wf(
             ('subjects_dir', 'inputnode.subjects_dir'),
             ('subject_id', 'inputnode.subject_id'),
         ]),
-        (petref_buffer, func_fit_reports_wf, [('petref', 'inputnode.petref')]),
+        (report_petref_source, func_fit_reports_wf, [(report_petref_field, 'inputnode.petref')]),
         (outputnode, func_fit_reports_wf, [
             ('pet_mask', 'inputnode.pet_mask'),
             ('petref2anat_xfm', 'inputnode.petref2anat_xfm'),
