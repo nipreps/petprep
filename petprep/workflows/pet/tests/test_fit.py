@@ -187,12 +187,7 @@ def test_petref_report_connections(
 ):
     """Ensure the reports workflow receives the correct PET reference."""
     # Create a fake 4D PET file with n_volumes timepoints
-    pet_path = (
-        bids_root
-        / 'sub-01'
-        / 'pet'
-        / f'sub-01_task-rest_run-{n_volumes}_pet.nii.gz'
-    )
+    pet_path = bids_root / 'sub-01' / 'pet' / f'sub-01_task-rest_run-{n_volumes}_pet.nii.gz'
     pet_path.parent.mkdir(parents=True, exist_ok=True)
 
     img = nb.Nifti1Image(np.zeros((2, 2, 2, n_volumes)), np.eye(4))
