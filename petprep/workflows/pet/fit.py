@@ -336,9 +336,6 @@ def init_pet_fit_wf(
         ref_name=config.workflow.ref_mask_name,
     )
 
-    report_petref_source = petref_buffer
-    report_petref_field = 'petref'
-
     if pet_tlen > 1:
         corrected_pet_for_report = pe.Node(
             ResampleSeries(),
@@ -371,8 +368,11 @@ def init_pet_fit_wf(
             ]
         )  # fmt:skip
 
-        report_petref_source = avg_corrected_pet
-        report_petref_field = 'out_file'
+        workflow.connect(
+            [(avg_corrected_pet, func_fit_reports_wf, [('out_file', 'inputnode.petref')])]
+        )
+    else:
+        workflow.connect([(petref_buffer, func_fit_reports_wf, [('petref', 'inputnode.petref')])])
 
     workflow.connect([
         (petref_buffer, outputnode, [
@@ -390,7 +390,6 @@ def init_pet_fit_wf(
             ('subjects_dir', 'inputnode.subjects_dir'),
             ('subject_id', 'inputnode.subject_id'),
         ]),
-        (report_petref_source, func_fit_reports_wf, [(report_petref_field, 'inputnode.petref')]),
         (outputnode, func_fit_reports_wf, [
             ('pet_mask', 'inputnode.pet_mask'),
             ('petref2anat_xfm', 'inputnode.petref2anat_xfm'),
