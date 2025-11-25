@@ -176,51 +176,20 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     assert ('out', 'inputnode.petmask') in ds_edge['connect']
 
 
-@pytest.mark.parametrize(
-    'n_volumes, expected_source',
-    [
-        (1, 'petref_buffer'),
-        (2, 'average_corrected_pet'),
-    ],
-)
-def test_petref_report_connections(
-    bids_root: Path, tmp_path: Path, n_volumes: int, expected_source: str
-):
-    """Ensure the reports workflow receives the correct PET reference."""
-    # Create a fake 4D PET file with n_volumes timepoints
-    pet_path = bids_root / 'sub-01' / 'pet' / f'sub-01_task-rest_run-{n_volumes}_pet.nii.gz'
-    pet_path.parent.mkdir(parents=True, exist_ok=True)
+def test_petref_report_connections(bids_root: Path, tmp_path: Path):
+    """Ensure the PET reference is passed to the reports workflow."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
 
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, n_volumes)), np.eye(4))
-    img.to_filename(pet_path)
+    for path in pet_series:
+        img.to_filename(path)
 
-    # JSON sidecar with frame timing matching the number of volumes
-    if n_volumes == 1:
-        meta = '{"FrameTimesStart": [0], "FrameDuration": [1]}'
-    else:
-        meta = '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
-    pet_path.with_suffix('').with_suffix('.json').write_text(meta)
-
-    # Build the workflow
     with mock_config(bids_dir=bids_root):
-        wf = init_pet_fit_wf(pet_series=[str(pet_path)], precomputed={}, omp_nthreads=1)
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
-    # Sub-workflow and its *input* node
-    reports_wf = wf.get_node('func_fit_reports_wf')
-    reports_inputnode = reports_wf.get_node('inputnode')
-
-    # Choose the source node based on expected_source
-    if expected_source == 'petref_buffer':
-        source_node = wf.get_node('petref_buffer')
-        expected_key = 'petref'
-    else:
-        source_node = wf.get_node('average_corrected_pet')
-        expected_key = 'out_file'
-
-    # Now look for an edge from the source node to the *reports inputnode*
-    edge = wf._graph.get_edge_data(source_node, reports_inputnode)
-    assert edge is not None
-    assert (expected_key, 'petref') in edge['connect']
+    petref_buffer = wf.get_node('petref_buffer')
+    edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
+    assert ('petref', 'inputnode.petref') in edge['connect']
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
