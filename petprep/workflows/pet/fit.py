@@ -24,9 +24,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import nibabel as nb
-from nipype.interfaces.fsl import MeanImage
 import numpy as np
 from nipype.interfaces import utility as niu
+from nipype.interfaces.fsl import MeanImage
 from nipype.pipeline import engine as pe
 from nitransforms.linear import Affine, LinearTransformsMapping
 from niworkflows.interfaces.header import ValidateImage
