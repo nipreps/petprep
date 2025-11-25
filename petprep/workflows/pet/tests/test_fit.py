@@ -205,7 +205,9 @@ def test_petref_report_connections(
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=[str(pet_path)], precomputed={}, omp_nthreads=1)
 
+    # Sub-workflow and its *input* node
     reports_wf = wf.get_node('func_fit_reports_wf')
+    reports_inputnode = reports_wf.get_node('inputnode')
 
     # Choose the source node based on expected_source
     if expected_source == 'petref_buffer':
@@ -215,10 +217,10 @@ def test_petref_report_connections(
         source_node = wf.get_node('average_corrected_pet')
         expected_key = 'out_file'
 
-    # Check that there is a connection from the chosen source to the reports workflow
-    edge = wf._graph.get_edge_data(source_node, reports_wf)
+    # Now look for an edge from the source node to the *reports inputnode*
+    edge = wf._graph.get_edge_data(source_node, reports_inputnode)
     assert edge is not None
-    assert (expected_key, 'inputnode.petref') in edge['connect']
+    assert (expected_key, 'petref') in edge['connect']
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
