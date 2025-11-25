@@ -179,8 +179,8 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 @pytest.mark.parametrize(
     'n_volumes, expected_source',
     [
-        (1, 'petref_buffer'),          # pet_tlen == 1
-        (2, 'average_corrected_pet'),  # pet_tlen > 1
+        (1, 'petref_buffer'),
+        (2, 'average_corrected_pet'),
     ],
 )
 def test_petref_report_connections(
