@@ -187,9 +187,14 @@ def test_petref_report_connections(bids_root: Path, tmp_path: Path):
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
-    petref_buffer = wf.get_node('petref_buffer')
-    edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
-    assert ('petref', 'inputnode.petref') in edge['connect']
+    if 'corrected_pet_for_report' in wf.list_node_names():
+        corrected_pet_for_report = wf.get_node('corrected_pet_for_report')
+        edge = wf._graph.get_edge_data(corrected_pet_for_report, wf.get_node('func_fit_reports_wf'))
+        assert ('out_file', 'inputnode.petref') in edge['connect']
+    else:
+        petref_buffer = wf.get_node('petref_buffer')
+        edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
+        assert ('petref', 'inputnode.petref') in edge['connect']
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
