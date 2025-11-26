@@ -191,7 +191,7 @@ def test_petref_report_connections(bids_root: Path, tmp_path: Path):
         corrected_pet_for_report = wf.get_node('corrected_pet_for_report')
         edge = wf._graph.get_edge_data(
             corrected_pet_for_report, wf.get_node('func_fit_reports_wf')
-            )
+        )
         assert ('out_file', 'inputnode.petref') in edge['connect']
     else:
         petref_buffer = wf.get_node('petref_buffer')
