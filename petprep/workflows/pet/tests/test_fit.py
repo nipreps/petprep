@@ -195,9 +195,7 @@ def test_petref_report_connections(bids_root: Path, tmp_path: Path):
         assert ('out_file', 'inputnode.petref') in edge['connect']
     else:
         petref_buffer = wf.get_node('petref_buffer')
-        edge = wf._graph.get_edge_data(
-            petref_buffer, wf.get_node('func_fit_reports_wf')
-            )
+        edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
         assert ('petref', 'inputnode.petref') in edge['connect']
 
 
