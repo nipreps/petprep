@@ -32,9 +32,6 @@ def bids_root(tmp_path_factory):
     base = tmp_path_factory.mktemp('petfit')
     bids_dir = base / 'bids'
     generate_bids_skeleton(bids_dir, BASE_LAYOUT)
-    pet_sidecar = bids_dir / 'sub-01' / 'pet'
-    pet_sidecar.mkdir(parents=True, exist_ok=True)
-    (pet_sidecar / 'sub-01_pet.json').write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
     return bids_dir
 
 
@@ -165,12 +162,6 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     for path in pet_series:
         img.to_filename(path)
 
-    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
-    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
-    (Path(bids_root) / 'sub-01' / 'pet' / 'sub-01_pet.json').write_text(
-        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
-    )
-
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
@@ -196,13 +187,9 @@ def test_petref_report_connections(bids_root: Path, tmp_path: Path):
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
-    reports_node = wf.get_node('func_fit_reports_wf')
-    incoming = wf._graph.in_edges(reports_node, data=True)
-    assert any(
-        ('petref', 'inputnode.petref') in edge.get('connect', [])
-        or ('out_file', 'inputnode.petref') in edge.get('connect', [])
-        for _, _, edge in incoming
-    )
+    petref_buffer = wf.get_node('petref_buffer')
+    edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
+    assert ('petref', 'inputnode.petref') in edge['connect']
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
