@@ -581,6 +581,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
             'subcortex',
             'glasser',
             'hammers',
+            'mnireg',
         ],
         help='Segmentation method to use.',
     )
@@ -591,7 +592,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         action='append',
         default=[],
         metavar='ATLAS=FILE',
-        help='Use a custom YAML definition for an atlas registration (e.g., hammers=/path/to/file.yml).',
+        help='Use a custom ANTs JSON definition for an atlas registration (e.g., hammers=/path/to/file.json).',
     )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
@@ -772,7 +773,7 @@ def parse_args(args=None, namespace=None):
     for entry in opts.atlas_reg_config or []:
         if '=' not in entry:
             parser.error(
-                f'Invalid --atlas-reg-config "{entry}". Expected format ATLAS=/path/to/file.yml.'
+                f'Invalid --atlas-reg-config "{entry}". Expected format ATLAS=/path/to/file.json.'
             )
         atlas_key, path_str = entry.split('=', 1)
         atlas_key = atlas_key.strip()

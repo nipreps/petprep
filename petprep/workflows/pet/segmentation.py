@@ -10,11 +10,14 @@ from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
-from niworkflows.interfaces.nibabel import ApplyMask
 
 from ... import config
 from ...data import load as load_data
-from ...interfaces import AtlasRegistrationReport, DerivativesDataSink, TimedRegistration
+from ...interfaces import (
+    AtlasRegistrationReport,
+    AtlasSpatialNormalization,
+    DerivativesDataSink,
+)
 from ...interfaces.bids import BIDSURI
 from ...interfaces.segmentation import (
     MRISclimbicSeg,
@@ -33,7 +36,6 @@ from ...utils.segmentation import (
     gtm_to_dsegtsv,
     summary_to_stats,
 )
-from ...utils.atlas_reg import AtlasRegConfigError, load_parameter_set
 
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
@@ -88,6 +90,33 @@ def _cast_segmentation(in_file: str) -> str:
     out_file = seg_path.with_name(f'{stem}_int16.nii.gz')
     out_img.to_filename(out_file)
     return str(out_file)
+
+
+def _fs_segmentation_mask(subjects_dir: str, subject_id: str) -> str:
+    """Return the path to the subject's FreeSurfer segmentation to be used as a mask."""
+    from pathlib import Path
+
+    subj_label = subject_id if subject_id.startswith('sub-') else f'sub-{subject_id}'
+    subj_dir = Path(subjects_dir) / subj_label / 'mri'
+    for candidate in ('aparc+aseg.mgz', 'aseg.mgz'):
+        cand_path = subj_dir / candidate
+        if cand_path.exists():
+            return str(cand_path)
+    raise FileNotFoundError(
+        f'FreeSurfer segmentation not found for subject {subj_label} under {subj_dir}.'
+    )
+
+
+def _load_settings_metadata(settings_file: str):
+    """Read the successful registration parameter file for reporting."""
+    import json
+    from pathlib import Path
+
+    path = Path(settings_file)
+    params = json.loads(path.read_text())
+    parameter_id = path.stem
+    description = f'Parameters loaded from {path.name}'
+    return parameter_id, description, params
 
 
 def _terminate_after_report(html_file: str) -> str:
@@ -263,6 +292,37 @@ SEGMENTATIONS = {
             'seg': 'hammers',
         },
     },
+    'mnireg': {
+        'desc': 'mnireg',
+        'atlas': {
+            'param_config': 'mnireg',
+            'template': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_T1w.nii.gz')
+            ),
+            'dseg': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.nii.gz')
+            ),
+            'labels': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv')
+            ),
+        },
+        'segstats': False,
+        'skip_conversion': True,
+        'dseg_func': atlas_copy_dsegtsv,
+        'dseg_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv')
+            ),
+            'seg': 'mnireg',
+        },
+        'morph_func': atlas_seg_to_stats,
+        'morph_kwargs': {
+            'labels_file': str(
+                load_data('segmentation/subcortex/tpl-MNI152NLin2009bAsym_res-1_desc-brain_dseg.tsv')
+            ),
+            'seg': 'mnireg',
+        },
+    },
 }
 
 
@@ -435,38 +495,31 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     stop_after_report = bool(config.execution.atlas_reg_stop_after_report)
 
     if atlas_spec:
-        config_key = atlas_spec.get('param_config', seg)
         config_override = config.execution.atlas_reg_config_paths.get(seg)
-        try:
-            parameter_set = load_parameter_set(
-                config_key,
-                config_path=config_override,
-            )
-        except AtlasRegConfigError as exc:
-            raise RuntimeError(f'Failed to load atlas registration parameters for "{seg}": {exc}') from exc
+        flavor = atlas_spec.get('config_flavor', 'precise')
+        param_token = _sanitize_entity(flavor)
 
-        reg_kwargs = dict(parameter_set.registration)
-        reg_kwargs.setdefault('fixed_image', atlas_spec['template'])
-        reg_kwargs.setdefault('collapse_output_transforms', True)
-        reg_kwargs.setdefault('write_composite_transform', True)
-        reg_kwargs.setdefault('output_warped_image', True)
-        reg_kwargs.setdefault('output_inverse_warped_image', True)
-        reg_kwargs.setdefault('interpolation', 'LanczosWindowedSinc')
-        reg_kwargs.setdefault('dimension', 3)
-        reg_kwargs.setdefault('num_threads', config.nipype.omp_nthreads)
+        reg_node = pe.Node(
+            AtlasSpatialNormalization(
+                flavor=flavor,
+                reference_image=atlas_spec['template'],
+                reference_mask=atlas_spec['dseg'],
+                num_threads=config.nipype.omp_nthreads,
+            ),
+            name=f'{seg}_atlas_reg',
+        )
+        if config_override:
+            reg_node.inputs.settings = [config_override]
 
-        config.loggers.workflow.log(
-            25,
-            'Atlas "%s" registration uses parameter set "%s" (source: %s).',
-            seg,
-            parameter_set.parameter_id,
-            parameter_set.config_path,
+        fs_mask_node = pe.Node(
+            Function(
+                input_names=['subjects_dir', 'subject_id'],
+                output_names=['mask_file'],
+                function=_fs_segmentation_mask,
+            ),
+            name=f'fs_mask_{seg}',
         )
 
-        mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_t1w')
-        reg_node = pe.Node(TimedRegistration(**reg_kwargs), name=f'{seg}_atlas_reg')
-
-        param_token = _sanitize_entity(parameter_set.parameter_id)
         apply_node = pe.Node(
             ApplyTransforms(
                 interpolation='MultiLabel',
@@ -493,13 +546,18 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
         report_node.inputs.atlas_name = seg
-        report_node.inputs.parameter_id = parameter_set.parameter_id
-        report_node.inputs.parameter_description = parameter_set.description
-        report_node.inputs.config_path = str(parameter_set.config_path)
-        report_node.inputs.registration_params = json.loads(json.dumps(reg_kwargs, default=str))
         report_node.inputs.template_file = atlas_spec['template']
         report_node.inputs.atlas_file = atlas_spec['dseg']
         report_node.inputs.run_uuid = config.execution.run_uuid
+
+        settings_meta = pe.Node(
+            Function(
+                input_names=['settings_file'],
+                output_names=['parameter_id', 'parameter_description', 'registration_params'],
+                function=_load_settings_metadata,
+            ),
+            name=f'{seg}_atlas_settings_meta',
+        )
 
         atlas_root = Path(config.execution.petprep_dir).absolute()
         if atlas_root.name != 'atlas_reg':
@@ -511,13 +569,14 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         workflow.connect([
             (
                 inputnode,
-                mask_node,
+                fs_mask_node,
                 [
-                    ('t1w_preproc', 'in_file'),
-                    ('t1w_mask', 'in_mask'),
+                    ('subjects_dir', 'subjects_dir'),
+                    ('subject_id', 'subject_id'),
                 ],
             ),
-            (mask_node, reg_node, [('out_file', 'moving_image')]),
+            (inputnode, reg_node, [('t1w_preproc', 'moving_image')]),
+            (fs_mask_node, reg_node, [('mask_file', 'moving_mask')]),
             (inputnode, apply_node, [('t1w_preproc', 'reference_image')]),
             (reg_node, apply_node, [('inverse_composite_transform', 'transforms')]),
             (apply_node, cast_node, [('output_image', 'in_file')]),
@@ -539,6 +598,17 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 ],
             ),
             (cast_node, report_node, [('out_file', 'atlas_registered_file')]),
+            (reg_node, settings_meta, [('settings_file', 'settings_file')]),
+            (
+                settings_meta,
+                report_node,
+                [
+                    ('parameter_id', 'parameter_id'),
+                    ('parameter_description', 'parameter_description'),
+                    ('registration_params', 'registration_params'),
+                ],
+            ),
+            (reg_node, report_node, [('settings_file', 'config_path')]),
         ])
 
         seg_node = cast_node

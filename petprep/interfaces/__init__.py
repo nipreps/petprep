@@ -5,6 +5,7 @@ from niworkflows.interfaces.bids import DerivativesDataSink as _DDSink
 from .ants import TimedRegistration
 from .atlas_reg_report import AtlasRegistrationReport
 from .cifti import GeneratePetCifti
+from .spatial_normalization import AtlasSpatialNormalization
 from .tacs import ExtractRefTAC, ExtractTACs
 
 
@@ -19,4 +20,5 @@ __all__ = (
     'ExtractRefTAC',
     'AtlasRegistrationReport',
     'TimedRegistration',
+    'AtlasSpatialNormalization',
 )
