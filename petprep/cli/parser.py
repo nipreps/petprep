@@ -594,6 +594,12 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         metavar='ATLAS=FILE',
         help='Use a custom ANTs JSON definition for an atlas registration (e.g., hammers=/path/to/file.json).',
     )
+    g_atlas.add_argument(
+        '--atlas-reg-flavor',
+        '--atlas-reg-flavour',
+        dest='atlas_reg_flavour',
+        help='Override the atlas registration parameter flavor (e.g., testing_fast, fast).',
+    )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
     g_refmask.add_argument(
@@ -784,6 +790,8 @@ def parse_args(args=None, namespace=None):
             )
         atlas_config_paths[atlas_key] = str(Path(path_str).expanduser())
     config.execution.atlas_reg_config_paths = atlas_config_paths
+    if opts.atlas_reg_flavour is not None:
+        config.execution.atlas_reg_flavour = opts.atlas_reg_flavour
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):

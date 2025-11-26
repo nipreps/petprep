@@ -496,7 +496,10 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
     if atlas_spec:
         config_override = config.execution.atlas_reg_config_paths.get(seg)
-        flavor = atlas_spec.get('config_flavor', 'precise')
+        if config.execution.atlas_reg_flavour:
+            flavor = config.execution.atlas_reg_flavour
+        else:
+            flavor = atlas_spec.get('config_flavor', 'precise')
         param_token = _sanitize_entity(flavor)
 
         reg_node = pe.Node(

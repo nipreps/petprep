@@ -432,8 +432,6 @@ class execution(_Config):
     """Unique identifier of this particular run."""
     participant_label = None
     """List of participant identifiers that are to be preprocessed."""
-    atlas_reg_stop_after_report = False
-    """Stop the atlas registration workflow once the QC reportlets have been generated."""
     task_id = None
     """Select a particular task from all available in the dataset."""
     templateflow_home = _templateflow_home
@@ -444,6 +442,10 @@ class execution(_Config):
     """Write out the computational graph corresponding to the planned preprocessing."""
     dataset_links = {}
     """A dictionary of dataset links to be used to track Sources in sidecars."""
+    atlas_reg_stop_after_report = False
+    """Stop the atlas registration workflow once the QC reportlets have been generated."""
+    atlas_reg_flavour = None
+    """Flavour of registration to select for AtlasSpatialNormalization. If None, "precise"."""
     atlas_reg_config_paths = {}
     """Optional mapping of atlas identifiers to custom YAML configuration paths."""
 
