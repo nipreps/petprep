@@ -1,0 +1,31 @@
+{
+  "subcortex": {
+    "template": "MNI152NLin6Asym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Harvard-Oxford cortical and subcortical probabilistic atlas (thresholded).",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "HOCPA",
+        "desc": "th0",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "HOCPA",
+        "desc": "th0",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  }
+}
