@@ -4,7 +4,7 @@
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
-from nipype.interfaces.utility import KeySelect
+from niworkflows.interfaces.utility import KeySelect
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
