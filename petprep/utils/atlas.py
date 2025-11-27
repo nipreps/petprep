@@ -55,7 +55,7 @@ def get_atlas_files(atlas_name: str) -> tuple[str, str]:
     # nipype's ``Function`` interface may serialize this function into a fresh
     # namespace that lacks the module-level globals, so import the loader here
     # to guarantee availability when executed in a worker process.
-    from petprep.utils.atlas import load_atlas_config
+    from petprep.utils.atlas import _resolve_resource, load_atlas_config
 
     atlas_config = load_atlas_config().get(atlas_name)
     if atlas_config is None:
