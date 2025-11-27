@@ -52,6 +52,11 @@ def _resolve_resource(template: str, resource: dict[str, Any]) -> str:
 def get_atlas_files(atlas_name: str) -> tuple[str, str]:
     """Return the segmentation and label files for a configured atlas."""
 
+    # nipype's ``Function`` interface may serialize this function into a fresh
+    # namespace that lacks the module-level globals, so import the loader here
+    # to guarantee availability when executed in a worker process.
+    from petprep.utils.atlas import load_atlas_config
+
     atlas_config = load_atlas_config().get(atlas_name)
     if atlas_config is None:
         raise ValueError(f"Atlas '{atlas_name}' is not defined in the atlas configuration file")
