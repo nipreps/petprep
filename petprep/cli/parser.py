@@ -821,6 +821,7 @@ def parse_args(args=None, namespace=None):
             ],
         )
 
+    atlas_config = load_atlas_config()
     if config.workflow.seg in atlas_config:
         atlas_spec = atlas_config[config.workflow.seg]
         atlas_reference = atlas_spec.get('reference') or {'res': 'native'}
