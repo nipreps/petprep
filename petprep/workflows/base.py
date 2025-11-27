@@ -537,6 +537,8 @@ It is released under the [CC0]\
                     ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
                     ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
                     ('outputnode.subject_id', 'inputnode.subject_id'),
+                    ('outputnode.template', 'inputnode.template'),
+                    ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
                 ],
             ),
         ]

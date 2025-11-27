@@ -25,6 +25,7 @@
 import sys
 
 from .. import config
+from ..utils.atlas import load_atlas_config
 
 
 def _build_parser(**kwargs):
@@ -576,20 +577,24 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Disable head-motion correction and use the uncorrected data.',
     )
 
+    atlas_config = load_atlas_config()
+    seg_choices = [
+        'gtm',
+        'brainstem',
+        'thalamicNuclei',
+        'hippocampusAmygdala',
+        'wm',
+        'raphe',
+        'limbic',
+        *sorted(atlas_config.keys()),
+    ]
+
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
         '--seg',
         action='store',
         default='gtm',
-        choices=[
-            'gtm',
-            'brainstem',
-            'thalamicNuclei',
-            'hippocampusAmygdala',
-            'wm',
-            'raphe',
-            'limbic',
-        ],
+        choices=seg_choices,
         help='Segmentation method to use.',
     )
 
@@ -815,6 +820,17 @@ def parse_args(args=None, namespace=None):
                 Reference('T1w'),
             ],
         )
+
+    if config.workflow.seg in atlas_config:
+        atlas_spec = atlas_config[config.workflow.seg]
+        atlas_reference = atlas_spec.get('reference') or {'res': 'native'}
+        spaces = config.execution.output_spaces or SpatialReferences()
+        if not isinstance(spaces, SpatialReferences):
+            spaces = SpatialReferences(
+                [ref for s in spaces.split(' ') for ref in Reference.from_string(s)]
+            )
+        spaces.add(Reference(atlas_spec['template'], atlas_reference))
+        config.execution.output_spaces = spaces
 
     # Retrieve logging level
     build_log = config.loggers.cli

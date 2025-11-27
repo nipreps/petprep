@@ -4,8 +4,10 @@
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
+from nipype.interfaces.utility import KeySelect
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 
 from ... import config
 from ...data import load as load_data
@@ -26,6 +28,7 @@ from ...utils.segmentation import (
     gtm_to_dsegtsv,
     summary_to_stats,
 )
+from ...utils.atlas import get_atlas_files, load_atlas_config
 
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
@@ -33,6 +36,7 @@ except Exception:  # pragma: no cover - Py<3.9 fallback
     from importlib_resources import files as ir_files
 
 SEG_DATA = ir_files('petprep.data.segmentation')
+ATLAS_CONFIG = load_atlas_config()
 
 
 def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
@@ -120,6 +124,13 @@ SEGMENTATIONS = {
         'color_table': str(load_data('segmentation/sclimbic_cleaned.ctab')),
     },
 }
+
+for atlas_name, atlas_spec in ATLAS_CONFIG.items():
+    SEGMENTATIONS[atlas_name] = {
+        'desc': atlas_spec.get('description', atlas_name),
+        'segstats': False,
+        'template_atlas': atlas_spec,
+    }
 
 
 def _build_nodes(
@@ -248,13 +259,60 @@ def _build_nodes(
     return nodes
 
 
+def _build_template_atlas_nodes(seg: str):
+    nodes = {}
+    nodes['seg_source'] = pe.Node(
+        niu.IdentityInterface(fields=['segmentation']), name=f'{seg}_seg_source'
+    )
+    nodes['sources'] = pe.Node(
+        BIDSURI(
+            numinputs=1,
+            dataset_links=config.execution.dataset_links,
+            out_dir=str(config.execution.petprep_dir),
+        ),
+        name='sources',
+    )
+
+    nodes['ds_seg'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='dseg',
+            extension='.nii.gz',
+            compress=True,
+        ),
+        name=f'ds_{seg}seg',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+
+    nodes['ds_dseg_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='dseg',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}dsegtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    return nodes
+
+
 def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     """Return a minimal segmentation workflow selecting a FreeSurfer command."""
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(
+            fields=['t1w_preproc', 'subjects_dir', 'subject_id', 'template', 'std2anat_xfm']
+        ),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -266,6 +324,52 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     if spec is None:
         seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
+        return workflow
+
+    if 'template_atlas' in spec:
+        atlas_spec = spec['template_atlas']
+        atlas_nodes = _build_template_atlas_nodes(seg)
+
+        atlas_files = pe.Node(
+            niu.Function(
+                function=get_atlas_files,
+                input_names=['atlas_name'],
+                output_names=['seg_file', 'label_file'],
+            ),
+            name=f'load_{seg}_atlas',
+        )
+        atlas_files.inputs.atlas_name = seg
+
+        select_xfm = pe.Node(
+            KeySelect(fields=['std2anat_xfm'], key=atlas_spec['template']),
+            name=f'select_{seg}_xfm',
+            run_without_submitting=True,
+        )
+
+        apply_atlas = pe.Node(
+            ApplyTransforms(dimension=3, interpolation='NearestNeighbor', float=True),
+            name=f'warp_{seg}_atlas',
+        )
+
+        workflow.connect(
+            [
+                (inputnode, select_xfm, [('template', 'keys'), ('std2anat_xfm', 'std2anat_xfm')]),
+                (atlas_files, apply_atlas, [('seg_file', 'input_image')]),
+                (inputnode, apply_atlas, [('t1w_preproc', 'reference_image')]),
+                (select_xfm, apply_atlas, [('std2anat_xfm', 'transforms')]),
+                (apply_atlas, atlas_nodes['seg_source'], [('output_image', 'segmentation')]),
+                (inputnode, atlas_nodes['sources'], [('t1w_preproc', 'in1')]),
+                (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
+                (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_seg'], [('out', 'Sources')]),
+                (atlas_nodes['ds_seg'], outputnode, [('out_file', 'segmentation')]),
+                (atlas_files, atlas_nodes['ds_dseg_tsv'], [('label_file', 'in_file')]),
+                (inputnode, atlas_nodes['ds_dseg_tsv'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_dseg_tsv'], [('out', 'Sources')]),
+                (atlas_nodes['ds_dseg_tsv'], outputnode, [('out_file', 'dseg_tsv')]),
+            ]
+        )
+
         return workflow
 
     interface = spec['interface']
