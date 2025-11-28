@@ -289,7 +289,7 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
 
 
 def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
-    """Robust PET-to-anatomical registration swaps in mri_robust_register."""
+    """Robust PET-to-anatomical registration swaps in ANTs registration."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
     for path in pet_series:
@@ -304,7 +304,7 @@ def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_robust_register' in node_names
+    assert 'pet_reg_wf.ants_pet_coreg' in node_names
     assert 'pet_reg_wf.mri_coreg' not in node_names
 
 

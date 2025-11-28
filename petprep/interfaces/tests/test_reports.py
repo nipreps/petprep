@@ -76,7 +76,7 @@ def test_subject_summary_handles_missing_task(tmp_path):
 
 @pytest.mark.parametrize(
     'registration',
-    ['mri_coreg', 'mri_robust_register'],
+    ['mri_coreg', 'ants_registration'],
 )
 def test_functional_summary_with_metadata(registration):
     from ..reports import FunctionalSummary
@@ -96,7 +96,8 @@ def test_functional_summary_with_metadata(registration):
     )
 
     segment = summary._generate_segment()
-    assert registration in segment
+    expected = registration if registration == 'mri_coreg' else 'antsRegistration'
+    assert expected in segment
     assert 'Radiotracer: [11C]DASB' in segment
     assert 'Injected dose: 100 MBq' in segment
     assert 'Number of frames: 2' in segment

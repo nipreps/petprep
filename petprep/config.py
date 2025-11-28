@@ -557,7 +557,7 @@ class workflow(_Config):
     pet2anat_init = 'auto'
     """Initial transform for PET-to-anatomical registration."""
     pet2anat_robust = False
-    """Use ``mri_robust_register`` for PET-to-anatomical alignment."""
+    """Use ANTs for PET-to-anatomical alignment."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     hires = None

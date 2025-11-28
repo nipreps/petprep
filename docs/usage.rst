@@ -218,8 +218,8 @@ deriving downstream outputs. By default, FreeSurfer's ``mri_coreg`` performs
 the alignment, with the :option:`--pet2anat-dof` flag controlling the degrees
 of freedom (rigid-body, 6 dof, is the default). When working with low
 signal-to-noise references or challenging anatomy, the
-:option:`--pet2anat-robust` flag enables ``mri_robust_register`` with an NMI
-cost function to improve robustness. This mode is restricted to rigid-body
+:option:`--pet2anat-robust` flag enables an ANTs mutual-information rigid
+registration to improve robustness. This mode is restricted to rigid-body
 alignment and therefore requires ``--pet2anat-dof 6``.
 
 Segmentation

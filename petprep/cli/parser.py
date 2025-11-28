@@ -360,7 +360,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_conf.add_argument(
         '--pet2anat-robust',
         action='store_true',
-        help='Use FreeSurfer mri_robust_register with an NMI cost function for'
+        help='Use ANTs mutual-information rigid registration for '
         'PET-to-T1w co-registration. This option is limited to 6 dof.',
     )
     g_conf.add_argument(

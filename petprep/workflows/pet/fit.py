@@ -289,7 +289,7 @@ def init_pet_fit_wf(
     registration_method = 'Precomputed'
     if not petref2anat_xform:
         registration_method = (
-            'mri_robust_register' if config.workflow.pet2anat_robust else 'mri_coreg'
+            'ants_registration' if config.workflow.pet2anat_robust else 'mri_coreg'
         )
     hmc_disabled = bool(config.workflow.hmc_off)
     if hmc_disabled:

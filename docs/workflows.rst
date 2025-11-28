@@ -447,8 +447,9 @@ the :option:`--pet2anat-dof` flag. The resulting affine is converted to ITK
 format for downstream application, along with its inverse.
 
 If co-registration proves challenging, the :option:`--pet2anat-robust` flag
-switches the workflow to FreeSurfer's ``mri_robust_register`` with an NMI cost function and restricted
-to rigid-body (6 dof) transforms. This method is more robust to large initial misalignments.
+switches the workflow to an ANTs mutual-information rigid registration
+restricted to rigid-body (6 dof) transforms. This method is more robust to
+large initial misalignments.
 
 Resampling PET runs onto standard spaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
