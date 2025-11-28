@@ -112,7 +112,6 @@ def init_pet_reg_wf(
         name='outputnode',
     )
 
-    mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     if use_robust_register:
         coreg = pe.Node(
             Registration(
@@ -136,8 +135,10 @@ def init_pet_reg_wf(
                 winsorize_lower_quantile=0.005,
                 winsorize_upper_quantile=0.995,
                 initial_moving_transform_com=True,
-                write_composite_transform=False,
-                output_warped_image=True,
+                write_composite_transform=True,
+                collapse_output_transforms=True,
+                initialize_transforms_per_stage=False,
+                output_warped_image='warped_pet.nii.gz',
                 interpolation='Linear',
             ),
             name='ants_pet_coreg',
@@ -146,7 +147,9 @@ def init_pet_reg_wf(
         )
         coreg_target = 'fixed_image'
         coreg_output = 'forward_transforms'
+        coreg_mask = 'fixed_image_masks'
     else:
+        mask_brain = pe.Node(ApplyMask(), name='mask_brain')
         coreg = pe.Node(
             MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
             name='mri_coreg',
@@ -155,17 +158,10 @@ def init_pet_reg_wf(
         )
         coreg_target = 'fixed_image'
         coreg_output = 'forward_transforms'
+        coreg_mask = None
     convert_xfm = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm')
 
     connections = [
-        (
-            inputnode,
-            mask_brain,
-            [
-                ('anat_preproc', 'in_file'),
-                ('anat_mask', 'in_mask'),
-            ],
-        ),
         (
             inputnode,
             coreg,
@@ -176,7 +172,6 @@ def init_pet_reg_wf(
                 )
             ],
         ),
-        (mask_brain, coreg, [('out_file', coreg_target)]),
         (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),
         (
             convert_xfm,
@@ -189,7 +184,22 @@ def init_pet_reg_wf(
     ]
 
     if use_robust_register:
-        connections.append((inputnode, coreg, [('anat_mask', 'fixed_image_masks')]))
+        connections.append((inputnode, coreg, [('anat_preproc', 'fixed_image')]))
+        connections.append((inputnode, coreg, [('anat_mask', coreg_mask)]))
+    else:
+        connections.extend(
+            [
+                (
+                    inputnode,
+                    mask_brain,
+                    [
+                        ('anat_preproc', 'in_file'),
+                        ('anat_mask', 'in_mask'),
+                    ],
+                ),
+                (mask_brain, coreg, [('out_file', coreg_target)]),
+            ]
+        )
 
     workflow.connect(connections)  # fmt:skip
 
