@@ -136,7 +136,7 @@ def init_pet_reg_wf(
                 winsorize_lower_quantile=0.005,
                 winsorize_upper_quantile=0.995,
                 initial_moving_transform_com=True,
-                write_composite_transform=False,
+                write_composite_transform=True,
                 output_warped_image=True,
                 interpolation='Linear',
             ),
