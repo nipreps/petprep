@@ -136,7 +136,7 @@ def init_pet_reg_wf(
                 winsorize_lower_quantile=0.005,
                 winsorize_upper_quantile=0.995,
                 initial_moving_transform_com=True,
-                write_composite_transform=True,
+                write_composite_transform=False,
                 output_warped_image=True,
                 interpolation='Linear',
             ),
@@ -145,7 +145,7 @@ def init_pet_reg_wf(
             mem_gb=5,
         )
         coreg_target = 'fixed_image'
-        coreg_output = 'composite_transform'
+        coreg_output = 'forward_transforms'
     else:
         coreg = pe.Node(
             MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
