@@ -144,8 +144,8 @@ def init_pet_reg_wf(
             n_procs=omp_nthreads,
             mem_gb=5,
         )
-        coreg_target = 'target_file'
-        coreg_output = 'out_reg_file'
+        coreg_target = 'fixed_image'
+        coreg_output = 'composite_transform'
     else:
         coreg = pe.Node(
             MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
