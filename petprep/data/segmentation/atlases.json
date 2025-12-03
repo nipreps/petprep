@@ -9,7 +9,7 @@
       "source": "templateflow",
       "query": {
         "atlas": "HOCPA",
-        "desc": "th0",
+        "desc": "th25",
         "resolution": 1,
         "suffix": "dseg",
         "extension": [
