@@ -5,6 +5,7 @@
       "res": 1
     },
     "description": "Harvard-Oxford cortical and subcortical probabilistic atlas (thresholded).",
+    "mask": "ribbon",
     "segmentation": {
       "source": "templateflow",
       "query": {
@@ -21,6 +22,35 @@
       "source": "templateflow",
       "query": {
         "atlas": "HOCPA",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+   },
+  "Schaefer2018100Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 100 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels17Networks",
         "suffix": "dseg",
         "extension": ".tsv"
       }
