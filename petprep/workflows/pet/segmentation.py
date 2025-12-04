@@ -8,6 +8,7 @@ from niworkflows.interfaces.utility import KeySelect
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+from niworkflows.interfaces.nibabel import ApplyMask
 
 from ... import config
 from ...data import load as load_data
@@ -311,7 +312,14 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['t1w_preproc', 'subjects_dir', 'subject_id', 'template', 'std2anat_xfm']
+            fields=[
+                't1w_preproc',
+                't1w_mask',
+                'subjects_dir',
+                'subject_id',
+                'template',
+                'std2anat_xfm',
+            ]
         ),
         name='inputnode',
     )
@@ -351,13 +359,17 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name=f'warp_{seg}_atlas',
         )
 
+        mask_atlas = pe.Node(ApplyMask(), name=f'mask_{seg}_atlas')
+
         workflow.connect(
             [
                 (inputnode, select_xfm, [('template', 'keys'), ('std2anat_xfm', 'std2anat_xfm')]),
                 (atlas_files, apply_atlas, [('seg_file', 'input_image')]),
                 (inputnode, apply_atlas, [('t1w_preproc', 'reference_image')]),
                 (select_xfm, apply_atlas, [('std2anat_xfm', 'transforms')]),
-                (apply_atlas, atlas_nodes['seg_source'], [('output_image', 'segmentation')]),
+                (apply_atlas, mask_atlas, [('output_image', 'in_file')]),
+                (inputnode, mask_atlas, [('t1w_mask', 'in_mask')]),
+                (mask_atlas, atlas_nodes['seg_source'], [('out_file', 'segmentation')]),
                 (inputnode, atlas_nodes['sources'], [('t1w_preproc', 'in1')]),
                 (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
                 (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
