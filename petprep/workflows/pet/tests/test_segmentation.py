@@ -65,3 +65,23 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
+
+
+def test_template_atlas_masking():
+    """Template-based atlases should be masked with the anatomical brain mask."""
+    with mock_config():
+        wf = init_segmentation_wf('HOCPA')
+
+        apply_atlas = wf.get_node('warp_HOCPA_atlas')
+        mask_atlas = wf.get_node('mask_HOCPA_atlas')
+        seg_source = wf.get_node('HOCPA_seg_source')
+        inputnode = wf.get_node('inputnode')
+
+        apply_to_mask = wf._graph.get_edge_data(apply_atlas, mask_atlas)
+        assert ('output_image', 'in_file') in apply_to_mask['connect']
+
+        mask_inputs = wf._graph.get_edge_data(inputnode, mask_atlas)
+        assert ('t1w_mask', 'in_mask') in mask_inputs['connect']
+
+        mask_to_seg = wf._graph.get_edge_data(mask_atlas, seg_source)
+        assert ('out_file', 'segmentation') in mask_to_seg['connect']
