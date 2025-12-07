@@ -531,16 +531,17 @@ It is released under the [CC0]\
     workflow.connect(
         [
             (
-                anat_fit_wf,
-                segmentation_wf,
-                [
-                    ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
-                    ('outputnode.t1w_mask', 'inputnode.t1w_mask'),
-                    ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
-                    ('outputnode.subject_id', 'inputnode.subject_id'),
-                    ('outputnode.template', 'inputnode.template'),
-                    ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
-                ],
+                    anat_fit_wf,
+                    segmentation_wf,
+                    [
+                        ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
+                        ('outputnode.t1w_mask', 'inputnode.t1w_mask'),
+                        ('outputnode.anat_ribbon', 'inputnode.anat_ribbon'),
+                        ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
+                        ('outputnode.subject_id', 'inputnode.subject_id'),
+                        ('outputnode.template', 'inputnode.template'),
+                        ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
+                    ],
             ),
         ]
     )

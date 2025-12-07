@@ -68,20 +68,40 @@ def test_gtm_connections():
 
 
 def test_template_atlas_masking():
-    """Template-based atlases should be masked with the anatomical brain mask."""
+    """Template atlas workflows should optionally mask warped segmentations."""
     with mock_config():
         wf = init_segmentation_wf('HOCPA')
 
-        apply_atlas = wf.get_node('warp_HOCPA_atlas')
-        mask_atlas = wf.get_node('mask_HOCPA_atlas')
+        names = [n.name for n in wf._get_all_nodes()]
+        assert 'mask_HOCPA_atlas' in names
+
+        apply_node = wf.get_node('warp_HOCPA_atlas')
+        mask_node = wf.get_node('mask_HOCPA_atlas')
         seg_source = wf.get_node('HOCPA_seg_source')
         inputnode = wf.get_node('inputnode')
 
-        apply_to_mask = wf._graph.get_edge_data(apply_atlas, mask_atlas)
-        assert ('output_image', 'in_file') in apply_to_mask['connect']
+        edge_apply = wf._graph.get_edge_data(apply_node, mask_node)
+        edge_mask = wf._graph.get_edge_data(inputnode, mask_node)
+        edge_seg = wf._graph.get_edge_data(mask_node, seg_source)
 
-        mask_inputs = wf._graph.get_edge_data(inputnode, mask_atlas)
-        assert ('t1w_mask', 'in_mask') in mask_inputs['connect']
+        assert ('output_image', 'in_file') in edge_apply['connect']
+        assert ('t1w_mask', 'in_mask') in edge_mask['connect']
+        assert ('out_file', 'segmentation') in edge_seg['connect']
 
-        mask_to_seg = wf._graph.get_edge_data(mask_atlas, seg_source)
-        assert ('out_file', 'segmentation') in mask_to_seg['connect']
+
+def test_template_atlas_masking_unsupported_option():
+    """Atlas masking should only allow brain or ribbon choices."""
+    from copy import deepcopy
+
+    from .. import segmentation
+
+    bad_spec = deepcopy(segmentation.SEGMENTATIONS['HOCPA'])
+    bad_spec['template_atlas'] = deepcopy(bad_spec['template_atlas'])
+    bad_spec['template_atlas']['mask'] = 'cortex'
+
+    segmentation.SEGMENTATIONS['HOCPA_bad'] = bad_spec
+
+    with mock_config(), pytest.raises(ValueError):
+        init_segmentation_wf('HOCPA_bad')
+
+    segmentation.SEGMENTATIONS.pop('HOCPA_bad', None)

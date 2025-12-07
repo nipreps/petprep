@@ -24,6 +24,7 @@ from ...interfaces.segmentation import (
     SegStats,
 )
 from ...utils.segmentation import (
+    atlas_segmentation_to_morph,
     ctab_to_dsegtsv,
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
@@ -302,6 +303,20 @@ def _build_template_atlas_nodes(seg: str):
         run_without_submitting=True,
         mem_gb=config.DEFAULT_MEMORY_MIN_GB,
     )
+    nodes['ds_morph_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='morph',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}morphtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
     return nodes
 
 
@@ -315,6 +330,7 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             fields=[
                 't1w_preproc',
                 't1w_mask',
+                'anat_ribbon',
                 'subjects_dir',
                 'subject_id',
                 'template',
@@ -359,7 +375,24 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             name=f'warp_{seg}_atlas',
         )
 
-        mask_atlas = pe.Node(ApplyMask(), name=f'mask_{seg}_atlas')
+        atlas_masking = atlas_spec.get('mask')
+        mask_node = None
+        if atlas_masking:
+            atlas_masking = atlas_masking.lower()
+            if atlas_masking not in {'brain', 'ribbon'}:
+                raise ValueError(
+                    f"Unknown atlas masking option '{atlas_masking}' for atlas '{seg}'"
+                )
+            mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_atlas')
+
+        atlas_morph = pe.Node(
+            niu.Function(
+                function=atlas_segmentation_to_morph,
+                input_names=['seg_file', 'label_file'],
+                output_names=['out_file', 'meta_dict'],
+            ),
+            name=f'make_{seg}_morph',
+        )
 
         workflow.connect(
             [
@@ -367,18 +400,41 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 (atlas_files, apply_atlas, [('seg_file', 'input_image')]),
                 (inputnode, apply_atlas, [('t1w_preproc', 'reference_image')]),
                 (select_xfm, apply_atlas, [('std2anat_xfm', 'transforms')]),
-                (apply_atlas, mask_atlas, [('output_image', 'in_file')]),
-                (inputnode, mask_atlas, [('t1w_mask', 'in_mask')]),
-                (mask_atlas, atlas_nodes['seg_source'], [('out_file', 'segmentation')]),
                 (inputnode, atlas_nodes['sources'], [('t1w_preproc', 'in1')]),
-                (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
-                (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
-                (atlas_nodes['sources'], atlas_nodes['ds_seg'], [('out', 'Sources')]),
-                (atlas_nodes['ds_seg'], outputnode, [('out_file', 'segmentation')]),
                 (atlas_files, atlas_nodes['ds_dseg_tsv'], [('label_file', 'in_file')]),
                 (inputnode, atlas_nodes['ds_dseg_tsv'], [('t1w_preproc', 'source_file')]),
                 (atlas_nodes['sources'], atlas_nodes['ds_dseg_tsv'], [('out', 'Sources')]),
                 (atlas_nodes['ds_dseg_tsv'], outputnode, [('out_file', 'dseg_tsv')]),
+                (atlas_nodes['seg_source'], atlas_morph, [('segmentation', 'seg_file')]),
+                (atlas_files, atlas_morph, [('label_file', 'label_file')]),
+                (atlas_morph, atlas_nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+                (atlas_morph, atlas_nodes['ds_morph_tsv'], [('meta_dict', 'meta_dict')]),
+                (inputnode, atlas_nodes['ds_morph_tsv'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_morph_tsv'], [('out', 'Sources')]),
+            ]
+        )
+
+        atlas_source_node = apply_atlas
+        atlas_source_output = 'output_image'
+
+        if mask_node:
+            workflow.connect([(apply_atlas, mask_node, [('output_image', 'in_file')])])
+            if atlas_masking == 'brain':
+                # Use the anatomical desc-brain_mask to constrain atlas coverage
+                workflow.connect([(inputnode, mask_node, [('t1w_mask', 'in_mask')])])
+            else:
+                # Use the anatomical desc-ribbon_mask to keep cortical-only atlases
+                workflow.connect([(inputnode, mask_node, [('anat_ribbon', 'in_mask')])])
+            atlas_source_node = mask_node
+            atlas_source_output = 'out_file'
+
+        workflow.connect(
+            [
+                (atlas_source_node, atlas_nodes['seg_source'], [(atlas_source_output, 'segmentation')]),
+                (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
+                (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_seg'], [('out', 'Sources')]),
+                (atlas_nodes['ds_seg'], outputnode, [('out_file', 'segmentation')]),
             ]
         )
 

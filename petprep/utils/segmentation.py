@@ -176,3 +176,49 @@ def ctab_to_dsegtsv(ctab_file: str) -> str:
     out_file = ctab_file.with_suffix('.tsv')
     df.to_csv(out_file, sep='\t', index=False)
     return str(out_file)
+
+
+def atlas_segmentation_to_morph(
+    seg_file: str, label_file: str
+) -> tuple[str, dict[str, dict[str, str]]]:
+    """Generate morphological statistics for an atlas-based segmentation.
+
+    Parameters
+    ----------
+    seg_file
+        Path to the atlas segmentation in subject (T1w) space.
+    label_file
+        TSV file containing ``index`` and ``name`` columns describing the labels
+        in ``seg_file``.
+    """
+
+    import nibabel as nb
+    import numpy as np
+    from pathlib import Path
+    import pandas as pd
+
+    seg_img = nb.load(seg_file)
+    data = np.rint(seg_img.get_fdata()).astype(int)
+    voxel_vol_mm3 = float(np.prod(seg_img.header.get_zooms()))
+
+    labels = pd.read_csv(label_file, sep='\t')
+    expected_cols = {'index', 'name'}
+    if not expected_cols.issubset(labels.columns):
+        raise ValueError(f"Label table must contain columns {expected_cols}")
+
+    volumes = [float((data == idx).sum() * voxel_vol_mm3) for idx in labels['index']]
+    df = labels[['index', 'name']].copy()
+    df['volume-mm3'] = volumes
+
+    out_file = Path(seg_file).with_suffix('.tsv')
+    df.to_csv(out_file, sep='\t', index=False)
+
+    meta_dict = {
+        'Columns': {
+            'index': 'Region index from the atlas segmentation.',
+            'name': 'Human-readable label for the region.',
+            'volume-mm3': 'Volume of the region in cubic millimeters.',
+        }
+    }
+
+    return str(out_file), meta_dict
