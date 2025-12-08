@@ -961,7 +961,9 @@ applied."""
             )
 
     if config.execution.tracer_label:
-        tracer_filters = config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        tracer_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
         tracer_filters = {key: value for key, value in tracer_filters.items() if key != 'tracer'}
         available_tracers = set(
             config.execution.layout.get(
