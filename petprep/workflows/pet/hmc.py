@@ -238,7 +238,7 @@ FreeSurfer's ``mri_robust_template``.
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
 
     robust_template_threads = min(omp_nthreads, 4)
-    robust_template_mem_gb = min(mem_gb, 24)
+    robust_template_mem_gb = min(mem_gb, 16)
 
     # Split frames
     split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
