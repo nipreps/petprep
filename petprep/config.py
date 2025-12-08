@@ -434,6 +434,8 @@ class execution(_Config):
     """List of participant identifiers that are to be preprocessed."""
     session_label = None
     """List of session identifiers that are to be preprocessed."""
+    tracer_label = None
+    """List of tracer identifiers that are to be preprocessed."""
     task_id = None
     """Select a particular task from all available in the dataset."""
     templateflow_home = _templateflow_home
