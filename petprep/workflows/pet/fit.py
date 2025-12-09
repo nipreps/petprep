@@ -704,6 +704,7 @@ def init_pet_fit_wf(
         val_pet.inputs.in_file = pet_file
         if petref_strategy == 'auto':
             corrected_pet_for_report.inputs.ref_file = petref
+            petref_candidates.inputs.template = petref
             workflow.connect([
                 (val_pet, corrected_pet_for_report, [('out_file', 'in_file')]),
                 (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),

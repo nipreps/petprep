@@ -789,8 +789,8 @@ def parse_args(args=None, namespace=None):
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
 
-    config.workflow._petref_cli_set = '--petref' in argv
-    config.workflow._pet2anat_method_cli_set = '--pet2anat-method' in argv
+    config.workflow.petref_specified = '--petref' in argv
+    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
 
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}
