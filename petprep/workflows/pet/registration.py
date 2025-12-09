@@ -116,6 +116,7 @@ def init_pet_reg_wf(
 
     """
     from nipype.interfaces.ants import MeasureImageSimilarity, Registration
+    from nipype.interfaces.ants.utils import ImageMath
     from nipype.interfaces.freesurfer import MRIConvert, MRICoreg, RobustRegister
     from nipype.interfaces.fsl import RobustFOV
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
@@ -139,7 +140,13 @@ def init_pet_reg_wf(
     outputnode.inputs.registration_score = None
 
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
+    mask_brain_for_score = pe.Node(ApplyMask(), name='mask_brain_for_score')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
+    erode_anat_mask = pe.Node(ImageMath(operation='ME', op2='1'), name='erode_anat_mask')
+    smooth_t1_for_score = pe.Node(
+        ImageMath(dimension=3, operation='G', op2='2.5'),
+        name='smooth_t1_for_score',
+    )
     robust_fov = pe.Node(RobustFOV(output_type='NIFTI_GZ'), name='robust_fov')
 
     if pet2anat_method == 'auto':
@@ -222,7 +229,11 @@ def init_pet_reg_wf(
                 (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
                 (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
                 (robust_fov, mask_brain, [('out_roi', 'in_file')]),
+                (robust_fov, mask_brain_for_score, [('out_roi', 'in_file')]),
                 (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+                (erode_anat_mask, mask_brain_for_score, [('output_image', 'in_mask')]),
+                (crop_anat_mask, erode_anat_mask, [('out_file', 'op1')]),
+                (mask_brain_for_score, smooth_t1_for_score, [('out_file', 'op1')]),
                 # ANTs branch
                 (inputnode, ants_coreg, [('ref_pet_brain', 'moving_image')]),
                 (robust_fov, ants_coreg, [('out_roi', 'fixed_image')]),
@@ -232,9 +243,9 @@ def init_pet_reg_wf(
                 (robust_fov, ants_warp, [('out_roi', 'reference_image')]),
                 (ants_convert, ants_warp, [('out_xfm', 'transforms')]),
                 (ants_warp, ants_score, [('output_image', 'moving_image')]),
-                (mask_brain, ants_score, [('out_file', 'fixed_image')]),
-                (crop_anat_mask, ants_score, [('out_file', 'fixed_image_mask')]),
-                (crop_anat_mask, ants_score, [('out_file', 'moving_image_mask')]),
+                (smooth_t1_for_score, ants_score, [('output_image', 'fixed_image')]),
+                (erode_anat_mask, ants_score, [('output_image', 'fixed_image_mask')]),
+                (erode_anat_mask, ants_score, [('output_image', 'moving_image_mask')]),
                 # FreeSurfer branch
                 (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
                 (mask_brain, fs_coreg, [('out_file', 'reference_file')]),
@@ -243,9 +254,9 @@ def init_pet_reg_wf(
                 (mask_brain, fs_warp, [('out_file', 'reference_image')]),
                 (fs_convert, fs_warp, [('out_xfm', 'transforms')]),
                 (fs_warp, fs_score, [('output_image', 'moving_image')]),
-                (mask_brain, fs_score, [('out_file', 'fixed_image')]),
-                (crop_anat_mask, fs_score, [('out_file', 'fixed_image_mask')]),
-                (crop_anat_mask, fs_score, [('out_file', 'moving_image_mask')]),
+                (smooth_t1_for_score, fs_score, [('output_image', 'fixed_image')]),
+                (erode_anat_mask, fs_score, [('output_image', 'fixed_image_mask')]),
+                (erode_anat_mask, fs_score, [('output_image', 'moving_image_mask')]),
                 # Selection
                 (ants_convert, select_best, [('out_xfm', 'xfm_ants'), ('out_inv', 'inv_ants')]),
                 (fs_convert, select_best, [('out_xfm', 'xfm_fs'), ('out_inv', 'inv_fs')]),
@@ -349,7 +360,11 @@ def init_pet_reg_wf(
         # ANTs gets unmasked T1W + separate mask (not pre-masked image)
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
+            (robust_fov, mask_brain_for_score, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+            (crop_anat_mask, erode_anat_mask, [('out_file', 'op1')]),
+            (erode_anat_mask, mask_brain_for_score, [('output_image', 'in_mask')]),
+            (mask_brain_for_score, smooth_t1_for_score, [('out_file', 'op1')]),
             (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
             (
                 robust_fov,
@@ -372,16 +387,20 @@ def init_pet_reg_wf(
             (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
             (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
             (warp_for_score, similarity, [('output_image', 'moving_image')]),
-            (mask_brain, similarity, [('out_file', 'fixed_image')]),
-            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
-            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (smooth_t1_for_score, similarity, [('output_image', 'fixed_image')]),
+            (erode_anat_mask, similarity, [('output_image', 'fixed_image_mask')]),
+            (erode_anat_mask, similarity, [('output_image', 'moving_image_mask')]),
             (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
     else:
         # mri_coreg and mri_robust_register output single transform file
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
+            (robust_fov, mask_brain_for_score, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+            (crop_anat_mask, erode_anat_mask, [('out_file', 'op1')]),
+            (erode_anat_mask, mask_brain_for_score, [('output_image', 'in_mask')]),
+            (mask_brain_for_score, smooth_t1_for_score, [('out_file', 'op1')]),
             (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
             (mask_brain, coreg, [('out_file', coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),
@@ -397,9 +416,9 @@ def init_pet_reg_wf(
             (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
             (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
             (warp_for_score, similarity, [('output_image', 'moving_image')]),
-            (mask_brain, similarity, [('out_file', 'fixed_image')]),
-            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
-            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (smooth_t1_for_score, similarity, [('output_image', 'fixed_image')]),
+            (erode_anat_mask, similarity, [('output_image', 'fixed_image_mask')]),
+            (erode_anat_mask, similarity, [('output_image', 'moving_image_mask')]),
             (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
 
