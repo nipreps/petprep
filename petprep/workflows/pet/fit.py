@@ -38,6 +38,7 @@ from ...interfaces.resampling import ResampleSeries
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
+from .confounds import _binary_union, _smooth_binarize
 from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
@@ -244,6 +245,83 @@ def _write_identity_xforms(num_frames: int, filename: Path) -> Path:
     n_xforms = max(int(num_frames or 0), 1)
     LinearTransformsMapping([Affine() for _ in range(n_xforms)]).to_filename(filename, fmt='itk')
     return filename
+
+
+def _construct_nu_path(subjects_dir: str, subject_id: str) -> str:
+    """Return the expected path to FreeSurfer's ``nu.mgz`` for ``subject_id``."""
+
+    from pathlib import Path
+
+    return str(Path(subjects_dir) / subject_id / 'mri' / 'nu.mgz')
+
+
+def _detect_large_pet_mask(
+    pet_mask: str,
+    t1w_mask: str,
+    volume_ratio_threshold: float = 1.5,
+):
+    """Assess whether the PET mask is unusually large relative to the anatomical mask."""
+
+    import logging
+
+    import nibabel as nb
+    import numpy as np
+
+    log = logging.getLogger('nipype.workflow')
+
+    pet_img = nb.load(pet_mask)
+    t1_img = nb.load(t1w_mask)
+
+    pet_vol = float(
+        np.count_nonzero(pet_img.get_fdata()) * np.prod(pet_img.header.get_zooms()[:3])
+    )
+    t1_vol = float(np.count_nonzero(t1_img.get_fdata()) * np.prod(t1_img.header.get_zooms()[:3]))
+    ratio = pet_vol / t1_vol if t1_vol else float('inf')
+
+    recommend_nu = bool(ratio > volume_ratio_threshold)
+    message = (
+        f'PET mask volume ratio (PET/T1w) = {ratio:.2f} '
+        f'(PET={pet_vol / 1000:.1f} mL, T1w={t1_vol / 1000:.1f} mL)'
+    )
+    if recommend_nu:
+        message += ' - recommending FreeSurfer nu.mgz as anatomical reference.'
+        log.warning(message)
+    else:
+        log.info(message)
+
+    return recommend_nu, ratio, pet_vol, t1_vol
+
+
+def _select_anatomical_reference(
+    anatref: str,
+    t1w_preproc: str,
+    nu_path: str | None,
+    use_nu_suggestion: bool = False,
+):
+    """Choose the anatomical reference to feed into the co-registration workflow."""
+
+    import logging
+    from pathlib import Path
+
+    log = logging.getLogger('nipype.workflow')
+
+    use_nu = anatref == 'nu' or (anatref == 'auto' and use_nu_suggestion)
+    selected = t1w_preproc
+    used_label = 't1w'
+
+    if use_nu:
+        nu_candidate = Path(nu_path) if nu_path else None
+        if nu_candidate is None or not nu_candidate.exists():
+            message = 'Requested nu.mgz anatomical reference but file was not found.'
+            if anatref == 'nu':
+                raise FileNotFoundError(message)
+            log.warning(message + ' Falling back to the preprocessed T1w image.')
+        else:
+            selected = str(nu_candidate)
+            used_label = 'nu'
+
+    log.info('Using %s as anatomical reference for PET-to-T1w registration.', used_label)
+    return selected, used_label
 
 
 def init_pet_fit_wf(
@@ -743,13 +821,93 @@ def init_pet_fit_wf(
     else:
         func_fit_reports_wf.inputs.inputnode.report_pet = pet_file
 
-    # Stage 2: Coregistration
+    # Stage 2: Estimate PET brain mask
+    config.loggers.workflow.info('PET Stage 2: Adding estimation of PET brain mask')
+
+    petref_mask = pe.Node(niu.Function(function=_smooth_binarize), name='petref_mask')
+    petref_mask.inputs.fwhm = 10.0
+    petref_mask.inputs.thresh = 0.2
+
+    detect_large_mask = pe.Node(
+        niu.Function(
+            function=_detect_large_pet_mask,
+            input_names=['pet_mask', 't1w_mask', 'volume_ratio_threshold'],
+            output_names=[
+                'use_nu_recommendation',
+                'volume_ratio',
+                'pet_mask_volume',
+                't1_mask_volume',
+            ],
+            imports=['import nibabel as nb'],
+        ),
+        name='detect_large_mask',
+    )
+    detect_large_mask.inputs.volume_ratio_threshold = 1.5
+
+    nu_path = pe.Node(
+        niu.Function(
+            function=_construct_nu_path,
+            input_names=['subjects_dir', 'subject_id'],
+            output_names=['nu_path'],
+        ),
+        name='nu_path',
+    )
+
+    select_anat_ref = pe.Node(
+        niu.Function(
+            function=_select_anatomical_reference,
+            input_names=['anatref', 't1w_preproc', 'nu_path', 'use_nu_suggestion'],
+            output_names=['anat_preproc', 'anatref_used'],
+        ),
+        name='select_anat_ref',
+    )
+    select_anat_ref.inputs.anatref = config.workflow.anatref
+
+    workflow.connect(
+        [
+            (petref_buffer, petref_mask, [('petref', 'in_file')]),
+            (petref_mask, detect_large_mask, [('out', 'pet_mask')]),
+            (inputnode, detect_large_mask, [('t1w_mask', 't1w_mask')]),
+            (inputnode, nu_path, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
+            (inputnode, select_anat_ref, [('t1w_preproc', 't1w_preproc')]),
+            (nu_path, select_anat_ref, [('nu_path', 'nu_path')]),
+            (detect_large_mask, select_anat_ref, [('use_nu_recommendation', 'use_nu_suggestion')]),
+        ]
+    )  # fmt:skip
+
+    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+
+    t1w_mask_tfm = pe.Node(
+        ApplyTransforms(interpolation='MultiLabel', invert_transform_flags=[True]),
+        name='t1w_mask_tfm',
+    )
+    merge_mask = pe.Node(niu.Function(function=_binary_union), name='merge_mask')
+
+    workflow.connect(
+        [
+            (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
+            (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
+            (petref_mask, merge_mask, [('out', 'mask1')]),
+            (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
+            (merge_mask, outputnode, [('out', 'pet_mask')]),
+        ]
+    )
+
+    ds_petmask_wf = init_ds_petmask_wf(
+        output_dir=config.execution.petprep_dir,
+        desc='brain',
+        name='ds_petmask_wf',
+    )
+    ds_petmask_wf.inputs.inputnode.source_files = [pet_file]
+    workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
+
+    # Stage 3: Coregistration
     rerun_coreg = petref2anat_xform and (
         config.workflow.petref_specified or config.workflow.pet2anat_method_specified
     )
     if rerun_coreg:
         config.loggers.workflow.info(
-            'PET Stage 2: Re-running co-registration because --petref or --pet2anat-method '
+            'PET Stage 3: Re-running co-registration because --petref or --pet2anat-method '
             'were explicitly requested.'
         )
         petref2anat_xform = None
@@ -758,7 +916,7 @@ def init_pet_fit_wf(
     pet_to_t1_field = None
 
     if not petref2anat_xform:
-        config.loggers.workflow.info('PET Stage 2: Adding co-registration workflow of PET to T1w')
+        config.loggers.workflow.info('PET Stage 3: Adding co-registration workflow of PET to T1w')
 
         if petref_strategy == 'auto':
             ds_petreg_wf = init_ds_registration_wf(
@@ -903,25 +1061,6 @@ def init_pet_fit_wf(
         workflow.connect(
             [(pet_to_t1_source, t1w_mask_tfm, [(pet_to_t1_field, 'transforms')])]
         )
-
-    workflow.connect(
-        [
-            (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
-            (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
-            (petref_buffer, petref_mask, [('petref', 'in_file')]),
-            (petref_mask, merge_mask, [('out', 'mask1')]),
-            (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
-            (merge_mask, outputnode, [('out', 'pet_mask')]),
-        ]
-    )
-
-    ds_petmask_wf = init_ds_petmask_wf(
-        output_dir=config.execution.petprep_dir,
-        desc='brain',
-        name='ds_petmask_wf',
-    )
-    ds_petmask_wf.inputs.inputnode.source_files = [pet_file]
-    workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
 
     pvc_method = getattr(config.workflow, 'pvc_method', None)
 

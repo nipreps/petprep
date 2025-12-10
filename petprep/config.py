@@ -560,6 +560,8 @@ class workflow(_Config):
     """PET-to-anatomical registration method (mri_coreg, robust, ants, or auto)."""
     pet2anat_method_specified: bool = False
     """Flag indicating whether ``--pet2anat-method`` was explicitly provided."""
+    anatref: str = 't1w'
+    """Anatomical reference for PET-to-T1w registration (``'t1w'``, ``'nu'``, or ``'auto'``)."""
     petref: str = 'template'
     """Strategy for building the PET reference (``'template'``, ``'twa'``, ``'sum'``, ``'first5min'`` or ``'auto'``)."""
     petref_specified: bool = False

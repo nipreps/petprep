@@ -212,7 +212,7 @@ Examples: ::
     $ petprep /data/bids_root /out participant --hmc-off
 
 
-Reference image selection
+PET reference image selection
 -------------------------
 Use :option:`--petref` to control how the reference volume is built from the
 dynamic PET series. Each strategy uses the frame timing metadata from
@@ -228,6 +228,18 @@ will raise an error before preprocessing starts.
 * ``sum`` produces a straightforward summed image.
 * ``first5min`` averages only the first 5 minutes of PET data to capture perfusion-like
   uptake.
+
+Anatomical reference selection
+------------------------------
+PETPrep uses an anatomical reference when registering PET data to the structural
+image. By default, the workflow relies on the preprocessed T1w image
+(:option:`--anatref t1w`), but it is also possible to use the
+non-uniformity corrected ``nu.mgz`` volume produced by FreeSurfer
+(:option:`--anatref nu`) when extracerebral uptake is present. 
+When :option:`--anatref auto` is set, PETPrep inspects
+the PET-derived brain mask volume relative to the anatomical mask. If the PET
+mask is substantially larger than expected (volume ratio > 1.5), the workflow
+automatically switches to ``nu.mgz`` to improve co-registration robustness.
 
 Anatomical co-registration
 --------------------------

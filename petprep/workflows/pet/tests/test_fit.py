@@ -14,9 +14,11 @@ from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..fit import (
+    _detect_large_pet_mask,
     _extract_first5min_image,
     _extract_sum_image,
     _extract_twa_image,
+    _select_anatomical_reference,
     _write_identity_xforms,
     init_pet_fit_wf,
     init_pet_native_wf,
@@ -676,6 +678,51 @@ def test_write_identity_xforms_minimum(tmp_path: Path):
 
     assert matrices.shape[0] == 1
     assert np.allclose(matrices[0], np.eye(4))
+
+
+def test_select_anatomical_reference_prefers_nu(tmp_path: Path):
+    """Selecting ``anatref='nu'`` should return the FreeSurfer nu image when present."""
+
+    t1 = tmp_path / 't1.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(t1)
+
+    nu = tmp_path / 'nu.mgz'
+    nb.MGHImage(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(nu)
+
+    selected, label = _select_anatomical_reference('nu', str(t1), str(nu), False)
+
+    assert label == 'nu'
+    assert selected == str(nu)
+
+
+def test_select_anatomical_reference_fallback(tmp_path: Path):
+    """When ``anatref`` is ``'auto'`` and nu.mgz is missing, keep the T1w reference."""
+
+    t1 = tmp_path / 't1.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(t1)
+
+    selected, label = _select_anatomical_reference(
+        'auto', str(t1), str(tmp_path / 'missing.mgz'), True
+    )
+
+    assert label == 't1w'
+    assert selected == str(t1)
+
+
+def test_detect_large_pet_mask(tmp_path: Path):
+    """PET masks substantially larger than the anatomical mask trigger a recommendation."""
+
+    pet_mask = tmp_path / 'pet_mask.nii.gz'
+    nb.Nifti1Image(np.ones((4, 4, 4), dtype=np.uint8), np.eye(4)).to_filename(pet_mask)
+
+    t1_mask = tmp_path / 't1_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(t1_mask)
+
+    use_nu, ratio, pet_vol, t1_vol = _detect_large_pet_mask(str(pet_mask), str(t1_mask))
+
+    assert use_nu is True
+    assert ratio > 1.5
+    assert pet_vol > t1_vol
 
 
 def test_init_refmask_report_wf(tmp_path: Path):
