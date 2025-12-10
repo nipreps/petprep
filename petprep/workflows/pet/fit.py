@@ -998,6 +998,7 @@ def init_pet_fit_wf(
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (select_best_ref, ds_petreg_wf, [('best_transform', 'inputnode.xform')]),
                 (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+                (pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')]),
                 (select_best_ref, petref_buffer, [('best_petref', 'petref')]),
                 (select_best_ref, summary, [('best_winner', 'registration_winner')]),
                 (select_best_ref, summary, [('best_label', 'petref_strategy')]),
@@ -1032,6 +1033,7 @@ def init_pet_fit_wf(
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
                 (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+                (pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')]),
                 (pet_reg_wf, summary, [('outputnode.registration_winner', 'registration_winner')]),
             ])  # fmt:skip
 
