@@ -195,6 +195,13 @@ def _build_parser(**kwargs):
         help='A space delimited list of session identifiers or a single '
         'identifier (the ses- prefix can be removed)',
     )
+    g_bids.add_argument(
+        '--tracer-label',
+        nargs='+',
+        type=lambda label: label.removeprefix('trc-'),
+        help='A space delimited list of tracer identifiers or a single '
+        'identifier (the trc- prefix can be removed)',
+    )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
     #                     help='Select a specific run to be processed')
@@ -776,6 +783,13 @@ def parse_args(args=None, namespace=None):
             'session': config.execution.session_label,
         }
 
+    if config.execution.tracer_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'tracer': config.execution.tracer_label,
+        }
+
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):
         parser.error('Options --pvc-tool, --pvc-method and --pvc-psf must be used together.')
@@ -944,6 +958,26 @@ applied."""
             parser.error(
                 'One or more session labels were not found in the BIDS directory: '
                 f'{", ".join(sorted(missing_sessions))}.'
+            )
+
+    if config.execution.tracer_label:
+        tracer_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        tracer_filters = {key: value for key, value in tracer_filters.items() if key != 'tracer'}
+        available_tracers = set(
+            config.execution.layout.get(
+                target='tracer',
+                return_type='id',
+                subject=list(participant_label) or None,
+                **tracer_filters,
+            )
+        )
+        missing_tracers = set(config.execution.tracer_label) - available_tracers
+        if missing_tracers:
+            parser.error(
+                'One or more tracer labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(missing_tracers))}.'
             )
 
     config.execution.participant_label = sorted(participant_label)
