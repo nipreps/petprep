@@ -1040,28 +1040,6 @@ def init_pet_fit_wf(
     else:
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
 
-    # Stage 3: Estimate PET brain mask
-    config.loggers.workflow.info('PET Stage 3: Adding estimation of PET brain mask')
-    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
-
-    from .confounds import _binary_union, _smooth_binarize
-
-    t1w_mask_tfm = pe.Node(
-        ApplyTransforms(interpolation='MultiLabel', invert_transform_flags=[True]),
-        name='t1w_mask_tfm',
-    )
-    petref_mask = pe.Node(niu.Function(function=_smooth_binarize), name='petref_mask')
-    petref_mask.inputs.fwhm = 10.0
-    petref_mask.inputs.thresh = 0.2
-    merge_mask = pe.Node(niu.Function(function=_binary_union), name='merge_mask')
-
-    if petref2anat_xform:
-        t1w_mask_tfm.inputs.transforms = petref2anat_xform
-    elif pet_to_t1_source and pet_to_t1_field:
-        workflow.connect(
-            [(pet_to_t1_source, t1w_mask_tfm, [(pet_to_t1_field, 'transforms')])]
-        )
-
     pvc_method = getattr(config.workflow, 'pvc_method', None)
 
     # Stage 4: Reference mask generation
