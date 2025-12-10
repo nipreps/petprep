@@ -561,7 +561,7 @@ class workflow(_Config):
     pet2anat_method_specified: bool = False
     """Flag indicating whether ``--pet2anat-method`` was explicitly provided."""
     petref: str = 'template'
-    """Strategy for building the PET reference (``'template'``, ``'twa'``, ``'sum'`` or ``'first5min'``)."""
+    """Strategy for building the PET reference (``'template'``, ``'twa'``, ``'sum'``, ``'first5min'`` or ``'auto'``)."""
     petref_specified: bool = False
     """Flag indicating whether ``--petref`` was explicitly provided."""
     cifti_output = None

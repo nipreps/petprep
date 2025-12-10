@@ -583,13 +583,14 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_hmc.add_argument(
         '--petref',
         default='template',
-        choices=['template', 'twa', 'sum', 'first5min'],
+        choices=['template', 'twa', 'sum', 'first5min', 'auto'],
         help=(
             "Strategy for generating the PET reference. 'template' uses the "
             "motion correction template, while 'twa' computes a time-weighted "
             "average, 'sum' produces a summed image of the motion-corrected "
             "series, and 'first5min' averages the early (0-5 minute) portion "
-            'of the acquisition.'
+            "of the acquisition. 'auto' evaluates multiple strategies to "
+            'select the best reference.'
         ),
     )
 
@@ -788,8 +789,8 @@ def parse_args(args=None, namespace=None):
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
 
-    config.workflow._petref_cli_set = '--petref' in argv
-    config.workflow._pet2anat_method_cli_set = '--pet2anat-method' in argv
+    config.workflow.petref_specified = '--petref' in argv
+    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
 
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}

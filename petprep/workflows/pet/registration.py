@@ -48,8 +48,8 @@ def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score
 
     # Default to FreeSurfer branch if scores tie
     if score_ants > score_fs:
-        return xfm_ants, inv_ants, 'ants'
-    return xfm_fs, inv_fs, 'freesurfer'
+        return xfm_ants, inv_ants, 'ants', score_ants
+    return xfm_fs, inv_fs, 'freesurfer', score_fs
 
 
 def init_pet_reg_wf(
@@ -130,10 +130,13 @@ def init_pet_reg_wf(
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['itk_pet_to_t1', 'itk_t1_to_pet', 'registration_winner']),
+        niu.IdentityInterface(
+            fields=['itk_pet_to_t1', 'itk_t1_to_pet', 'registration_winner', 'registration_score']
+        ),
         name='outputnode',
     )
     outputnode.inputs.registration_winner = None
+    outputnode.inputs.registration_score = None
 
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
@@ -182,12 +185,24 @@ def init_pet_reg_wf(
         fs_warp = pe.Node(ApplyTransforms(float=True), name='warp_pet_fs')
 
         ants_score = pe.Node(
-            MeasureImageSimilarity(metric='Mattes', dimension=3),
+            MeasureImageSimilarity(
+                metric='Mattes',
+                dimension=3,
+                radius_or_number_of_bins=32,
+                sampling_strategy='Regular',
+                sampling_percentage=0.25,
+            ),
             name='score_ants',
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
         fs_score = pe.Node(
-            MeasureImageSimilarity(metric='Mattes', dimension=3),
+            MeasureImageSimilarity(
+                metric='Mattes',
+                dimension=3,
+                radius_or_number_of_bins=32,
+                sampling_strategy='Regular',
+                sampling_percentage=0.25,
+            ),
             name='score_fs',
             mem_gb=config.DEFAULT_MEMORY_MIN_GB,
         )
@@ -196,7 +211,7 @@ def init_pet_reg_wf(
             niu.Function(
                 function=_select_best_transform,
                 input_names=['xfm_ants', 'xfm_fs', 'inv_ants', 'inv_fs', 'score_ants', 'score_fs'],
-                output_names=['best_xfm', 'best_inv_xfm', 'winner'],
+                output_names=['best_xfm', 'best_inv_xfm', 'winner', 'best_score'],
             ),
             name='select_best',
         )
@@ -240,6 +255,7 @@ def init_pet_reg_wf(
                     ('best_xfm', 'itk_pet_to_t1'),
                     ('best_inv_xfm', 'itk_t1_to_pet'),
                     ('winner', 'registration_winner'),
+                    ('best_score', 'registration_score'),
                 ]),
             ]
         )  # fmt:skip
@@ -314,6 +330,18 @@ def init_pet_reg_wf(
         coreg_output_is_list = False
 
     convert_xfm = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm')
+    warp_for_score = pe.Node(ApplyTransforms(float=True), name='warp_for_score')
+    similarity = pe.Node(
+        MeasureImageSimilarity(
+            metric='Mattes',
+            dimension=3,
+            radius_or_number_of_bins=32,
+            sampling_strategy='Regular',
+            sampling_percentage=0.25,
+        ),
+        name='score_registration',
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
 
     # Build connections dynamically based on output type
     if coreg_output_is_list:
@@ -340,6 +368,14 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
+            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
+            (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
+            (warp_for_score, similarity, [('output_image', 'moving_image')]),
+            (mask_brain, similarity, [('out_file', 'fixed_image')]),
+            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
+            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
     else:
         # mri_coreg and mri_robust_register output single transform file
@@ -357,6 +393,14 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
+            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
+            (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
+            (warp_for_score, similarity, [('output_image', 'moving_image')]),
+            (mask_brain, similarity, [('out_file', 'fixed_image')]),
+            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
+            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
 
     workflow.connect(
