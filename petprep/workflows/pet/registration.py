@@ -44,10 +44,10 @@ def _get_first(in_list):
 
 
 def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score_fs):
-    """Pick the transform with the highest similarity score."""
+    """Pick the transform with the best (lowest) similarity metric."""
 
     # Default to FreeSurfer branch if scores tie
-    if score_ants > score_fs:
+    if score_ants < score_fs:
         return xfm_ants, inv_ants, 'ants', score_ants
     return xfm_fs, inv_fs, 'freesurfer', score_fs
 
