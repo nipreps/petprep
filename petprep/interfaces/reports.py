@@ -98,6 +98,7 @@ FUNCTIONAL_TEMPLATE = """\
 \t\t<ul class="elem-desc">
 \t\t\t<li>Original orientation: {ornt}</li>
 \t\t\t<li>Registration: {registration}</li>
+\t\t\t<li>Anatomical reference: {anat_reference}</li>
 \t\t\t<li>Reference image: {reference}</li>
 \t\t\t<li>Time zero: {time_zero}</li>
 \t\t\t<li>Radiotracer: {radiotracer}</li>
@@ -247,6 +248,12 @@ class FunctionalSummaryInputSpec(TraitedSpec):
     )
     orientation = traits.Str(mandatory=True, desc='Orientation of the voxel axes')
     metadata = traits.Dict(desc='PET metadata dictionary')
+    anatref_strategy = traits.Enum(
+        't1w', 'nu', 'auto', desc='Anatomical reference used for registration'
+    )
+    requested_anatref = traits.Enum(
+        None, 't1w', 'nu', 'auto', allow_none=True, desc='Requested anatomical reference'
+    )
     petref_strategy = traits.Enum(
         'template',
         'twa',
@@ -295,6 +302,16 @@ class FunctionalSummary(SummaryInterface):
             )
         else:
             reg = f'Unknown registration method: {self.inputs.registration}'
+
+        anat_map = {
+            't1w': 'Preprocessed T1w image',
+            'nu': 'FreeSurfer bias-corrected volume (nu.mgz)',
+            'auto': 'Automatically selected anatomical reference',
+        }
+        anat_reference = anat_map.get(self.inputs.anatref_strategy, 'Unknown')
+        requested_anat = getattr(self.inputs, 'requested_anatref', None)
+        if requested_anat and requested_anat != self.inputs.anatref_strategy:
+            anat_reference += f" (requested '{requested_anat}')"
 
         reference_map = {
             'template': 'Motion correction template',
@@ -346,6 +363,7 @@ class FunctionalSummary(SummaryInterface):
 
         return FUNCTIONAL_TEMPLATE.format(
             registration=reg,
+            anat_reference=anat_reference,
             reference=petref_strategy,
             ornt=self.inputs.orientation,
             # Use the metadata dictionary to fill in the details

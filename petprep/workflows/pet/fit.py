@@ -649,6 +649,7 @@ def init_pet_fit_wf(
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
             metadata=metadata,
+            requested_anatref=config.workflow.anatref,
             petref_strategy=petref_strategy,
             requested_petref_strategy=requested_petref_strategy,
             hmc_disabled=hmc_disabled,
@@ -872,6 +873,7 @@ def init_pet_fit_wf(
             (inputnode, select_anat_ref, [('t1w_preproc', 't1w_preproc')]),
             (nu_path, select_anat_ref, [('nu_path', 'nu_path')]),
             (detect_large_mask, select_anat_ref, [('use_nu_recommendation', 'use_nu_suggestion')]),
+            (select_anat_ref, summary, [('anatref_used', 'anatref_strategy')]),
         ]
     )  # fmt:skip
 
