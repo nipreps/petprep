@@ -14,11 +14,11 @@ from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..fit import (
+    _construct_nu_path,
     _detect_large_pet_mask,
     _extract_first5min_image,
     _extract_sum_image,
     _extract_twa_image,
-    _construct_nu_path,
     _select_anatomical_reference,
     _write_identity_xforms,
     init_pet_fit_wf,
