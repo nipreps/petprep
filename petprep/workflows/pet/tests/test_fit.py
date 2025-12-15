@@ -18,6 +18,7 @@ from ..fit import (
     _extract_first5min_image,
     _extract_sum_image,
     _extract_twa_image,
+    _construct_nu_path,
     _select_anatomical_reference,
     _write_identity_xforms,
     init_pet_fit_wf,
@@ -724,6 +725,52 @@ def test_detect_large_pet_mask(tmp_path: Path):
     assert use_nu is True
     assert ratio > 1.5
     assert pet_vol > t1_vol
+
+
+def test_detect_large_pet_mask_within_threshold(tmp_path: Path):
+    """Ratios below the threshold should not recommend switching references."""
+
+    pet_mask = tmp_path / 'pet_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(pet_mask)
+
+    t1_mask = tmp_path / 't1_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(t1_mask)
+
+    use_nu, ratio, pet_vol, t1_vol = _detect_large_pet_mask(str(pet_mask), str(t1_mask))
+
+    assert use_nu is False
+    assert ratio == pytest.approx(1.0)
+    assert pet_vol == pytest.approx(t1_vol)
+
+
+def test_construct_nu_path_generates_expected_location():
+    """``nu.mgz`` paths should be constructed in the standard FreeSurfer layout."""
+
+    path = _construct_nu_path('/opt/freesurfer/subjects', 'sub-01')
+    assert path.endswith('/opt/freesurfer/subjects/sub-01/mri/nu.mgz')
+
+
+def test_volume_ratio_forwarded_to_summary(bids_root: Path, tmp_path: Path):
+    """The PET/T1w volume ratio should flow into the report summary node."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    detect_large_mask = wf.get_node('detect_large_mask')
+    summary = wf.get_node('summary')
+
+    edge = wf._graph.get_edge_data(detect_large_mask, summary)
+    assert ('volume_ratio', 'volume_ratio') in edge['connect']
+    assert detect_large_mask.inputs.volume_ratio_threshold == 1.5
 
 
 def test_init_refmask_report_wf(tmp_path: Path):
