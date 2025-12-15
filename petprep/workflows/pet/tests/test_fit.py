@@ -20,6 +20,7 @@ from ..fit import (
     _extract_sum_image,
     _extract_twa_image,
     _select_anatomical_reference,
+    _select_best_petref,
     _write_identity_xforms,
     init_pet_fit_wf,
     init_pet_native_wf,
@@ -209,6 +210,37 @@ def test_reports_use_motion_corrected_average(bids_root: Path, tmp_path: Path):
     assert ('out_file', 'inputnode.report_pet') in edge['connect']
 
 
+def test_reference_extraction_helpers(tmp_path: Path):
+    pet_4d = tmp_path / 'pet.nii.gz'
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 2.0)), axis=-1)
+    nb.Nifti1Image(data, np.eye(4)).to_filename(pet_4d)
+
+    sidecar = {'FrameTimesStart': [0.0, 60.0], 'FrameDuration': [60.0, 60.0]}
+    out = _extract_twa_image(str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration'])
+    assert Path(out).name.endswith('_timeavgref.nii.gz')
+    img = nb.load(out)
+    assert img.shape == (2, 2, 2)
+    assert np.allclose(img.get_fdata(), 1.5)
+
+    sum_out = _extract_sum_image(str(pet_4d), tmp_path)
+    assert Path(sum_out).name.endswith('_sumref.nii.gz')
+    sum_img = nb.load(sum_out)
+    assert np.allclose(sum_img.get_fdata(), 3.0)
+
+    first5 = _extract_first5min_image(
+        str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration'], window_sec=30.0
+    )
+    assert Path(first5).name.endswith('_first5minref.nii.gz')
+    first_img = nb.load(first5)
+    # Only the first frame overlaps the 30s window
+    assert np.allclose(first_img.get_fdata(), 1.0)
+
+    with pytest.raises(ValueError):
+        _extract_twa_image(str(pet_4d), tmp_path, None, None)
+    with pytest.raises(ValueError):
+        _extract_first5min_image(str(pet_4d), tmp_path, [0.0], [1.0], window_sec=-1)
+
+
 def test_petref_default_twa_when_hmc_disabled(bids_root: Path, tmp_path: Path):
     """Disabling HMC should fall back to TWA references and note it in reports."""
 
@@ -233,6 +265,29 @@ def test_petref_default_twa_when_hmc_disabled(bids_root: Path, tmp_path: Path):
     assert summary.inputs.requested_petref_strategy == 'template'
     assert summary.inputs.requested_anatref == 't1w'
     assert summary.inputs.hmc_disabled is True
+
+
+def test_pet_reference_utilities(tmp_path: Path):
+    labels = ['template', 'twa', 'sum']
+    scores = [0.5, None, 0.25]
+    transforms = ['ants', 'fs', 'fs']
+    inv_transforms = ['ants_inv', 'fs_inv', 'fs_inv']
+    winners = ['ants', 'fs', 'fs']
+    petrefs = ['tpl.nii.gz', 'twa.nii.gz', 'sum.nii.gz']
+    selection = _select_best_petref(labels, scores, transforms, inv_transforms, winners, petrefs)
+    assert selection[0] == 'sum'
+    assert selection[1] == 0.25
+
+    with pytest.raises(ValueError):
+        _select_best_petref([], [], [], [], [], [])
+    with pytest.raises(ValueError):
+        _select_best_petref(['a'], [None], ['x'], ['y'], ['w'], ['z'])
+
+    xform_file = _write_identity_xforms(2, tmp_path / 'xfms' / 'itk.txt')
+    assert xform_file.exists()
+
+    nu_path = _construct_nu_path('/subjects', 'sub-01')
+    assert nu_path.endswith('sub-01/mri/nu.mgz')
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
