@@ -33,12 +33,23 @@ import typing as ty
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 
+from petprep import config
+
 AffineDOF = ty.Literal[6, 9, 12]
 
 
 def _get_first(in_list):
     """Extract first element from a list (for ANTs transform output)."""
     return in_list[0]
+
+
+def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score_fs):
+    """Pick the transform with the best (lowest) similarity metric."""
+
+    # Default to FreeSurfer branch if scores tie
+    if score_ants < score_fs:
+        return xfm_ants, inv_ants, 'ants', score_ants
+    return xfm_fs, inv_fs, 'freesurfer', score_fs
 
 
 def init_pet_reg_wf(
@@ -78,8 +89,9 @@ def init_pet_reg_wf(
     pet2anat_method : :obj:`str`
         Method for PET-to-anatomical registration. Options are 'mri_coreg'
         (default FreeSurfer co-registration), 'robust' (uses FreeSurfer
-        mri_robust_register with NMI, 6 DoF only), or 'ants' (uses ANTs rigid
-        registration, 6 DoF only).
+        mri_robust_register with NMI, 6 DoF only), 'ants' (uses ANTs rigid
+        registration, 6 DoF only), or 'auto' (runs FreeSurfer and ANTs in
+        parallel, selecting the best-performing transform).
     name : :obj:`str`
         Name of workflow (default: ``pet_reg_wf``)
 
@@ -99,12 +111,15 @@ def init_pet_reg_wf(
         Affine transform from ``ref_pet_brain`` to anatomical space (ITK format)
     itk_anat_to_pet
         Affine transform from anatomical space to PET space (ITK format)
+    registration_winner
+        Name of the registration backend selected when ``pet2anat_method='auto'``
 
     """
-    from nipype.interfaces.ants import Registration
+    from nipype.interfaces.ants import MeasureImageSimilarity, Registration
     from nipype.interfaces.freesurfer import MRIConvert, MRICoreg, RobustRegister
     from nipype.interfaces.fsl import RobustFOV
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+    from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.nibabel import ApplyMask
     from niworkflows.interfaces.nitransforms import ConcatenateXFMs
 
@@ -115,14 +130,138 @@ def init_pet_reg_wf(
     )
 
     outputnode = pe.Node(
-        niu.IdentityInterface(fields=['itk_pet_to_t1', 'itk_t1_to_pet']),
+        niu.IdentityInterface(
+            fields=['itk_pet_to_t1', 'itk_t1_to_pet', 'registration_winner', 'registration_score']
+        ),
         name='outputnode',
     )
+    outputnode.inputs.registration_winner = None
+    outputnode.inputs.registration_score = None
 
     convert_anat = pe.Node(MRIConvert(out_type='niigz'), name='convert_anat')
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
     robust_fov = pe.Node(RobustFOV(output_type='NIFTI_GZ'), name='robust_fov')
+
+    if pet2anat_method == 'auto':
+        ants_coreg = pe.Node(
+            Registration(
+                dimension=3,
+                float=True,
+                output_transform_prefix='pet2anat_',
+                output_warped_image='pet2anat_Warped.nii.gz',
+                transforms=['Rigid'],
+                transform_parameters=[(0.1,)],
+                metric=['MI'],
+                metric_weight=[1],
+                radius_or_number_of_bins=[32],
+                sampling_strategy=['Regular'],
+                sampling_percentage=[0.25],
+                number_of_iterations=[[1000, 500, 250]],
+                convergence_threshold=[1e-6],
+                convergence_window_size=[10],
+                shrink_factors=[[4, 2, 1]],
+                smoothing_sigmas=[[2, 1, 0]],
+                sigma_units=['vox'],
+                use_histogram_matching=False,
+                initial_moving_transform_com=1,
+                winsorize_lower_quantile=0.001,
+                winsorize_upper_quantile=0.999,
+            ),
+            name='ants_registration',
+            n_procs=omp_nthreads,
+            mem_gb=mem_gb * 2,
+        )
+        fs_coreg = pe.Node(
+            MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
+            name='mri_coreg',
+            n_procs=omp_nthreads,
+            mem_gb=5,
+        )
+
+        ants_convert = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm_ants')
+        fs_convert = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm_fs')
+
+        ants_warp = pe.Node(ApplyTransforms(float=True), name='warp_pet_ants')
+        fs_warp = pe.Node(ApplyTransforms(float=True), name='warp_pet_fs')
+
+        ants_score = pe.Node(
+            MeasureImageSimilarity(
+                metric='Mattes',
+                dimension=3,
+                radius_or_number_of_bins=32,
+                sampling_strategy='Regular',
+                sampling_percentage=0.25,
+            ),
+            name='score_ants',
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        fs_score = pe.Node(
+            MeasureImageSimilarity(
+                metric='Mattes',
+                dimension=3,
+                radius_or_number_of_bins=32,
+                sampling_strategy='Regular',
+                sampling_percentage=0.25,
+            ),
+            name='score_fs',
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        select_best = pe.Node(
+            niu.Function(
+                function=_select_best_transform,
+                input_names=['xfm_ants', 'xfm_fs', 'inv_ants', 'inv_fs', 'score_ants', 'score_fs'],
+                output_names=['best_xfm', 'best_inv_xfm', 'winner', 'best_score'],
+            ),
+            name='select_best',
+        )
+
+        workflow.connect(
+            [
+                (inputnode, robust_fov, [('anat_preproc', 'in_file')]),
+                (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
+                (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
+                (robust_fov, mask_brain, [('out_roi', 'in_file')]),
+                (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+                # ANTs branch
+                (inputnode, ants_coreg, [('ref_pet_brain', 'moving_image')]),
+                (robust_fov, ants_coreg, [('out_roi', 'fixed_image')]),
+                (crop_anat_mask, ants_coreg, [('out_file', 'fixed_image_masks')]),
+                (ants_coreg, ants_convert, [(('forward_transforms', _get_first), 'in_xfms')]),
+                (inputnode, ants_warp, [('ref_pet_brain', 'input_image')]),
+                (robust_fov, ants_warp, [('out_roi', 'reference_image')]),
+                (ants_convert, ants_warp, [('out_xfm', 'transforms')]),
+                (ants_warp, ants_score, [('output_image', 'moving_image')]),
+                (mask_brain, ants_score, [('out_file', 'fixed_image')]),
+                (crop_anat_mask, ants_score, [('out_file', 'fixed_image_mask')]),
+                (crop_anat_mask, ants_score, [('out_file', 'moving_image_mask')]),
+                # FreeSurfer branch
+                (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
+                (mask_brain, fs_coreg, [('out_file', 'reference_file')]),
+                (fs_coreg, fs_convert, [('out_lta_file', 'in_xfms')]),
+                (inputnode, fs_warp, [('ref_pet_brain', 'input_image')]),
+                (mask_brain, fs_warp, [('out_file', 'reference_image')]),
+                (fs_convert, fs_warp, [('out_xfm', 'transforms')]),
+                (fs_warp, fs_score, [('output_image', 'moving_image')]),
+                (mask_brain, fs_score, [('out_file', 'fixed_image')]),
+                (crop_anat_mask, fs_score, [('out_file', 'fixed_image_mask')]),
+                (crop_anat_mask, fs_score, [('out_file', 'moving_image_mask')]),
+                # Selection
+                (ants_convert, select_best, [('out_xfm', 'xfm_ants'), ('out_inv', 'inv_ants')]),
+                (fs_convert, select_best, [('out_xfm', 'xfm_fs'), ('out_inv', 'inv_fs')]),
+                (ants_score, select_best, [('similarity', 'score_ants')]),
+                (fs_score, select_best, [('similarity', 'score_fs')]),
+                (select_best, outputnode, [
+                    ('best_xfm', 'itk_pet_to_t1'),
+                    ('best_inv_xfm', 'itk_t1_to_pet'),
+                    ('winner', 'registration_winner'),
+                    ('best_score', 'registration_score'),
+                ]),
+            ]
+        )  # fmt:skip
+
+        return workflow
 
     if pet2anat_method == 'ants':
         coreg = pe.Node(
@@ -192,6 +331,18 @@ def init_pet_reg_wf(
         coreg_output_is_list = False
 
     convert_xfm = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm')
+    warp_for_score = pe.Node(ApplyTransforms(float=True), name='warp_for_score')
+    similarity = pe.Node(
+        MeasureImageSimilarity(
+            metric='Mattes',
+            dimension=3,
+            radius_or_number_of_bins=32,
+            sampling_strategy='Regular',
+            sampling_percentage=0.25,
+        ),
+        name='score_registration',
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
 
     # Build connections dynamically based on output type
     if coreg_output_is_list:
@@ -218,6 +369,14 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
+            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
+            (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
+            (warp_for_score, similarity, [('output_image', 'moving_image')]),
+            (mask_brain, similarity, [('out_file', 'fixed_image')]),
+            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
+            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
     else:
         # mri_coreg and mri_robust_register output single transform file
@@ -235,6 +394,14 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
+            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
+            (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
+            (warp_for_score, similarity, [('output_image', 'moving_image')]),
+            (mask_brain, similarity, [('out_file', 'fixed_image')]),
+            (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
+            (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+            (similarity, outputnode, [('similarity', 'registration_score')]),
         ]
 
     workflow.connect(

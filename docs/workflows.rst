@@ -437,8 +437,12 @@ By default, the workflow runs FreeSurfer's ``mri_coreg`` with the number of
 degrees of freedom set via the :option:`--pet2anat-dof` flag. Alternative modes
 include FreeSurfer's ``mri_robust_register`` (``--pet2anat-method robust``) and
 ANTs rigid registration (``--pet2anat-method ants``). Both alternatives are
-limited to rigid-body alignment (6 DoF). The resulting affine is converted to
-ITK format for downstream application, along with its inverse.
+limited to rigid-body alignment (6 DoF). An ``auto`` mode
+(``--pet2anat-method auto``) runs both FreeSurfer and ANTs registrations in
+parallel, applies the resulting transforms to the PET reference, computes a
+similarity score within the T1w brain mask, and selects the best-performing
+transform. The resulting affine is converted to ITK format for downstream
+application, along with its inverse.
 
 Resampling PET runs onto standard spaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
