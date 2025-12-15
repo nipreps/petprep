@@ -216,7 +216,9 @@ def test_reference_extraction_helpers(tmp_path: Path):
     nb.Nifti1Image(data, np.eye(4)).to_filename(pet_4d)
 
     sidecar = {'FrameTimesStart': [0.0, 60.0], 'FrameDuration': [60.0, 60.0]}
-    out = _extract_twa_image(str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration'])
+    out = _extract_twa_image(
+        str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration']
+    )
     assert Path(out).name.endswith('_timeavgref.nii.gz')
     img = nb.load(out)
     assert img.shape == (2, 2, 2)
@@ -228,7 +230,11 @@ def test_reference_extraction_helpers(tmp_path: Path):
     assert np.allclose(sum_img.get_fdata(), 3.0)
 
     first5 = _extract_first5min_image(
-        str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration'], window_sec=30.0
+        str(pet_4d),
+        tmp_path,
+        sidecar['FrameTimesStart'],
+        sidecar['FrameDuration'],
+        window_sec=30.0,
     )
     assert Path(first5).name.endswith('_first5minref.nii.gz')
     first_img = nb.load(first5)
