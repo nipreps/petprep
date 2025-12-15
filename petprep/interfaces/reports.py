@@ -296,10 +296,7 @@ class FunctionalSummary(SummaryInterface):
                 winner_desc = 'FreeSurfer'
             else:
                 winner_desc = 'not recorded'
-            reg = (
-                'Automatic selection between FreeSurfer and ANTs '
-                f'(best score: {winner_desc})'
-            )
+            reg = f'Automatic selection between FreeSurfer and ANTs (best score: {winner_desc})'
         else:
             reg = f'Unknown registration method: {self.inputs.registration}'
 

@@ -736,7 +736,9 @@ def init_pet_fit_wf(
         ])  # fmt:skip
 
         if petref_strategy == 'auto':
-            workflow.connect([(pet_hmc_wf, petref_candidates, [('outputnode.petref', 'template')])])
+            workflow.connect(
+                [(pet_hmc_wf, petref_candidates, [('outputnode.petref', 'template')])]
+            )
         elif use_corrected_reference:
             workflow.connect([
                 (pet_hmc_wf, corrected_pet_for_report, [('outputnode.petref', 'ref_file')]),
