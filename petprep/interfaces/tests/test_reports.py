@@ -103,8 +103,8 @@ def test_functional_summary_with_metadata(registration):
     assert registration in segment
     assert 'Reference image: Motion correction template' in segment
     assert (
-        "Anatomical reference: Preprocessed T1w image "
-        "(PET/T1w mask volume ratio: 1.60) (requested 'auto')" in segment
+        'Anatomical reference: Preprocessed T1w image '
+        (PET/T1w mask volume ratio: 1.60) (requested 'auto')" in segment
     )
     assert 'Radiotracer: [11C]DASB' in segment
     assert 'Injected dose: 100 MBq' in segment
