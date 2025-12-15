@@ -254,6 +254,12 @@ class FunctionalSummaryInputSpec(TraitedSpec):
     requested_anatref = traits.Enum(
         None, 't1w', 'nu', 'auto', allow_none=True, desc='Requested anatomical reference'
     )
+    volume_ratio = traits.Either(
+        None,
+        traits.Float(),
+        usedefault=True,
+        desc='PET-to-T1w mask volume ratio used for anatref auto-selection',
+    )
     petref_strategy = traits.Enum(
         'template',
         'twa',
@@ -307,6 +313,9 @@ class FunctionalSummary(SummaryInterface):
         }
         anat_reference = anat_map.get(self.inputs.anatref_strategy, 'Unknown')
         requested_anat = getattr(self.inputs, 'requested_anatref', None)
+        volume_ratio = getattr(self.inputs, 'volume_ratio', None)
+        if requested_anat == 'auto' and volume_ratio is not None:
+            anat_reference += f' (PET/T1w mask volume ratio: {volume_ratio:.2f})'
         if requested_anat and requested_anat != self.inputs.anatref_strategy:
             anat_reference += f" (requested '{requested_anat}')"
 

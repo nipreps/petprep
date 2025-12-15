@@ -87,6 +87,7 @@ def test_functional_summary_with_metadata(registration):
         orientation='RAS',
         anatref_strategy='t1w',
         requested_anatref='auto',
+        volume_ratio=1.6,
         petref_strategy='template',
         metadata={
             'TracerName': 'DASB',
@@ -101,7 +102,10 @@ def test_functional_summary_with_metadata(registration):
     segment = summary._generate_segment()
     assert registration in segment
     assert 'Reference image: Motion correction template' in segment
-    assert "Anatomical reference: Preprocessed T1w image (requested 'auto')" in segment
+    assert (
+        "Anatomical reference: Preprocessed T1w image "
+        "(PET/T1w mask volume ratio: 1.60) (requested 'auto')" in segment
+    )
     assert 'Radiotracer: [11C]DASB' in segment
     assert 'Injected dose: 100 MBq' in segment
     assert 'Number of frames: 2' in segment

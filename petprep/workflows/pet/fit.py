@@ -876,6 +876,7 @@ def init_pet_fit_wf(
             (nu_path, select_anat_ref, [('nu_path', 'nu_path')]),
             (detect_large_mask, select_anat_ref, [('use_nu_recommendation', 'use_nu_suggestion')]),
             (select_anat_ref, summary, [('anatref_used', 'anatref_strategy')]),
+            (detect_large_mask, summary, [('volume_ratio', 'volume_ratio')]),
         ]
     )  # fmt:skip
 
