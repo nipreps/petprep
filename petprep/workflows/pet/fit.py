@@ -134,7 +134,7 @@ def _extract_first5min_image(
     import nibabel as nb
     import numpy as np
 
-    from ... import config
+    from petprep import config
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
