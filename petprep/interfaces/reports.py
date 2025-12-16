@@ -455,7 +455,7 @@ class AtlasROIsReport(SimpleInterface):
             overlay_data[seg_data == label] = idx
         overlay_img = nb.Nifti1Image(overlay_data, seg_img.affine, seg_img.header)
 
-        color_map = cm.get_cmap('tab20', max(len(present_labels), 1))
+        color_map = cm.get_cmap('gist_ncar', max(len(present_labels), 1))
         rgba_colors = [(0, 0, 0, 0)]
         legend_handles = []
         for idx, label in enumerate(present_labels):
