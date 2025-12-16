@@ -145,7 +145,7 @@ sections:
     subtitle: PET to anatomical visualization
   - bids: {datatype: figures, desc: atlasrois, suffix: pet}
     caption: Atlas regions used for time-activity curves overlaid on the anatomical and PET reference images. The legend lists each atlas region with the corresponding color.
-    static: true
+    static: false
     subtitle: Atlas regions
   - bids: {datatype: figures, desc: ref, suffix: pet}
     caption: Reference region mask overlaid on the PET reference and anatomical.
