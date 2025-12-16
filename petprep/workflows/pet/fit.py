@@ -638,13 +638,7 @@ def init_pet_fit_wf(
         reference_nodes['first5min'].inputs.fallback_to_first_frame = True
 
     registration_method = 'Precomputed'
-    if not petref2anat_xform:
-        registration_method = {
-            'mri_coreg': 'mri_coreg',
-            'robust': 'mri_robust_register',
-            'ants': 'ants_registration',
-            'auto': 'auto_select',
-        }[config.workflow.pet2anat_method]
+
     if hmc_disabled:
         config.execution.work_dir.mkdir(parents=True, exist_ok=True)
         petref = petref or reference_function(pet_file, **reference_kwargs)
@@ -940,6 +934,16 @@ def init_pet_fit_wf(
             'were explicitly requested.'
         )
         petref2anat_xform = None
+
+    registration_method = 'Precomputed'
+    if not petref2anat_xform:
+        registration_method = {
+            'mri_coreg': 'mri_coreg',
+            'robust': 'mri_robust_register',
+            'ants': 'ants_registration',
+            'auto': 'auto_select',
+        }[config.workflow.pet2anat_method]
+    summary.inputs.registration = registration_method
 
     pet_to_t1_source = None
     pet_to_t1_field = None
