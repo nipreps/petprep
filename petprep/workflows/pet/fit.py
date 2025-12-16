@@ -129,6 +129,7 @@ def _extract_first5min_image(
     ``True``, the first frame is returned instead of raising an error.
     """
 
+    from ... import config
     from pathlib import Path
 
     import nibabel as nb
