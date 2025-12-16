@@ -20,6 +20,8 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
+from pathlib import Path
+
 import pytest
 
 from ..reports import get_world_pedir
@@ -100,3 +102,38 @@ def test_functional_summary_with_metadata(registration):
     assert 'Radiotracer: [11C]DASB' in segment
     assert 'Injected dose: 100 MBq' in segment
     assert 'Number of frames: 2' in segment
+
+
+def test_atlas_rois_report(tmp_path):
+    import numpy as np
+    import nibabel as nb
+
+    from ..reports import AtlasROIsReport
+
+    affine = np.diag([2, 2, 2, 1])
+    t1_data = np.zeros((12, 12, 12), dtype=float)
+    pet_data = np.zeros((12, 12, 12), dtype=float)
+    seg_data = np.zeros((12, 12, 12), dtype=int)
+    seg_data[3:9, 3:9, 3:6] = 1
+    seg_data[4:10, 4:10, 6:9] = 2
+
+    t1_file = tmp_path / 't1.nii.gz'
+    pet_file = tmp_path / 'pet.nii.gz'
+    seg_file = tmp_path / 'seg.nii.gz'
+    nb.Nifti1Image(t1_data, affine).to_filename(t1_file)
+    nb.Nifti1Image(pet_data, affine).to_filename(pet_file)
+    nb.Nifti1Image(seg_data, affine).to_filename(seg_file)
+
+    tsv_file = tmp_path / 'atlas.tsv'
+    tsv_file.write_text('index\tname\n1\tRegionA\n2\tRegionB\n')
+
+    report = AtlasROIsReport(
+        t1w_image=str(t1_file),
+        petref_image=str(pet_file),
+        segmentation=str(seg_file),
+        dseg_tsv=str(tsv_file),
+        atlas_name='TestAtlas',
+    )
+    result = report.run()
+    assert result.outputs.out_file
+    assert Path(result.outputs.out_file).exists()

@@ -140,9 +140,13 @@ sections:
     subtitle: PET Confound Correlation
 
   - bids: {datatype: figures, desc: coreg, suffix: pet}
-    caption: PET to anatomical alignment check
+    caption: PET to anatomical visualization
     static: false
-    subtitle: Additional PET Visualizations
+    subtitle: PET to anatomical visualization
+  - bids: {datatype: figures, desc: atlasrois, suffix: pet}
+    caption: Atlas regions used for time-activity curves overlaid on the anatomical and PET reference images. The legend lists each atlas region with the corresponding color.
+    static: true
+    subtitle: Atlas regions
   - bids: {datatype: figures, desc: ref, suffix: pet}
     caption: Reference region mask overlaid on the PET reference and anatomical.
     static: false
