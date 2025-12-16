@@ -227,7 +227,9 @@ will raise an error before preprocessing starts.
   higher counts and longer durations.
 * ``sum`` produces a straightforward summed image.
 * ``first5min`` averages only the first 5 minutes of PET data to capture perfusion-like
-  uptake.
+  uptake. When using the automatic PET reference selection, the workflow will
+  fall back to the first frame if no frames overlap the initial 5-minute
+  window.
 
 Anatomical reference selection
 ------------------------------

@@ -352,7 +352,9 @@ requested with :option:`--petref`:
   preserving dynamic information when later frames carry more counts.
 * ``sum`` produces a summed image of the motion-corrected series.
 * ``first5min`` weights only the first five minutes of the acquisition, which
-  can be helpful for tracers whose early dynamics resemble perfusion.
+  can be helpful for tracers whose early dynamics resemble perfusion. During
+  automatic reference selection, the workflow falls back to the first frame if
+  no frames overlap the initial 5-minute window.
 
 Head-motion estimation
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -123,7 +123,11 @@ def _extract_first5min_image(
     window_sec: float = 300.0,
     fallback_to_first_frame: bool = False,
 ) -> str:
-    """Average the early (0-``window_sec``) portion of a PET series."""
+    """Average the early (0-``window_sec``) portion of a PET series.
+
+    If no frames overlap the requested window and ``fallback_to_first_frame`` is
+    ``True``, the first frame is returned instead of raising an error.
+    """
 
     from pathlib import Path
 
