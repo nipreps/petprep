@@ -230,6 +230,9 @@ will raise an error before preprocessing starts.
   uptake. When using the automatic PET reference selection, the workflow will
   fall back to the first frame if no frames overlap the initial 5-minute
   window.
+* ``auto`` builds all of the above candidates, runs
+  PET-to-T1w registrations for each, and keeps whichever option scores best for
+  anatomical alignment. 
 
 Anatomical reference selection
 ------------------------------
