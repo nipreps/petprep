@@ -1069,9 +1069,7 @@ def init_pet_fit_wf(
             pet_to_t1_source = pet_reg_wf
             pet_to_t1_field = 'outputnode.itk_pet_to_t1'
     else:
-        config.loggers.workflow.info(
-            'PET Stage 3: Found PET-to-T1w transform - skipping Stage 3'
-        )
+        config.loggers.workflow.info('PET Stage 3: Found PET-to-T1w transform - skipping Stage 3')
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
         t1w_mask_tfm.inputs.transforms = petref2anat_xform
 
