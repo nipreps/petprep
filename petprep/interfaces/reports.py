@@ -48,10 +48,7 @@ from nipype.interfaces.base import (
 )
 from smriprep.interfaces.freesurfer import ReconAll
 
-try:  # NiReports >= 24.1 vendors svgutils
-    import nireports._vendored.svgutils.transform as svgt
-except ImportError:  # Fall back to system svgutils for older NiReports releases
-    import svgutils.transform as svgt
+import svgutils.transform as svgt
 from nireports.reportlets.mosaic import plot_registration as _nr_plot_registration
 from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
@@ -77,54 +74,8 @@ _OPPOSITE = {
 }
 
 
-def plot_registration(
-    anat_nii,
-    div_id,
-    plot_params=None,
-    order=('z', 'x', 'y'),
-    cuts=None,
-    estimate_brightness=False,
-    label=None,
-    contour=None,
-    compress='auto',
-    dismiss_affine=False,
-    overlays=None,
-):
-    """Wrapper that adds overlay support to NiReports' plot_registration."""
 
-    if overlays:
-        return _plot_registration_with_overlays(
-            anat_nii,
-            div_id,
-            plot_params=plot_params,
-            order=order,
-            cuts=cuts,
-            estimate_brightness=estimate_brightness,
-            label=label,
-            contour=contour,
-            compress=compress,
-            dismiss_affine=dismiss_affine,
-            overlays=overlays,
-        )
-
-    if _nr_plot_registration is None:
-        raise RuntimeError('plot_registration is not available in this NiReports installation.')
-
-    return _nr_plot_registration(
-        anat_nii,
-        div_id,
-        plot_params=plot_params,
-        order=order,
-        cuts=cuts,
-        estimate_brightness=estimate_brightness,
-        label=label,
-        contour=contour,
-        compress=compress,
-        dismiss_affine=dismiss_affine,
-    )
-
-
-def _plot_registration_with_overlays(
+def plot_registration_with_overlays(
     anat_nii,
     div_id,
     plot_params=None,
@@ -146,7 +97,8 @@ def _plot_registration_with_overlays(
     anat_nii = nb.Nifti1Image.from_image(anat_nii)
 
     overlay_images = []
-    for overlay in overlays or []:
+    if overlays:
+        overlay = overlays[0]
         params = dict(overlay.get('params', {}))
         overlay_img = nb.Nifti1Image.from_image(overlay['image'])
         overlay_images.append((overlay_img, params))
@@ -534,22 +486,22 @@ class AtlasROIsReport(SimpleInterface):
             },
         }
 
-        t1_svgs = plot_registration(
+        t1_svgs = plot_registration_with_overlays(
             t1w_img,
             'atlas-t1',
             cuts=cuts,
             estimate_brightness=True,
-            label='T1-weighted anatomical',
+            label='T1w',
             dismiss_affine=True,
             overlays=[overlay_params],
         )
 
-        pet_svgs = plot_registration(
+        pet_svgs = plot_registration_with_overlays(
             pet_img,
             'atlas-pet',
             cuts=cuts,
             estimate_brightness=True,
-            label='PET reference',
+            label='PET',
             dismiss_affine=True,
             overlays=[overlay_params],
         )
