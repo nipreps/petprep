@@ -121,6 +121,7 @@ def _extract_first5min_image(
     frame_start_times: 'Sequence[float] | None',
     frame_durations: 'Sequence[float] | None',
     window_sec: float = 300.0,
+    fallback_to_first_frame: bool = False,
 ) -> str:
     """Average the early (0-``window_sec``) portion of a PET series."""
 
@@ -164,7 +165,13 @@ def _extract_first5min_image(
     )
 
     if not np.any(included_durations > 0):
-        raise ValueError('No frames overlap with the first 5 minutes of the acquisition.')
+        if not fallback_to_first_frame:
+            raise ValueError('No frames overlap with the first 5 minutes of the acquisition.')
+        config.loggers.workflow.warning(
+            'No frames overlap with the first 5 minutes; using the first frame as reference.'
+        )
+        included_durations = np.zeros_like(frame_durations, dtype=float)
+        included_durations[0] = 1.0
 
     hdr = img.header.copy()
     data = np.asanyarray(img.dataobj)
@@ -518,8 +525,17 @@ def init_pet_fit_wf(
         'frame_durations': frame_durations,
     }
     reference_node_name = 'twa_reference'
-    reference_input_names = ['pet_file', 'output_dir', 'frame_start_times', 'frame_durations']
-    report_reference_input_names = reference_input_names
+    twa_reference_input_names = ['pet_file', 'output_dir', 'frame_start_times', 'frame_durations']
+    first5min_reference_input_names = [
+        'pet_file',
+        'output_dir',
+        'frame_start_times',
+        'frame_durations',
+        'window_sec',
+        'fallback_to_first_frame',
+    ]
+    reference_input_names = twa_reference_input_names
+    report_reference_input_names = twa_reference_input_names
 
     if petref_strategy == 'sum':
         reference_function = _extract_sum_image
@@ -530,6 +546,7 @@ def init_pet_fit_wf(
     if petref_strategy == 'first5min':
         reference_function = _extract_first5min_image
         reference_node_name = 'first5min_reference'
+        reference_input_names = first5min_reference_input_names
 
     corrected_pet_for_report = None
     corrected_reference = None
@@ -604,7 +621,7 @@ def init_pet_fit_wf(
         reference_nodes['first5min'] = pe.Node(
             niu.Function(
                 function=_extract_first5min_image,
-                input_names=reference_input_names,
+                input_names=first5min_reference_input_names,
                 output_names=['out_file'],
             ),
             name='auto_first5min_reference',
@@ -612,6 +629,7 @@ def init_pet_fit_wf(
         reference_nodes['first5min'].inputs.output_dir = config.execution.work_dir
         reference_nodes['first5min'].inputs.frame_start_times = frame_start_times
         reference_nodes['first5min'].inputs.frame_durations = frame_durations
+        reference_nodes['first5min'].inputs.fallback_to_first_frame = True
 
     registration_method = 'Precomputed'
     if not petref2anat_xform:

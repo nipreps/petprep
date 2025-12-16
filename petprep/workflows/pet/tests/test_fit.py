@@ -672,6 +672,27 @@ def test_extract_first5min_image(tmp_path: Path):
     assert Path(out_file).name == 'pet_first5minref.nii.gz'
 
 
+def test_extract_first5min_image_fallback_first_frame(tmp_path: Path):
+    """If early frames are missing, fall back to the first frame."""
+
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 5.0)), axis=-1)
+    pet_img = nb.Nifti1Image(data.astype(np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    pet_img.to_filename(pet_file)
+
+    out_file = _extract_first5min_image(
+        str(pet_file),
+        tmp_path / 'out',
+        frame_start_times=[600, 1200],
+        frame_durations=[600, 600],
+        fallback_to_first_frame=True,
+    )
+
+    averaged = nb.load(out_file).get_fdata()
+    assert np.allclose(averaged, 1.0)
+    assert Path(out_file).name == 'pet_first5minref.nii.gz'
+
+
 def test_report_petref_receives_frame_metadata(bids_root: Path, tmp_path: Path):
     """Report reference node always receives timing metadata."""
 
