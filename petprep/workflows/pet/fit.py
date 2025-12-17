@@ -979,23 +979,14 @@ def init_pet_fit_wf(
                     name=f'pet_reg_wf_{label}',
                 )
 
-                candidate_mask = pe.Node(
-                    niu.Function(function=_smooth_binarize),
-                    name=f'petref_mask_{label}',
-                )
-                candidate_mask.inputs.fwhm = 10.0
-                candidate_mask.inputs.thresh = 0.2
-
                 label_src = pe.Node(niu.IdentityInterface(fields=['label']), name=f'label_{label}')
                 label_src.inputs.label = label
 
                 workflow.connect([
-                    (petref_candidates, candidate_mask, [(label, 'in_file')]),
                     (inputnode, reg_wf, [
                         ('t1w_preproc', 'inputnode.anat_preproc'),
                         ('t1w_mask', 'inputnode.anat_mask'),
                     ]),
-                    (candidate_mask, reg_wf, [('out', 'inputnode.pet_mask')]),
                     (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
                     (reg_wf, score_merge, [(
                         'outputnode.registration_score', f'in{idx + 1}'
@@ -1071,7 +1062,6 @@ def init_pet_fit_wf(
                     ('t1w_preproc', 'inputnode.anat_preproc'),
                     ('t1w_mask', 'inputnode.anat_mask'),
                 ]),
-                (petref_mask, pet_reg_wf, [('out', 'inputnode.pet_mask')]),
                 (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
