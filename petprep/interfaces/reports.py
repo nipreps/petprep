@@ -49,7 +49,6 @@ from nipype.interfaces.base import (
 from smriprep.interfaces.freesurfer import ReconAll
 
 import svgutils.transform as svgt
-from nireports.reportlets.mosaic import plot_registration as _nr_plot_registration
 from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
 
@@ -73,9 +72,7 @@ _OPPOSITE = {
     'I': 'S',
 }
 
-
-
-def plot_registration_with_overlays(
+def _plot_registration_with_overlays(
     anat_nii,
     div_id,
     plot_params=None,
@@ -88,7 +85,7 @@ def plot_registration_with_overlays(
     dismiss_affine=False,
     overlays=None,
 ):
-    """Local copy of NiReports plot_registration that handles overlays."""
+    """Local copy of NiReports plot_registration that handles the atlas mask overlay."""
 
     plot_params = {} if plot_params is None else dict(plot_params)
     if cuts is None:
@@ -151,6 +148,13 @@ def plot_registration_with_overlays(
         out_svgs.append(svgt.fromstring(svg))
 
     return out_svgs
+
+
+def _blend_with_white(rgba, blend=0.5):
+    """Return a muted variant of the RGBA color by mixing with white."""
+    rgb = np.array(rgba[:3])
+    muted_rgb = (1 - blend) * rgb + blend
+    return (*muted_rgb.tolist(), rgba[3])
 
 
 def get_world_pedir(orientation: str, pe_dir: str) -> str:
@@ -455,11 +459,16 @@ class AtlasROIsReport(SimpleInterface):
             overlay_data[seg_data == label] = idx
         overlay_img = nb.Nifti1Image(overlay_data, seg_img.affine, seg_img.header)
 
-        color_map = cm.get_cmap('gist_ncar', max(len(present_labels), 1))
+        muting_cycle = 2
+        n_base_colors = max(1, int(np.ceil(len(present_labels) / muting_cycle)))
+        color_map = cm.get_cmap('gist_rainbow', n_base_colors)
         rgba_colors = [(0, 0, 0, 0)]
         legend_handles = []
         for idx, label in enumerate(present_labels):
-            rgba = color_map(idx)
+            base_idx = min(n_base_colors - 1, idx // muting_cycle)
+            rgba = color_map(base_idx)
+            if idx % muting_cycle:
+                rgba = _blend_with_white(rgba)
             rgba_colors.append((*rgba[:3], 0.7))
             legend_handles.append(
                 Patch(
@@ -486,7 +495,7 @@ class AtlasROIsReport(SimpleInterface):
             },
         }
 
-        t1_svgs = plot_registration_with_overlays(
+        t1_svgs = _plot_registration_with_overlays(
             t1w_img,
             'atlas-t1',
             cuts=cuts,
@@ -496,7 +505,7 @@ class AtlasROIsReport(SimpleInterface):
             overlays=[overlay_params],
         )
 
-        pet_svgs = plot_registration_with_overlays(
+        pet_svgs = _plot_registration_with_overlays(
             pet_img,
             'atlas-pet',
             cuts=cuts,
