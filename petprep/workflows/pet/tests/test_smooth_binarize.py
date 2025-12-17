@@ -13,7 +13,7 @@ def test_smooth_binarize_largest(tmp_path):
     src = tmp_path / 'input.nii.gz'
     img.to_filename(src)
 
-    out = _smooth_binarize(str(src), fwhm=0.0, thresh=0.5)
+    out = _smooth_binarize(str(src), fwhm=0.0, thresh=50.0)
     result = nb.load(out).get_fdata()
     _, num = label(result > 0)
     assert num == 1
