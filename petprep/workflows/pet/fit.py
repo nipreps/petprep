@@ -637,26 +637,7 @@ def init_pet_fit_wf(
         reference_nodes['first5min'].inputs.frame_durations = frame_durations
         reference_nodes['first5min'].inputs.fallback_to_first_frame = True
 
-    rerun_coreg = petref2anat_xform and (
-        config.workflow.petref_specified or config.workflow.pet2anat_method_specified
-    )
-    if rerun_coreg:
-        config.loggers.workflow.info(
-            'PET Stage 3: Re-running co-registration because --petref or --pet2anat-method '
-            'were explicitly requested.'
-        )
-        petref2anat_xform = None
-
-    registration_method = (
-        'Precomputed'
-        if petref2anat_xform
-        else {
-            'mri_coreg': 'mri_coreg',
-            'robust': 'mri_robust_register',
-            'ants': 'ants_registration',
-            'auto': 'auto_select',
-        }[config.workflow.pet2anat_method]
-    )
+    registration_method = 'Precomputed'
 
     if hmc_disabled:
         config.execution.work_dir.mkdir(parents=True, exist_ok=True)
@@ -944,6 +925,25 @@ def init_pet_fit_wf(
     workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
 
     # Stage 3: Coregistration
+    rerun_coreg = petref2anat_xform and (
+        config.workflow.petref_specified or config.workflow.pet2anat_method_specified
+    )
+    if rerun_coreg:
+        config.loggers.workflow.info(
+            'PET Stage 3: Re-running co-registration because --petref or --pet2anat-method '
+            'were explicitly requested.'
+        )
+        petref2anat_xform = None
+
+    registration_method = 'Precomputed'
+    if not petref2anat_xform:
+        registration_method = {
+            'mri_coreg': 'mri_coreg',
+            'robust': 'mri_robust_register',
+            'ants': 'ants_registration',
+            'auto': 'auto_select',
+        }[config.workflow.pet2anat_method]
+    summary.inputs.registration = registration_method
 
     pet_to_t1_source = None
     pet_to_t1_field = None
