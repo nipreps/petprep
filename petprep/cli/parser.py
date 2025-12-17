@@ -365,10 +365,30 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         '6 degrees (rotation and translation) are used by default.',
     )
     g_conf.add_argument(
-        '--pet2anat-robust',
-        action='store_true',
-        help='Use FreeSurfer mri_robust_register with an NMI cost function for'
-        'PET-to-T1w co-registration. This option is limited to 6 dof.',
+        '--pet2anat-method',
+        action='store',
+        default='mri_coreg',
+        choices=['mri_coreg', 'robust', 'ants', 'auto'],
+        help='Method for PET-to-anatomical registration. '
+        '"mri_coreg" (default) uses FreeSurfer mri_coreg. '
+        '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
+        '"ants" uses ANTs rigid registration (6 DoF only). '
+        '"auto" runs both FreeSurfer and ANTs and selects the best.',
+    )
+    g_conf.add_argument(
+        '--anatref',
+        action='store',
+        default='auto',
+        choices=['t1w', 'nu', 'auto'],
+        help=(
+            'Anatomical reference to use for PET-to-T1w registration. '
+            "The default ('auto') inspects the PET-derived mask and uses the "
+            'preprocessed T1-weighted image unless the mask is unusually large, in which case '
+            "it switches to FreeSurfer's bias-corrected nu.mgz. "
+            "Use 't1w' to always keep the preprocessed T1w image, or 'nu' to always prefer "
+            "FreeSurfer's bias-corrected volume (an intensity normalized volume generated after "
+            'correcting for non-uniformity in the orig.mgz).'
+        ),
     )
     g_conf.add_argument(
         '--force-bbr',
@@ -582,6 +602,19 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         action='store_true',
         help='Disable head-motion correction and use the uncorrected data.',
     )
+    g_hmc.add_argument(
+        '--petref',
+        default='template',
+        choices=['template', 'twa', 'sum', 'first5min', 'auto'],
+        help=(
+            "Strategy for generating the PET reference. 'template' uses the "
+            "motion correction template, while 'twa' computes a time-weighted "
+            "average, 'sum' produces a summed image of the motion-corrected "
+            "series, and 'first5min' averages the early (0-5 minute) portion "
+            "of the acquisition. 'auto' evaluates multiple strategies to "
+            'select the best reference.'
+        ),
+    )
 
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
@@ -762,11 +795,13 @@ def parse_args(args=None, namespace=None):
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
 
+    argv = list(args) if args is not None else sys.argv[1:]
     parser = _build_parser()
-    opts = parser.parse_args(args, namespace)
+    opts = parser.parse_args(argv, namespace)
 
-    if getattr(opts, 'pet2anat_robust', False) and opts.pet2anat_dof != 6:
-        parser.error('--pet2anat-robust requires --pet2anat-dof=6.')
+    # Validate DoF constraints for registration methods
+    if opts.pet2anat_method in ('robust', 'ants') and opts.pet2anat_dof != 6:
+        parser.error(f'--pet2anat-method {opts.pet2anat_method} requires --pet2anat-dof=6.')
 
     if opts.config_file:
         skip = {} if opts.reports_only else {'execution': ('run_uuid',)}
@@ -775,6 +810,9 @@ def parse_args(args=None, namespace=None):
 
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+
+    config.workflow.petref_specified = '--petref' in argv
+    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
 
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}

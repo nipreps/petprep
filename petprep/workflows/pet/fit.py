@@ -24,7 +24,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import nibabel as nb
-import numpy as np
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 from nitransforms.linear import Affine, LinearTransformsMapping
@@ -39,6 +38,7 @@ from ...interfaces.resampling import ResampleSeries
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
+from .confounds import _binary_union, _smooth_binarize
 from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
@@ -57,12 +57,18 @@ from .registration import init_pet_reg_wf
 
 def _extract_twa_image(
     pet_file: str,
-    output_dir: Path,
-    frame_start_times: Sequence[float] | None,
-    frame_durations: Sequence[float] | None,
+    output_dir: 'Path',
+    frame_start_times: 'Sequence[float] | None',
+    frame_durations: 'Sequence[float] | None',
 ) -> str:
     """Return a time-weighted average (twa) reference image from a 4D PET series."""
 
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     img = nb.load(pet_file)
     if img.ndim < 4 or img.shape[-1] == 1:
@@ -109,6 +115,141 @@ def _extract_twa_image(
     return str(out_file)
 
 
+def _extract_first5min_image(
+    pet_file: str,
+    output_dir: 'Path',
+    frame_start_times: 'Sequence[float] | None',
+    frame_durations: 'Sequence[float] | None',
+    window_sec: float = 300.0,
+    fallback_to_first_frame: bool = False,
+) -> str:
+    """Average the early (0-``window_sec``) portion of a PET series.
+
+    If no frames overlap the requested window and ``fallback_to_first_frame`` is
+    ``True``, the first frame is returned instead of raising an error.
+    """
+
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    from petprep import config
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    img = nb.load(pet_file)
+    if img.ndim < 4 or img.shape[-1] == 1:
+        return pet_file
+
+    if frame_start_times is None or frame_durations is None:
+        raise ValueError('Frame timing metadata are required to compute an early reference image.')
+
+    frame_start_times = np.asarray(frame_start_times, dtype=float)
+    frame_durations = np.asarray(frame_durations, dtype=float)
+
+    if frame_start_times.ndim != 1 or frame_durations.ndim != 1:
+        raise ValueError('Frame timing metadata must be one-dimensional sequences.')
+
+    if len(frame_start_times) != len(frame_durations):
+        raise ValueError('FrameTimesStart and FrameDuration must have the same length.')
+
+    if len(frame_durations) != img.shape[-1]:
+        raise ValueError(
+            'Frame timing metadata must match the number of frames in the PET series.'
+        )
+
+    if np.any(frame_durations <= 0):
+        raise ValueError('FrameDuration values must all be positive.')
+
+    if np.any(np.diff(frame_start_times) < 0):
+        raise ValueError('FrameTimesStart values must be non-decreasing.')
+
+    frame_ends = frame_start_times + frame_durations
+    included_durations = np.clip(frame_ends, 0.0, window_sec) - np.clip(
+        frame_start_times, 0.0, window_sec
+    )
+
+    if not np.any(included_durations > 0):
+        if not fallback_to_first_frame:
+            raise ValueError('No frames overlap with the first 5 minutes of the acquisition.')
+        config.loggers.workflow.warning(
+            'No frames overlap with the first 5 minutes; using the first frame as reference.'
+        )
+        included_durations = np.zeros_like(frame_durations, dtype=float)
+        included_durations[0] = 1.0
+
+    hdr = img.header.copy()
+    data = np.asanyarray(img.dataobj)
+    weighted_average = np.average(data, axis=-1, weights=included_durations).astype(np.float32)
+    hdr.set_data_shape(weighted_average.shape)
+
+    pet_path = Path(pet_file)
+    while pet_path.suffix:
+        pet_path = pet_path.with_suffix('')
+
+    out_file = output_dir / f'{pet_path.name}_first5minref.nii.gz'
+    img.__class__(weighted_average, img.affine, hdr).to_filename(out_file)
+    return str(out_file)
+
+
+def _extract_sum_image(pet_file: str, output_dir: 'Path') -> str:
+    """Return a summed reference image from a 4D PET series."""
+
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    img = nb.load(pet_file)
+    if img.ndim < 4 or img.shape[-1] == 1:
+        return pet_file
+
+    hdr = img.header.copy()
+    data = np.asanyarray(img.dataobj)
+    summed = data.sum(axis=-1, dtype=np.float64).astype(np.float32)
+    hdr.set_data_shape(summed.shape)
+
+    pet_path = Path(pet_file)
+    pet_stem = pet_path
+    while pet_stem.suffix:
+        pet_stem = pet_stem.with_suffix('')
+
+    out_file = output_dir / f'{pet_stem.name}_sumref.nii.gz'
+    img.__class__(summed, img.affine, hdr).to_filename(out_file)
+    return str(out_file)
+
+
+def _select_best_petref(labels, scores, transforms, inv_transforms, winners, petrefs):
+    """Select the PET reference with the lowest registration cost."""
+
+    if not labels or not scores:
+        raise ValueError('No PET reference candidates were provided for selection.')
+
+    best_idx = None
+    best_score = float('inf')
+    for idx, score in enumerate(scores):
+        if score is None:
+            continue
+        if score < best_score:
+            best_idx = idx
+            best_score = score
+
+    if best_idx is None:
+        raise ValueError('No registration scores were available for selection.')
+
+    return (
+        labels[best_idx],
+        best_score,
+        transforms[best_idx],
+        inv_transforms[best_idx],
+        winners[best_idx],
+        petrefs[best_idx],
+    )
+
+
 def _write_identity_xforms(num_frames: int, filename: Path) -> Path:
     """Write ``num_frames`` identity transforms to ``filename``."""
 
@@ -117,6 +258,83 @@ def _write_identity_xforms(num_frames: int, filename: Path) -> Path:
     n_xforms = max(int(num_frames or 0), 1)
     LinearTransformsMapping([Affine() for _ in range(n_xforms)]).to_filename(filename, fmt='itk')
     return filename
+
+
+def _construct_nu_path(subjects_dir: str, subject_id: str) -> str:
+    """Return the expected path to FreeSurfer's ``nu.mgz`` for ``subject_id``."""
+
+    from pathlib import Path
+
+    return str(Path(subjects_dir) / subject_id / 'mri' / 'nu.mgz')
+
+
+def _detect_large_pet_mask(
+    pet_mask: str,
+    t1w_mask: str,
+    volume_ratio_threshold: float = 1.5,
+):
+    """Assess whether the PET mask is unusually large relative to the anatomical mask."""
+
+    import logging
+
+    import nibabel as nb
+    import numpy as np
+
+    log = logging.getLogger('nipype.workflow')
+
+    pet_img = nb.load(pet_mask)
+    t1_img = nb.load(t1w_mask)
+
+    pet_vol = float(
+        np.count_nonzero(pet_img.get_fdata()) * np.prod(pet_img.header.get_zooms()[:3])
+    )
+    t1_vol = float(np.count_nonzero(t1_img.get_fdata()) * np.prod(t1_img.header.get_zooms()[:3]))
+    ratio = pet_vol / t1_vol if t1_vol else float('inf')
+
+    recommend_nu = bool(ratio > volume_ratio_threshold)
+    message = (
+        f'PET mask volume ratio (PET/T1w) = {ratio:.2f} '
+        f'(PET={pet_vol / 1000:.1f} mL, T1w={t1_vol / 1000:.1f} mL)'
+    )
+    if recommend_nu:
+        message += ' - recommending FreeSurfer nu.mgz as anatomical reference.'
+        log.warning(message)
+    else:
+        log.info(message)
+
+    return recommend_nu, ratio, pet_vol, t1_vol
+
+
+def _select_anatomical_reference(
+    anatref: str,
+    t1w_preproc: str,
+    nu_path: str | None,
+    use_nu_suggestion: bool = False,
+):
+    """Choose the anatomical reference to feed into the co-registration workflow."""
+
+    import logging
+    from pathlib import Path
+
+    log = logging.getLogger('nipype.workflow')
+
+    use_nu = anatref == 'nu' or (anatref == 'auto' and use_nu_suggestion)
+    selected = t1w_preproc
+    used_label = 't1w'
+
+    if use_nu:
+        nu_candidate = Path(nu_path) if nu_path else None
+        if nu_candidate is None or not nu_candidate.exists():
+            message = 'Requested nu.mgz anatomical reference but file was not found.'
+            if anatref == 'nu':
+                raise FileNotFoundError(message)
+            log.warning(message + ' Falling back to the preprocessed T1w image.')
+        else:
+            selected = str(nu_candidate)
+            used_label = 'nu'
+
+    log.info('Using %s as anatomical reference for PET-to-T1w registration.', used_label)
+    return selected, used_label
 
 
 def init_pet_fit_wf(
@@ -286,24 +504,169 @@ def init_pet_fit_wf(
             'Please check your BIDS JSON sidecar.'
         )
 
-    registration_method = 'Precomputed'
-    if not petref2anat_xform:
-        registration_method = (
-            'mri_robust_register' if config.workflow.pet2anat_robust else 'mri_coreg'
-        )
+    requested_petref_strategy = getattr(config.workflow, 'petref', 'template')
     hmc_disabled = bool(config.workflow.hmc_off)
+    petref_strategy = requested_petref_strategy
+    petref_candidates = None
+    petref_candidate_labels: list[str] = []
+    if requested_petref_strategy == 'auto':
+        petref_strategy = 'auto'
+        petref_candidate_labels = ['template', 'twa', 'sum', 'first5min']
+        petref_candidates = pe.Node(
+            niu.IdentityInterface(fields=petref_candidate_labels), name='petref_candidates'
+        )
+
+    if hmc_disabled and petref_strategy == 'template':
+        config.loggers.workflow.warning(
+            'Head motion correction disabled (--hmc-off); using a time-weighted average '
+            'reference instead of the motion correction template.'
+        )
+        petref_strategy = 'twa'
+
+    use_corrected_reference = petref_strategy in {'twa', 'sum', 'first5min', 'auto'}
+    reference_function = _extract_twa_image
+    reference_kwargs: dict[str, object] = {
+        'output_dir': config.execution.work_dir,
+        'frame_start_times': frame_start_times,
+        'frame_durations': frame_durations,
+    }
+    reference_node_name = 'twa_reference'
+    twa_reference_input_names = ['pet_file', 'output_dir', 'frame_start_times', 'frame_durations']
+    first5min_reference_input_names = [
+        'pet_file',
+        'output_dir',
+        'frame_start_times',
+        'frame_durations',
+        'window_sec',
+        'fallback_to_first_frame',
+    ]
+    reference_input_names = twa_reference_input_names
+    report_reference_input_names = twa_reference_input_names
+
+    if petref_strategy == 'sum':
+        reference_function = _extract_sum_image
+        reference_kwargs = {'output_dir': config.execution.work_dir}
+        reference_node_name = 'sum_reference'
+        reference_input_names = ['pet_file', 'output_dir']
+
+    if petref_strategy == 'first5min':
+        reference_function = _extract_first5min_image
+        reference_node_name = 'first5min_reference'
+        reference_input_names = first5min_reference_input_names
+
+    corrected_pet_for_report = None
+    corrected_reference = None
+
+    requires_report_reference = pet_tlen > 1
+    report_pet_for_coreg = None
+    report_pet_reference = None
+
+    if requires_report_reference:
+        report_pet_for_coreg = pe.Node(
+            ResampleSeries(),
+            name='report_pet_for_coreg',
+            n_procs=omp_nthreads,
+            mem_gb=mem_gb['resampled'],
+        )
+        report_pet_reference = pe.Node(
+            niu.Function(
+                function=_extract_twa_image,
+                input_names=report_reference_input_names,
+                output_names=['out_file'],
+            ),
+            name='report_petref',
+        )
+        report_pet_reference.inputs.output_dir = config.execution.work_dir
+        report_pet_reference.inputs.frame_start_times = frame_start_times
+        report_pet_reference.inputs.frame_durations = frame_durations
+
+    if use_corrected_reference:
+        corrected_pet_for_report = pe.Node(
+            ResampleSeries(),
+            name='corrected_pet_for_report',
+            n_procs=omp_nthreads,
+            mem_gb=mem_gb['resampled'],
+        )
+        corrected_reference = pe.Node(
+            niu.Function(
+                function=reference_function,
+                input_names=reference_input_names,
+                output_names=['out_file'],
+            ),
+            name=reference_node_name,
+        )
+        corrected_reference.inputs.output_dir = config.execution.work_dir
+        if petref_strategy in {'twa', 'first5min'}:
+            corrected_reference.inputs.frame_start_times = frame_start_times
+            corrected_reference.inputs.frame_durations = frame_durations
+
+    reference_nodes: dict[str, pe.Node] = {}
+    if petref_strategy == 'auto':
+        reference_nodes['twa'] = pe.Node(
+            niu.Function(
+                function=_extract_twa_image,
+                input_names=reference_input_names,
+                output_names=['out_file'],
+            ),
+            name='auto_twa_reference',
+        )
+        reference_nodes['twa'].inputs.output_dir = config.execution.work_dir
+        reference_nodes['twa'].inputs.frame_start_times = frame_start_times
+        reference_nodes['twa'].inputs.frame_durations = frame_durations
+
+        reference_nodes['sum'] = pe.Node(
+            niu.Function(
+                function=_extract_sum_image,
+                input_names=['pet_file', 'output_dir'],
+                output_names=['out_file'],
+            ),
+            name='auto_sum_reference',
+        )
+        reference_nodes['sum'].inputs.output_dir = config.execution.work_dir
+
+        reference_nodes['first5min'] = pe.Node(
+            niu.Function(
+                function=_extract_first5min_image,
+                input_names=first5min_reference_input_names,
+                output_names=['out_file'],
+            ),
+            name='auto_first5min_reference',
+        )
+        reference_nodes['first5min'].inputs.output_dir = config.execution.work_dir
+        reference_nodes['first5min'].inputs.frame_start_times = frame_start_times
+        reference_nodes['first5min'].inputs.frame_durations = frame_durations
+        reference_nodes['first5min'].inputs.fallback_to_first_frame = True
+
+    rerun_coreg = petref2anat_xform and (
+        config.workflow.petref_specified or config.workflow.pet2anat_method_specified
+    )
+    if rerun_coreg:
+        config.loggers.workflow.info(
+            'PET Stage 3: Re-running co-registration because --petref or --pet2anat-method '
+            'were explicitly requested.'
+        )
+        petref2anat_xform = None
+
+    registration_method = (
+        'Precomputed'
+        if petref2anat_xform
+        else {
+            'mri_coreg': 'mri_coreg',
+            'robust': 'mri_robust_register',
+            'ants': 'ants_registration',
+            'auto': 'auto_select',
+        }[config.workflow.pet2anat_method]
+    )
+
     if hmc_disabled:
         config.execution.work_dir.mkdir(parents=True, exist_ok=True)
-        petref = petref or _extract_twa_image(
-            pet_file,
-            config.execution.work_dir,
-            frame_start_times,
-            frame_durations,
-        )
+        petref = petref or reference_function(pet_file, **reference_kwargs)
         idmat_fname = config.execution.work_dir / 'idmat.tfm'
         n_frames = len(frame_durations)
         hmc_xforms = _write_identity_xforms(n_frames, idmat_fname)
         config.loggers.workflow.info('Head motion correction disabled; using identity transforms.')
+        if petref_strategy == 'auto' and petref_candidates is not None:
+            petref_candidates.inputs.template = petref
 
     if pet_tlen <= 1:  # 3D PET
         petref = pet_file
@@ -323,6 +686,10 @@ def init_pet_fit_wf(
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
             metadata=metadata,
+            requested_anatref=config.workflow.anatref,
+            petref_strategy=petref_strategy,
+            requested_petref_strategy=requested_petref_strategy,
+            hmc_disabled=hmc_disabled,
         ),
         name='summary',
         mem_gb=config.DEFAULT_MEMORY_MIN_GB,
@@ -402,9 +769,44 @@ def init_pet_fit_wf(
             ]),
             (pet_hmc_wf, ds_hmc_wf, [('outputnode.xforms', 'inputnode.xforms')]),
             (ds_hmc_wf, hmc_buffer, [('outputnode.xforms', 'hmc_xforms')]),
-            (pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')]),
             (pet_hmc_wf, ds_petref_wf, [('outputnode.petref', 'inputnode.petref')]),
         ])  # fmt:skip
+
+        if petref_strategy == 'auto':
+            workflow.connect(
+                [(pet_hmc_wf, petref_candidates, [('outputnode.petref', 'template')])]
+            )
+        elif use_corrected_reference:
+            workflow.connect([
+                (pet_hmc_wf, corrected_pet_for_report, [('outputnode.petref', 'ref_file')]),
+                (val_pet, corrected_pet_for_report, [('out_file', 'in_file')]),
+                (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
+                (corrected_pet_for_report, corrected_reference, [('out_file', 'pet_file')]),
+                (corrected_reference, petref_buffer, [('out_file', 'petref')]),
+            ])  # fmt:skip
+        else:
+            workflow.connect([(pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')])])
+
+        if petref_strategy == 'auto' and use_corrected_reference:
+            workflow.connect([
+                (pet_hmc_wf, corrected_pet_for_report, [('outputnode.petref', 'ref_file')]),
+                (val_pet, corrected_pet_for_report, [('out_file', 'in_file')]),
+                (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
+                (corrected_pet_for_report, reference_nodes['twa'], [('out_file', 'pet_file')]),
+                (corrected_pet_for_report, reference_nodes['sum'], [('out_file', 'pet_file')]),
+                (corrected_pet_for_report, reference_nodes['first5min'], [('out_file', 'pet_file')]),
+                (reference_nodes['twa'], petref_candidates, [('out_file', 'twa')]),
+                (reference_nodes['sum'], petref_candidates, [('out_file', 'sum')]),
+                (reference_nodes['first5min'], petref_candidates, [('out_file', 'first5min')]),
+            ])  # fmt:skip
+
+        if report_pet_reference:
+            workflow.connect([
+                (pet_hmc_wf, report_pet_for_coreg, [('outputnode.petref', 'ref_file')]),
+                (val_pet, report_pet_for_coreg, [('out_file', 'in_file')]),
+                (hmc_buffer, report_pet_for_coreg, [('hmc_xforms', 'transforms')]),
+                (report_pet_for_coreg, report_pet_reference, [('out_file', 'pet_file')]),
+            ])  # fmt:skip
     else:
         config.loggers.workflow.info(
             'PET Stage 1: Found head motion correction transforms and petref - skipping Stage 1'
@@ -418,68 +820,115 @@ def init_pet_fit_wf(
 
         ])  # fmt:skip
         val_pet.inputs.in_file = pet_file
-        petref_buffer.inputs.petref = petref
+        if petref_strategy == 'auto':
+            corrected_pet_for_report.inputs.ref_file = petref
+            petref_candidates.inputs.template = petref
+            workflow.connect([
+                (val_pet, corrected_pet_for_report, [('out_file', 'in_file')]),
+                (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
+                (corrected_pet_for_report, reference_nodes['twa'], [('out_file', 'pet_file')]),
+                (corrected_pet_for_report, reference_nodes['sum'], [('out_file', 'pet_file')]),
+                (corrected_pet_for_report, reference_nodes['first5min'], [('out_file', 'pet_file')]),
+                (reference_nodes['twa'], petref_candidates, [('out_file', 'twa')]),
+                (reference_nodes['sum'], petref_candidates, [('out_file', 'sum')]),
+                (reference_nodes['first5min'], petref_candidates, [('out_file', 'first5min')]),
+            ])  # fmt:skip
+        elif use_corrected_reference:
+            corrected_pet_for_report.inputs.ref_file = petref
+            workflow.connect(
+                [
+                    (val_pet, corrected_pet_for_report, [('out_file', 'in_file')]),
+                    (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
+                    (corrected_pet_for_report, corrected_reference, [('out_file', 'pet_file')]),
+                    (corrected_reference, petref_buffer, [('out_file', 'petref')]),
+                ]
+            )  # fmt:skip
+        else:
+            petref_buffer.inputs.petref = petref
 
-    # Stage 2: Coregistration
-    if not petref2anat_xform:
-        config.loggers.workflow.info('PET Stage 2: Adding co-registration workflow of PET to T1w')
-        # calculate PET registration to T1w
-        pet_reg_wf = init_pet_reg_wf(
-            pet2anat_dof=config.workflow.pet2anat_dof,
-            omp_nthreads=omp_nthreads,
-            mem_gb=mem_gb['resampled'],
-            use_robust_register=config.workflow.pet2anat_robust,
-            sloppy=config.execution.sloppy,
-        )
+        if report_pet_reference:
+            workflow.connect([
+                (petref_buffer, report_pet_for_coreg, [('petref', 'ref_file')]),
+                (val_pet, report_pet_for_coreg, [('out_file', 'in_file')]),
+                (hmc_buffer, report_pet_for_coreg, [('hmc_xforms', 'transforms')]),
+                (report_pet_for_coreg, report_pet_reference, [('out_file', 'pet_file')]),
+            ])  # fmt:skip
 
-        ds_petreg_wf = init_ds_registration_wf(
-            bids_root=layout.root,
-            output_dir=config.execution.petprep_dir,
-            source='petref',
-            dest='T1w',
-            name='ds_petreg_wf',
-        )
-
+    if report_pet_reference:
         workflow.connect([
-            (inputnode, pet_reg_wf, [
-                ('t1w_preproc', 'inputnode.anat_preproc'),
-                ('t1w_mask', 'inputnode.anat_mask'),
-            ]),
-            (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
-            (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
-            (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
-            (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+            (report_pet_reference, func_fit_reports_wf, [('out_file', 'inputnode.report_pet')])
         ])  # fmt:skip
     else:
-        outputnode.inputs.petref2anat_xfm = petref2anat_xform
+        func_fit_reports_wf.inputs.inputnode.report_pet = pet_file
 
-    # Stage 3: Estimate PET brain mask
-    config.loggers.workflow.info('PET Stage 3: Adding estimation of PET brain mask')
+    # Stage 2: Estimate PET brain mask
+    config.loggers.workflow.info('PET Stage 2: Adding estimation of PET brain mask')
+
+    petref_mask = pe.Node(niu.Function(function=_smooth_binarize), name='petref_mask')
+    petref_mask.inputs.fwhm = 10.0
+    petref_mask.inputs.thresh = 0.2
+
+    detect_large_mask = pe.Node(
+        niu.Function(
+            function=_detect_large_pet_mask,
+            input_names=['pet_mask', 't1w_mask', 'volume_ratio_threshold'],
+            output_names=[
+                'use_nu_recommendation',
+                'volume_ratio',
+                'pet_mask_volume',
+                't1_mask_volume',
+            ],
+            imports=['import nibabel as nb'],
+        ),
+        name='detect_large_mask',
+    )
+    detect_large_mask.inputs.volume_ratio_threshold = 1.5
+
+    nu_path = pe.Node(
+        niu.Function(
+            function=_construct_nu_path,
+            input_names=['subjects_dir', 'subject_id'],
+            output_names=['nu_path'],
+        ),
+        name='nu_path',
+    )
+
+    select_anat_ref = pe.Node(
+        niu.Function(
+            function=_select_anatomical_reference,
+            input_names=['anatref', 't1w_preproc', 'nu_path', 'use_nu_suggestion'],
+            output_names=['anat_preproc', 'anatref_used'],
+        ),
+        name='select_anat_ref',
+    )
+    select_anat_ref.inputs.anatref = config.workflow.anatref
+
+    workflow.connect(
+        [
+            (petref_buffer, petref_mask, [('petref', 'in_file')]),
+            (petref_mask, detect_large_mask, [('out', 'pet_mask')]),
+            (inputnode, detect_large_mask, [('t1w_mask', 't1w_mask')]),
+            (inputnode, nu_path, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
+            (inputnode, select_anat_ref, [('t1w_preproc', 't1w_preproc')]),
+            (nu_path, select_anat_ref, [('nu_path', 'nu_path')]),
+            (detect_large_mask, select_anat_ref, [('use_nu_recommendation', 'use_nu_suggestion')]),
+            (select_anat_ref, summary, [('anatref_used', 'anatref_strategy')]),
+            (detect_large_mask, summary, [('volume_ratio', 'volume_ratio')]),
+        ]
+    )  # fmt:skip
+
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
-
-    from .confounds import _binary_union, _smooth_binarize
 
     t1w_mask_tfm = pe.Node(
         ApplyTransforms(interpolation='MultiLabel', invert_transform_flags=[True]),
         name='t1w_mask_tfm',
     )
-    petref_mask = pe.Node(niu.Function(function=_smooth_binarize), name='petref_mask')
-    petref_mask.inputs.fwhm = 10.0
-    petref_mask.inputs.thresh = 0.2
     merge_mask = pe.Node(niu.Function(function=_binary_union), name='merge_mask')
-
-    if not petref2anat_xform:
-        workflow.connect(
-            [(pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')])]
-        )
-    else:
-        t1w_mask_tfm.inputs.transforms = petref2anat_xform
 
     workflow.connect(
         [
             (inputnode, t1w_mask_tfm, [('t1w_mask', 'input_image')]),
             (petref_buffer, t1w_mask_tfm, [('petref', 'reference_image')]),
-            (petref_buffer, petref_mask, [('petref', 'in_file')]),
             (petref_mask, merge_mask, [('out', 'mask1')]),
             (t1w_mask_tfm, merge_mask, [('output_image', 'mask2')]),
             (merge_mask, outputnode, [('out', 'pet_mask')]),
@@ -493,6 +942,140 @@ def init_pet_fit_wf(
     )
     ds_petmask_wf.inputs.inputnode.source_files = [pet_file]
     workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
+
+    # Stage 3: Coregistration
+
+    pet_to_t1_source = None
+    pet_to_t1_field = None
+
+    if not petref2anat_xform:
+        config.loggers.workflow.info('PET Stage 3: Adding co-registration workflow of PET to T1w')
+
+        if petref_strategy == 'auto':
+            ds_petreg_wf = init_ds_registration_wf(
+                bids_root=layout.root,
+                output_dir=config.execution.petprep_dir,
+                source='petref',
+                dest='T1w',
+                name='ds_petreg_wf',
+            )
+
+            score_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_scores')
+            xfm_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_xfms')
+            inv_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_inv_xfms')
+            winner_merge = pe.Node(
+                niu.Merge(len(petref_candidate_labels)), name='merge_reg_winners'
+            )
+            label_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_labels')
+            petref_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_petrefs')
+
+            for idx, label in enumerate(petref_candidate_labels):
+                reg_wf = init_pet_reg_wf(
+                    pet2anat_dof=config.workflow.pet2anat_dof,
+                    omp_nthreads=omp_nthreads,
+                    mem_gb=mem_gb['resampled'],
+                    pet2anat_method=config.workflow.pet2anat_method,
+                    sloppy=config.execution.sloppy,
+                    name=f'pet_reg_wf_{label}',
+                )
+
+                label_src = pe.Node(niu.IdentityInterface(fields=['label']), name=f'label_{label}')
+                label_src.inputs.label = label
+
+                workflow.connect([
+                    (inputnode, reg_wf, [
+                        ('t1w_preproc', 'inputnode.anat_preproc'),
+                        ('t1w_mask', 'inputnode.anat_mask'),
+                    ]),
+                    (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
+                    (reg_wf, score_merge, [(
+                        'outputnode.registration_score', f'in{idx + 1}'
+                    )]),
+                    (reg_wf, xfm_merge, [('outputnode.itk_pet_to_t1', f'in{idx + 1}')]),
+                    (reg_wf, inv_merge, [('outputnode.itk_t1_to_pet', f'in{idx + 1}')]),
+                    (reg_wf, winner_merge, [('outputnode.registration_winner', f'in{idx + 1}')]),
+                    (petref_candidates, petref_merge, [(label, f'in{idx + 1}')]),
+                    (label_src, label_merge, [('label', f'in{idx + 1}')]),
+                ])  # fmt:skip
+
+            select_best_ref = pe.Node(
+                niu.Function(
+                    function=_select_best_petref,
+                    input_names=[
+                        'labels',
+                        'scores',
+                        'transforms',
+                        'inv_transforms',
+                        'winners',
+                        'petrefs',
+                    ],
+                    output_names=[
+                        'best_label',
+                        'best_score',
+                        'best_transform',
+                        'best_inv_transform',
+                        'best_winner',
+                        'best_petref',
+                    ],
+                ),
+                name='select_best_petref',
+            )
+
+            workflow.connect([
+                (score_merge, select_best_ref, [('out', 'scores')]),
+                (xfm_merge, select_best_ref, [('out', 'transforms')]),
+                (inv_merge, select_best_ref, [('out', 'inv_transforms')]),
+                (winner_merge, select_best_ref, [('out', 'winners')]),
+                (label_merge, select_best_ref, [('out', 'labels')]),
+                (petref_merge, select_best_ref, [('out', 'petrefs')]),
+                (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
+                (select_best_ref, ds_petreg_wf, [('best_transform', 'inputnode.xform')]),
+                (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+                (select_best_ref, t1w_mask_tfm, [('best_transform', 'transforms')]),
+                (select_best_ref, petref_buffer, [('best_petref', 'petref')]),
+                (select_best_ref, summary, [('best_winner', 'registration_winner')]),
+                (select_best_ref, summary, [('best_label', 'petref_strategy')]),
+            ])  # fmt:skip
+
+            pet_to_t1_source = select_best_ref
+            pet_to_t1_field = 'best_transform'
+        else:
+            # calculate PET registration to T1w
+            pet_reg_wf = init_pet_reg_wf(
+                pet2anat_dof=config.workflow.pet2anat_dof,
+                omp_nthreads=omp_nthreads,
+                mem_gb=mem_gb['resampled'],
+                pet2anat_method=config.workflow.pet2anat_method,
+                sloppy=config.execution.sloppy,
+            )
+
+            ds_petreg_wf = init_ds_registration_wf(
+                bids_root=layout.root,
+                output_dir=config.execution.petprep_dir,
+                source='petref',
+                dest='T1w',
+                name='ds_petreg_wf',
+            )
+
+            workflow.connect([
+                (inputnode, pet_reg_wf, [
+                    ('t1w_preproc', 'inputnode.anat_preproc'),
+                    ('t1w_mask', 'inputnode.anat_mask'),
+                ]),
+                (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
+                (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
+                (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
+                (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+                (pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')]),
+                (pet_reg_wf, summary, [('outputnode.registration_winner', 'registration_winner')]),
+            ])  # fmt:skip
+
+            pet_to_t1_source = pet_reg_wf
+            pet_to_t1_field = 'outputnode.itk_pet_to_t1'
+    else:
+        config.loggers.workflow.info('PET Stage 3: Found PET-to-T1w transform - skipping Stage 3')
+        outputnode.inputs.petref2anat_xfm = petref2anat_xform
+        t1w_mask_tfm.inputs.transforms = petref2anat_xform
 
     pvc_method = getattr(config.workflow, 'pvc_method', None)
 
