@@ -269,7 +269,7 @@ def test_petref_default_twa_when_hmc_disabled(bids_root: Path, tmp_path: Path):
     summary = wf.get_node('summary')
     assert summary.inputs.petref_strategy == 'twa'
     assert summary.inputs.requested_petref_strategy == 'template'
-    assert summary.inputs.requested_anatref == 't1w'
+    assert summary.inputs.requested_anatref == 'auto'
     assert summary.inputs.hmc_disabled is True
 
 

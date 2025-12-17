@@ -378,15 +378,16 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_conf.add_argument(
         '--anatref',
         action='store',
-        default='t1w',
+        default='auto',
         choices=['t1w', 'nu', 'auto'],
         help=(
             'Anatomical reference to use for PET-to-T1w registration. '
-            "The default ('t1w') uses the preprocessed T1-weighted image. "
-            "Use 'nu' to prefer FreeSurfer's bias-corrected nu.mgz (an "
-            'intensity normalized volume generated after correcting for '
-            'non-uniformity in the orig.mgz), or '
-            "'auto' to switch to nu.mgz when the PET-derived mask is unusually large."
+            "The default ('auto') inspects the PET-derived mask and uses the "
+            'preprocessed T1-weighted image unless the mask is unusually large, in which case '
+            "it switches to FreeSurfer's bias-corrected nu.mgz. "
+            "Use 't1w' to always keep the preprocessed T1w image, or 'nu' to always prefer "
+            "FreeSurfer's bias-corrected volume (an intensity normalized volume generated after "
+            'correcting for non-uniformity in the orig.mgz).'
         ),
     )
     g_conf.add_argument(

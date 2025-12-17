@@ -237,14 +237,13 @@ will raise an error before preprocessing starts.
 Anatomical reference selection
 ------------------------------
 PETPrep uses an anatomical reference when registering PET data to the structural
-image. By default, the workflow relies on the preprocessed T1w image
-(:option:`--anatref t1w`), but it is also possible to use the
-non-uniformity corrected ``nu.mgz`` volume produced by FreeSurfer
-(:option:`--anatref nu`) when extracerebral uptake is present. 
-When :option:`--anatref auto` is set, PETPrep inspects
-the PET-derived brain mask volume relative to the anatomical mask. If the PET
-mask is substantially larger than expected (volume ratio > 1.5), the workflow
-automatically switches to ``nu.mgz`` to improve co-registration robustness.
+image. By default, :option:`--anatref auto` inspects the PET-derived brain mask
+volume relative to the anatomical mask. The workflow relies on the preprocessed
+T1w image unless the PET mask is substantially larger than expected
+(volume ratio > 1.5), in which case it automatically switches to the
+non-uniformity corrected ``nu.mgz`` volume produced by FreeSurfer to improve
+co-registration robustness. You can force either option with
+:option:`--anatref t1w` or :option:`--anatref nu`.
 
 Anatomical co-registration
 --------------------------
