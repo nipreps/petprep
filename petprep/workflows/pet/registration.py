@@ -223,8 +223,6 @@ def init_pet_reg_wf(
             [
                 (inputnode, robust_fov, [('anat_preproc', 'in_file')]),
                 (inputnode, robust_pet_fov, [('pet_mask', 'in_file')]),
-                (inputnode, crop_pet_ref, [('ref_pet_brain', 'in_file')]),
-                (robust_pet_fov, crop_pet_ref, [('out_roi', 'reslice_like')]),
                 (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
                 (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
                 (robust_fov, mask_brain, [('out_roi', 'in_file')]),
