@@ -34,6 +34,7 @@ from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 
 from petprep import config
+from ...interfaces.cropping import CropPetFromHeadFixedZ
 
 AffineDOF = ty.Literal[6, 9, 12]
 
@@ -100,6 +101,8 @@ def init_pet_reg_wf(
     ref_pet_brain
         Reference image to which PET series is aligned
         If ``fieldwarp == True``, ``ref_pet_brain`` should be unwarped
+    ref_pet_mask
+        Mask of the reference PET image, used to crop the field-of-view
     anat_preproc
         Preprocessed anatomical image
     anat_mask
@@ -125,7 +128,7 @@ def init_pet_reg_wf(
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['ref_pet_brain', 'anat_preproc', 'anat_mask']),
+        niu.IdentityInterface(fields=['ref_pet_brain', 'ref_pet_mask', 'anat_preproc', 'anat_mask']),
         name='inputnode',
     )
 
@@ -142,6 +145,9 @@ def init_pet_reg_wf(
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
     robust_fov = pe.Node(RobustFOV(output_type='NIFTI_GZ'), name='robust_fov')
+    crop_ref_pet = pe.Node(
+        CropPetFromHeadFixedZ(z_mm=200.0, pad_mm=20.0), name='crop_ref_pet', mem_gb=0.1
+    )
 
     if pet2anat_method == 'auto':
         ants_coreg = pe.Node(
@@ -224,12 +230,13 @@ def init_pet_reg_wf(
                 (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
                 (robust_fov, mask_brain, [('out_roi', 'in_file')]),
                 (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+                (inputnode, crop_ref_pet, [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
                 # ANTs branch
-                (inputnode, ants_coreg, [('ref_pet_brain', 'moving_image')]),
+                (crop_ref_pet, ants_coreg, [('out_file', 'moving_image')]),
                 (robust_fov, ants_coreg, [('out_roi', 'fixed_image')]),
                 (crop_anat_mask, ants_coreg, [('out_file', 'fixed_image_masks')]),
                 (ants_coreg, ants_convert, [(('forward_transforms', _get_first), 'in_xfms')]),
-                (inputnode, ants_warp, [('ref_pet_brain', 'input_image')]),
+                (crop_ref_pet, ants_warp, [('out_file', 'input_image')]),
                 (robust_fov, ants_warp, [('out_roi', 'reference_image')]),
                 (ants_convert, ants_warp, [('out_xfm', 'transforms')]),
                 (ants_warp, ants_score, [('output_image', 'moving_image')]),
@@ -237,10 +244,10 @@ def init_pet_reg_wf(
                 (crop_anat_mask, ants_score, [('out_file', 'fixed_image_mask')]),
                 (crop_anat_mask, ants_score, [('out_file', 'moving_image_mask')]),
                 # FreeSurfer branch
-                (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
+                (crop_ref_pet, fs_coreg, [('out_file', 'source_file')]),
                 (mask_brain, fs_coreg, [('out_file', 'reference_file')]),
                 (fs_coreg, fs_convert, [('out_lta_file', 'in_xfms')]),
-                (inputnode, fs_warp, [('ref_pet_brain', 'input_image')]),
+                (crop_ref_pet, fs_warp, [('out_file', 'input_image')]),
                 (mask_brain, fs_warp, [('out_file', 'reference_image')]),
                 (fs_convert, fs_warp, [('out_xfm', 'transforms')]),
                 (fs_warp, fs_score, [('output_image', 'moving_image')]),
@@ -351,7 +358,8 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
+            (inputnode, crop_ref_pet, [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+            (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (
                 robust_fov,
                 coreg,
@@ -369,7 +377,7 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
-            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (crop_ref_pet, warp_for_score, [('out_file', 'input_image')]),
             (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
             (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
             (warp_for_score, similarity, [('output_image', 'moving_image')]),
@@ -383,7 +391,8 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
+            (inputnode, crop_ref_pet, [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+            (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (mask_brain, coreg, [('out_file', coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),
             (
@@ -394,7 +403,7 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet'),
                 ],
             ),
-            (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+            (crop_ref_pet, warp_for_score, [('out_file', 'input_image')]),
             (robust_fov, warp_for_score, [('out_roi', 'reference_image')]),
             (convert_xfm, warp_for_score, [('out_xfm', 'transforms')]),
             (warp_for_score, similarity, [('output_image', 'moving_image')]),

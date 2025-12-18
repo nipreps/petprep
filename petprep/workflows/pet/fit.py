@@ -987,6 +987,7 @@ def init_pet_fit_wf(
                         ('t1w_preproc', 'inputnode.anat_preproc'),
                         ('t1w_mask', 'inputnode.anat_mask'),
                     ]),
+                    (petref_mask, reg_wf, [('out', 'inputnode.ref_pet_mask')]),
                     (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
                     (reg_wf, score_merge, [(
                         'outputnode.registration_score', f'in{idx + 1}'
@@ -1062,6 +1063,7 @@ def init_pet_fit_wf(
                     ('t1w_preproc', 'inputnode.anat_preproc'),
                     ('t1w_mask', 'inputnode.anat_mask'),
                 ]),
+                (petref_mask, pet_reg_wf, [('out', 'inputnode.ref_pet_mask')]),
                 (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
