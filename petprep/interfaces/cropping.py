@@ -39,7 +39,7 @@ def _find_head_start_slice(mask3d: np.ndarray, from_superior: bool, min_vox_per_
             if area[kk] >= min_vox_per_slice:
                 return kk
 
-    raise ValueError("No slice meets min_vox_per_slice; mask might be empty or too thin.")
+    raise ValueError('No slice meets min_vox_per_slice; mask might be empty or too thin.')
 
 
 class CropPetFromHeadFixedZInputSpec(TraitedSpec):
@@ -77,15 +77,15 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         pet_img = nb.load(self.inputs.in_file)
         pet_data = np.asanyarray(pet_img.dataobj)
         if pet_data.ndim not in (3, 4):
-            raise ValueError(f"PET must be 3D or 4D, got shape {pet_data.shape}")
+            raise ValueError(f'PET must be 3D or 4D, got shape {pet_data.shape}')
 
         mask_img = nb.load(self.inputs.mask_file)
         mask3d = np.asanyarray(mask_img.dataobj).astype(np.uint8) > 0
         if mask3d.ndim != 3:
-            raise ValueError("Mask must be 3D")
+            raise ValueError('Mask must be 3D')
         if mask3d.shape != pet_img.shape[:3]:
             raise ValueError(
-                f"Mask shape {mask3d.shape} does not match PET spatial shape {pet_img.shape[:3]}"
+                f'Mask shape {mask3d.shape} does not match PET spatial shape {pet_img.shape[:3]}'
             )
 
         aff = pet_img.affine
@@ -110,7 +110,7 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         z0 = max(0, z0)
         z1 = min(z_len, z1)
         if z1 <= z0 + 1:
-            raise ValueError(f"Computed invalid crop: z0={z0}, z1={z1}, Z={z_len}")
+            raise ValueError(f'Computed invalid crop: z0={z0}, z1={z1}, Z={z_len}')
 
         aff2 = aff.copy()
         aff2[:3, 3] = aff[:3, 3] + aff[:3, 2] * float(z0)

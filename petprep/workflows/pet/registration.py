@@ -34,6 +34,7 @@ from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
 
 from petprep import config
+
 from ...interfaces.cropping import CropPetFromHeadFixedZ
 
 AffineDOF = ty.Literal[6, 9, 12]
