@@ -364,7 +364,8 @@ def init_pet_reg_wf(
             (
                 inputnode,
                 crop_ref_pet,
-                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')],
+            ),
             (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (
                 robust_fov,
@@ -400,7 +401,8 @@ def init_pet_reg_wf(
             (
                 inputnode,
                 crop_ref_pet,
-                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')],
+            ),
             (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (mask_brain, coreg, [('out_file', coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),

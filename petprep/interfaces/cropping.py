@@ -97,7 +97,7 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         head_k = _find_head_start_slice(
             mask3d,
             from_superior=superior_is_high_k,
-            min_vox_per_slice=self.inputs.min_vox_per_slice
+            min_vox_per_slice=self.inputs.min_vox_per_slice,
         )
 
         nz = int(np.round(self.inputs.z_mm / vz))
