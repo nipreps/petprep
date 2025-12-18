@@ -519,7 +519,9 @@ class execution(_Config):
                 else:
                     return (
                         getattr(Query, value[7:-4])
-                        if isinstance(value, str) and not isinstance(value, Query) and 'Query' in value
+                        if isinstance(value, str)
+                        and not isinstance(value, Query)
+                        and 'Query' in value
                         else value
                     )
 
