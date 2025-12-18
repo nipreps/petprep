@@ -436,6 +436,8 @@ class execution(_Config):
     """List of session identifiers that are to be preprocessed."""
     tracer_label = None
     """List of tracer identifiers that are to be preprocessed."""
+    run_label = None
+    """List of run identifiers that are to be preprocessed."""
     task_id = None
     """Select a particular task from all available in the dataset."""
     templateflow_home = _templateflow_home
@@ -517,7 +519,9 @@ class execution(_Config):
                 else:
                     return (
                         getattr(Query, value[7:-4])
-                        if not isinstance(value, Query) and 'Query' in value
+                        if isinstance(value, str)
+                        and not isinstance(value, Query)
+                        and 'Query' in value
                         else value
                     )
 

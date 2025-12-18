@@ -96,6 +96,11 @@ def _build_parser(**kwargs):
         """Parse an integer value or the special 'auto' keyword."""
         return 'auto' if value == 'auto' else int(value)
 
+    def _run_label(value):
+        """Normalize run labels, allowing both run-01 and 1 forms."""
+        value = value.removeprefix('run-')
+        return int(value) if value.isdigit() else value
+
     def _to_gb(value):
         scale = {'G': 1, 'T': 10**3, 'M': 1e-3, 'K': 1e-6, 'B': 1e-9}
         digits = ''.join([c for c in value if c.isdigit()])
@@ -201,6 +206,13 @@ def _build_parser(**kwargs):
         type=lambda label: label.removeprefix('trc-'),
         help='A space delimited list of tracer identifiers or a single '
         'identifier (the trc- prefix can be removed)',
+    )
+    g_bids.add_argument(
+        '--run-label',
+        nargs='+',
+        type=_run_label,
+        help='A space delimited list of run identifiers or a single identifier '
+        '(the run- prefix can be removed)',
     )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
@@ -828,6 +840,13 @@ def parse_args(args=None, namespace=None):
             'tracer': config.execution.tracer_label,
         }
 
+    if config.execution.run_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'run': config.execution.run_label,
+        }
+
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):
         parser.error('Options --pvc-tool, --pvc-method and --pvc-psf must be used together.')
@@ -1017,6 +1036,28 @@ applied."""
                 'One or more tracer labels were not found in the BIDS directory: '
                 f'{", ".join(sorted(missing_tracers))}.'
             )
+
+    if config.execution.run_label:
+        run_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        run_filters = {key: value for key, value in run_filters.items() if key != 'run'}
+        available_runs = set(
+            config.execution.layout.get_runs(
+                subject=list(participant_label) or None,
+                **run_filters,
+            )
+        )
+        missing_runs = set(config.execution.run_label) - available_runs
+        if missing_runs:
+            parser.error(
+                'One or more run labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(map(str, missing_runs)))}.'
+            )
+
+    if config.execution.run_label:
+        config.execution.run_label = sorted(set(config.execution.run_label))
+        config.execution.bids_filters['pet']['run'] = config.execution.run_label
 
     config.execution.participant_label = sorted(participant_label)
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
