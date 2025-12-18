@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
-from nipype.interfaces.base import File, SimpleInterface, TraitedSpec, Undefined, traits
+from nipype.interfaces.base import (
+    File,
+    SimpleInterface,
+    TraitedSpec,
+    Undefined,
+    isdefined,
+    traits,
+)
 from nipype.utils.filemanip import fname_presuffix
+
+LOGGER = logging.getLogger('nipype.interface')
 
 
 def _voxel_size_z_mm(aff: np.ndarray) -> float:
@@ -51,6 +62,11 @@ class CropPetFromHeadFixedZInputSpec(TraitedSpec):
     pad_mm = traits.Float(
         20.0, usedefault=True, desc='Padding applied to both ends, in millimeters'
     )
+    min_mask_volume_ml = traits.Float(
+        500.0,
+        usedefault=True,
+        desc='Minimum mask volume (mL) required to enable cropping; below this threshold the input image is returned unchanged.',
+    )
     min_vox_per_slice = traits.Int(
         1,
         usedefault=True,
@@ -94,6 +110,21 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         vz = _voxel_size_z_mm(aff)
         k_to_sup = _k_increases_to_superior(aff)
         superior_is_high_k = k_to_sup
+
+        voxel_volume_mm3 = float(np.prod(mask_img.header.get_zooms()[:3]))
+        mask_volume_ml = float(mask3d.sum()) * voxel_volume_mm3 / 1000.0
+        if mask_volume_ml < self.inputs.min_mask_volume_ml:
+            LOGGER.info(
+                f'Mask volume ({mask_volume_ml:.2f} mL) is below the minimum '
+                f'({self.inputs.min_mask_volume_ml:.2f} mL); skipping cropping.'
+            )
+            self._results['out_file'] = self.inputs.in_file
+            if isdefined(self.inputs.out_mask) and self.inputs.out_mask:
+                self._results['out_mask'] = self.inputs.mask_file
+            else:
+                self._results['out_mask'] = Undefined
+            return runtime
+
         head_k = _find_head_start_slice(
             mask3d,
             from_superior=superior_is_high_k,
@@ -135,7 +166,7 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         self._results['out_file'] = out_file
 
         out_mask_path = None
-        if self.inputs.out_mask:
+        if isdefined(self.inputs.out_mask) and self.inputs.out_mask:
             mask_out_data = mask3d[:, :, z0:z1].astype(np.uint8)
             mask_out_img = mask_img.__class__(mask_out_data, aff2)
             mask_out_img.set_data_dtype(np.uint8)
