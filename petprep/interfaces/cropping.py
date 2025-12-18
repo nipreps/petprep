@@ -50,7 +50,7 @@ class CropPetFromHeadFixedZInputSpec(TraitedSpec):
     z_mm = traits.Float(200.0, usedefault=True, desc='Fixed z-extent to retain, in millimeters')
     pad_mm = traits.Float(20.0, usedefault=True, desc='Padding applied to both ends, in millimeters')
     min_vox_per_slice = traits.Int(
-        50,
+        1,
         usedefault=True,
         desc='Minimum mask voxels per slice to define the superior head slice',
     )
