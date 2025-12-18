@@ -129,7 +129,9 @@ def init_pet_reg_wf(
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['ref_pet_brain', 'ref_pet_mask', 'anat_preproc', 'anat_mask']),
+        niu.IdentityInterface(
+            fields=['ref_pet_brain', 'ref_pet_mask', 'anat_preproc', 'anat_mask']
+        ),
         name='inputnode',
     )
 
@@ -359,7 +361,10 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, crop_ref_pet, [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+            (
+                inputnode,
+                crop_ref_pet,
+                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
             (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (
                 robust_fov,
@@ -392,7 +397,10 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, crop_ref_pet, [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
+            (
+                inputnode,
+                crop_ref_pet,
+                [('ref_pet_brain', 'in_file'), ('ref_pet_mask', 'mask_file')]),
             (crop_ref_pet, coreg, [('out_file', coreg_moving)]),
             (mask_brain, coreg, [('out_file', coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),

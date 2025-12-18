@@ -48,7 +48,9 @@ class CropPetFromHeadFixedZInputSpec(TraitedSpec):
     in_file = File(exists=True, mandatory=True, desc='Input PET NIfTI (3D or 4D)')
     mask_file = File(exists=True, mandatory=True, desc='Mask aligned to the PET grid (3D)')
     z_mm = traits.Float(200.0, usedefault=True, desc='Fixed z-extent to retain, in millimeters')
-    pad_mm = traits.Float(20.0, usedefault=True, desc='Padding applied to both ends, in millimeters')
+    pad_mm = traits.Float(
+        20.0, usedefault=True, desc='Padding applied to both ends, in millimeters'
+    )
     min_vox_per_slice = traits.Int(
         1,
         usedefault=True,
@@ -93,7 +95,9 @@ class CropPetFromHeadFixedZ(SimpleInterface):
         k_to_sup = _k_increases_to_superior(aff)
         superior_is_high_k = k_to_sup
         head_k = _find_head_start_slice(
-            mask3d, from_superior=superior_is_high_k, min_vox_per_slice=self.inputs.min_vox_per_slice
+            mask3d,
+            from_superior=superior_is_high_k,
+            min_vox_per_slice=self.inputs.min_vox_per_slice
         )
 
         nz = int(np.round(self.inputs.z_mm / vz))
