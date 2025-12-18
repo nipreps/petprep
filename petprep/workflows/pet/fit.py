@@ -906,7 +906,6 @@ def init_pet_fit_wf(
 
     workflow.connect(
         [
-            (petref_buffer, petref_mask, [('petref', 'in_file')]),
             (petref_mask, detect_large_mask, [('out', 'pet_mask')]),
             (inputnode, detect_large_mask, [('t1w_mask', 't1w_mask')]),
             (inputnode, nu_path, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
@@ -969,6 +968,17 @@ def init_pet_fit_wf(
             )
             label_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_labels')
             petref_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_petrefs')
+            petref_masks = {}
+
+            for label in petref_candidate_labels:
+                mask_node = pe.Node(
+                    niu.Function(function=_smooth_binarize), name=f'petref_mask_{label}'
+                )
+                mask_node.inputs.fwhm = 10.0
+                mask_node.inputs.thresh = 20.0
+                mask_node.inputs.use_robust_range = True
+                petref_masks[label] = mask_node
+                workflow.connect([(petref_candidates, mask_node, [(label, 'in_file')])])
 
             for idx, label in enumerate(petref_candidate_labels):
                 reg_wf = init_pet_reg_wf(
@@ -988,7 +998,7 @@ def init_pet_fit_wf(
                         ('t1w_preproc', 'inputnode.anat_preproc'),
                         ('t1w_mask', 'inputnode.anat_mask'),
                     ]),
-                    (petref_mask, reg_wf, [('out', 'inputnode.ref_pet_mask')]),
+                    (petref_masks[label], reg_wf, [('out', 'inputnode.ref_pet_mask')]),
                     (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
                     (reg_wf, score_merge, [(
                         'outputnode.registration_score', f'in{idx + 1}'
@@ -1037,6 +1047,7 @@ def init_pet_fit_wf(
                 (select_best_ref, petref_buffer, [('best_petref', 'petref')]),
                 (select_best_ref, summary, [('best_winner', 'registration_winner')]),
                 (select_best_ref, summary, [('best_label', 'petref_strategy')]),
+                (select_best_ref, petref_mask, [('best_petref', 'in_file')]),
             ])  # fmt:skip
 
             pet_to_t1_source = select_best_ref
@@ -1073,12 +1084,14 @@ def init_pet_fit_wf(
                 (pet_reg_wf, summary, [('outputnode.registration_winner', 'registration_winner')]),
             ])  # fmt:skip
 
+            workflow.connect([(petref_buffer, petref_mask, [('petref', 'in_file')])])
             pet_to_t1_source = pet_reg_wf
             pet_to_t1_field = 'outputnode.itk_pet_to_t1'
     else:
         config.loggers.workflow.info('PET Stage 3: Found PET-to-T1w transform - skipping Stage 3')
         outputnode.inputs.petref2anat_xfm = petref2anat_xform
         t1w_mask_tfm.inputs.transforms = petref2anat_xform
+        workflow.connect([(petref_buffer, petref_mask, [('petref', 'in_file')])])
 
     pvc_method = getattr(config.workflow, 'pvc_method', None)
 
