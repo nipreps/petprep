@@ -866,7 +866,8 @@ def init_pet_fit_wf(
 
     petref_mask = pe.Node(niu.Function(function=_smooth_binarize), name='petref_mask')
     petref_mask.inputs.fwhm = 10.0
-    petref_mask.inputs.thresh = 0.2
+    petref_mask.inputs.thresh = 20.0
+    petref_mask.inputs.use_robust_range = True
 
     detect_large_mask = pe.Node(
         niu.Function(
