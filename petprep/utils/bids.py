@@ -188,18 +188,23 @@ def _merge_frame_metadata(metas: list[dict]) -> dict:
     for meta in metas:
         starts = meta.get('FrameTimesStart') or []
         durations = meta.get('FrameDuration') or []
+        run_duration = float(sum(durations)) if durations else 0.0
+        starts_are_relative = bool(starts) and np.isclose(min(starts), 0.0)
 
         if starts:
-            frame_times.extend([float(start) + offset for start in starts])
+            if starts_are_relative:
+                frame_times.extend([float(start) + offset for start in starts])
+            else:
+                frame_times.extend([float(start) for start in starts])
         if durations:
             frame_durations.extend(durations)
 
-        if starts and durations:
-            offset += float(starts[-1]) + float(durations[-1])
-        elif durations:
-            offset += float(sum(durations))
+        if starts_are_relative:
+            offset += run_duration
         elif starts:
-            offset += float(starts[-1])
+            offset = max(offset, float(max(starts)) + run_duration)
+        elif durations:
+            offset += run_duration
 
     if frame_times:
         merged['FrameTimesStart'] = frame_times
@@ -218,9 +223,7 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
         rmtree(combined_root)
     combined_root.mkdir(exist_ok=True, parents=True)
 
-    copytree(
-        bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files
-    )
+    copytree(bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files)
 
     pet_filters = (bids_filters or {}).get('pet', {})
     pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
@@ -258,7 +261,40 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
-            combined_img = nb.concat_images(imgs, axis=imgs[0].ndim - 1)
+            concat_axis = None
+
+            if imgs:
+                shapes = [img.shape for img in imgs]
+                ndim = len(shapes[0])
+
+                if any(len(shape) != ndim for shape in shapes):
+                    raise ValueError('All PET images must share the same number of dimensions')
+
+                if ndim > 3:
+                    if len({shape[:-1] for shape in shapes}) > 1:
+                        raise ValueError('PET images must match in spatial dimensions when combining runs')
+                    concat_axis = ndim - 1
+                elif ndim == 3:
+                    if len(set(shapes)) > 1:
+                        raise ValueError('PET images must match in spatial dimensions when combining runs')
+
+                    converted_imgs = []
+                    for img in imgs:
+                        header = img.header.copy()
+                        header.set_data_shape(img.shape + (1,))
+                        converted_imgs.append(
+                            img.__class__(
+                                np.asanyarray(img.dataobj)[..., np.newaxis],
+                                img.affine,
+                                header,
+                            )
+                        )
+                    imgs = converted_imgs
+                    concat_axis = 3
+                elif len(set(shapes)) > 1:
+                    raise ValueError('PET images must have matching shapes when combining runs')
+
+            combined_img = nb.concat_images(imgs, axis=concat_axis)
 
             original = Path(files[0])
             rel_path = original.relative_to(bids_dir)
