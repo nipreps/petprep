@@ -223,7 +223,9 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
         rmtree(combined_root)
     combined_root.mkdir(exist_ok=True, parents=True)
 
-    copytree(bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files)
+    copytree(
+        bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files
+    )
 
     pet_filters = (bids_filters or {}).get('pet', {})
     pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
@@ -272,11 +274,15 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
 
                 if ndim > 3:
                     if len({shape[:-1] for shape in shapes}) > 1:
-                        raise ValueError('PET images must match in spatial dimensions when combining runs')
+                        raise ValueError(
+                            'PET images must match in spatial dimensions when combining runs'
+                        )
                     concat_axis = ndim - 1
                 elif ndim == 3:
                     if len(set(shapes)) > 1:
-                        raise ValueError('PET images must match in spatial dimensions when combining runs')
+                        raise ValueError(
+                            'PET images must match in spatial dimensions when combining runs'
+                        )
 
                     converted_imgs = []
                     for img in imgs:
