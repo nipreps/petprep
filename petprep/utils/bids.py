@@ -258,7 +258,7 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
-            combined_img = nb.concat_images(imgs)
+            combined_img = nb.concat_images(imgs, axis=imgs[0].ndim - 1)
 
             original = Path(files[0])
             rel_path = original.relative_to(bids_dir)
