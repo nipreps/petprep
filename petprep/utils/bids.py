@@ -26,10 +26,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
+from shutil import copytree, rmtree
 
 from bids.layout import BIDSLayout
 from bids.utils import listify
@@ -165,6 +167,110 @@ def write_derivative_description(bids_dir, deriv_dir, dataset_links=None):
             desc['DatasetLinks']['templateflow'] = 'https://github.com/templateflow/templateflow'
 
     Path.write_text(deriv_dir / 'dataset_description.json', json.dumps(desc, indent=4))
+
+
+def _ignore_run_pet_files(_, names):
+    run_pet = []
+    for name in names:
+        if '_run-' not in name:
+            continue
+        if name.endswith('_pet.nii.gz') or name.endswith('_pet.nii') or name.endswith('_pet.json'):
+            run_pet.append(name)
+    return run_pet
+
+
+def _merge_frame_metadata(metas: list[dict]) -> dict:
+    merged = metas[0].copy()
+    frame_times = []
+    frame_durations = []
+    offset = 0.0
+
+    for meta in metas:
+        starts = meta.get('FrameTimesStart') or []
+        durations = meta.get('FrameDuration') or []
+
+        if starts:
+            frame_times.extend([float(start) + offset for start in starts])
+        if durations:
+            frame_durations.extend(durations)
+
+        if starts and durations:
+            offset += float(starts[-1]) + float(durations[-1])
+        elif durations:
+            offset += float(sum(durations))
+        elif starts:
+            offset += float(starts[-1])
+
+    if frame_times:
+        merged['FrameTimesStart'] = frame_times
+    if frame_durations:
+        merged['FrameDuration'] = frame_durations
+        merged['AcquisitionDuration'] = float(sum(frame_durations))
+
+    return merged
+
+
+def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subjects, bids_filters):
+    import nibabel as nb
+
+    combined_root = Path(work_dir) / 'combined_bids'
+    if combined_root.exists():
+        rmtree(combined_root)
+    combined_root.mkdir(exist_ok=True, parents=True)
+
+    copytree(bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files)
+
+    pet_filters = (bids_filters or {}).get('pet', {})
+    pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
+
+    combined_files = []
+    for subject in subjects:
+        pet_files = layout.get(
+            subject=subject,
+            suffix='pet',
+            extension=['.nii', '.nii.gz'],
+            return_type='filename',
+            **pet_filters,
+        )
+
+        if not pet_files:
+            continue
+
+        grouped: defaultdict[tuple, list[str]] = defaultdict(list)
+        for pet_file in pet_files:
+            entities = layout.parse_file_entities(pet_file)
+            entities.pop('run', None)
+            entities.pop('suffix', None)
+            entities.pop('extension', None)
+            entities.pop('datatype', None)
+            entities.pop('space', None)
+            key = tuple(sorted(entities.items()))
+            grouped[key].append(pet_file)
+
+        for files in grouped.values():
+            files = sorted(
+                files,
+                key=lambda path: layout.parse_file_entities(path).get('run')
+                or layout.parse_file_entities(path).get('acq')
+                or path,
+            )
+            imgs = [nb.load(file) for file in files]
+            metas = [layout.get_metadata(file) for file in files]
+            combined_img = nb.concat_images(imgs)
+
+            original = Path(files[0])
+            rel_path = original.relative_to(bids_dir)
+            new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
+            output_img = combined_root / rel_path.with_name(new_name)
+            output_img.parent.mkdir(exist_ok=True, parents=True)
+            combined_img.to_filename(output_img)
+
+            combined_meta = _merge_frame_metadata(metas)
+            meta_output = output_img.with_suffix('').with_suffix('.json')
+            meta_output.write_text(json.dumps(combined_meta, indent=4))
+            combined_files.append(str(output_img))
+
+    return combined_root, combined_files
 
 
 def validate_input_dir(exec_env, bids_dir, participant_label, need_T1w=True):
