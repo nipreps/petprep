@@ -268,25 +268,19 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
 
             if imgs:
                 shapes = [img.shape for img in imgs]
-                ndim = len(shapes[0])
 
-                if any(len(shape) != ndim for shape in shapes):
-                    raise ValueError('All PET images must share the same number of dimensions')
+                if any(len(shape) < 3 or len(shape) > 4 for shape in shapes):
+                    raise ValueError('PET images must be 3D or 4D when combining runs')
 
-                if ndim > 3:
-                    if len({shape[:-1] for shape in shapes}) > 1:
-                        raise ValueError(
-                            'PET images must match in spatial dimensions when combining runs'
-                        )
-                    concat_axis = ndim - 1
-                elif ndim == 3:
-                    if len(set(shapes)) > 1:
-                        raise ValueError(
-                            'PET images must match in spatial dimensions when combining runs'
-                        )
+                spatial_shape = shapes[0][:3]
+                if any(shape[:3] != spatial_shape for shape in shapes):
+                    raise ValueError(
+                        'PET images must match in spatial dimensions when combining runs'
+                    )
 
-                    converted_imgs = []
-                    for img in imgs:
+                converted_imgs = []
+                for img in imgs:
+                    if len(img.shape) == 3:
                         header = img.header.copy()
                         header.set_data_shape(img.shape + (1,))
                         converted_imgs.append(
@@ -296,10 +290,11 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                                 header,
                             )
                         )
-                    imgs = converted_imgs
-                    concat_axis = 3
-                elif len(set(shapes)) > 1:
-                    raise ValueError('PET images must have matching shapes when combining runs')
+                    else:
+                        converted_imgs.append(img)
+
+                imgs = converted_imgs
+                concat_axis = 3
 
             combined_img = nb.concat_images(imgs, axis=concat_axis)
 
