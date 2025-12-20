@@ -1086,7 +1086,9 @@ applied."""
             build_log.info(f'Combined {len(combined_files)} PET file(s) into run-less series.')
 
         config.execution.bids_dir = combined_dir
-        config.execution.bids_database_dir = config.execution.work_dir / config.execution.run_uuid / 'combined_bids_db'
+        config.execution.bids_database_dir = (
+            config.execution.work_dir / config.execution.run_uuid / 'combined_bids_db'
+        )
         config.execution._layout = None
         config.execution.layout = None
         config.execution.init()

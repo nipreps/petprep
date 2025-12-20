@@ -218,7 +218,9 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
         rmtree(combined_root)
     combined_root.mkdir(exist_ok=True, parents=True)
 
-    copytree(bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files)
+    copytree(
+        bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files
+    )
 
     pet_filters = (bids_filters or {}).get('pet', {})
     pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
