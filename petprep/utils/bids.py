@@ -33,6 +33,7 @@ from functools import cache
 from pathlib import Path
 from shutil import copytree, rmtree
 
+import numpy as np
 from bids.layout import BIDSLayout
 from bids.utils import listify
 from packaging.version import Version
