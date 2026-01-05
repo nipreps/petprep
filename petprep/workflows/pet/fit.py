@@ -57,7 +57,7 @@ from .registration import init_pet_reg_wf
 
 def _extract_twa_image(
     pet_file: str,
-    output_dir: 'Path',
+    output_dir: 'Path | None',
     frame_start_times: 'Sequence[float] | None',
     frame_durations: 'Sequence[float] | None',
 ) -> str:
@@ -68,7 +68,7 @@ def _extract_twa_image(
     import nibabel as nb
     import numpy as np
 
-    output_dir = Path(output_dir)
+    output_dir = Path(output_dir) if output_dir else Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
     img = nb.load(pet_file)
     if img.ndim < 4 or img.shape[-1] == 1:
@@ -117,7 +117,7 @@ def _extract_twa_image(
 
 def _extract_first5min_image(
     pet_file: str,
-    output_dir: 'Path',
+    output_dir: 'Path | None',
     frame_start_times: 'Sequence[float] | None',
     frame_durations: 'Sequence[float] | None',
     window_sec: float = 300.0,
@@ -136,7 +136,7 @@ def _extract_first5min_image(
 
     from petprep import config
 
-    output_dir = Path(output_dir)
+    output_dir = Path(output_dir) if output_dir else Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
     img = nb.load(pet_file)
     if img.ndim < 4 or img.shape[-1] == 1:
@@ -193,7 +193,7 @@ def _extract_first5min_image(
     return str(out_file)
 
 
-def _extract_sum_image(pet_file: str, output_dir: 'Path') -> str:
+def _extract_sum_image(pet_file: str, output_dir: 'Path | None') -> str:
     """Return a summed reference image from a 4D PET series."""
 
     from pathlib import Path
@@ -201,7 +201,7 @@ def _extract_sum_image(pet_file: str, output_dir: 'Path') -> str:
     import nibabel as nb
     import numpy as np
 
-    output_dir = Path(output_dir)
+    output_dir = Path(output_dir) if output_dir else Path.cwd()
     output_dir.mkdir(parents=True, exist_ok=True)
     img = nb.load(pet_file)
     if img.ndim < 4 or img.shape[-1] == 1:
@@ -526,7 +526,7 @@ def init_pet_fit_wf(
     use_corrected_reference = petref_strategy in {'twa', 'sum', 'first5min', 'auto'}
     reference_function = _extract_twa_image
     reference_kwargs: dict[str, object] = {
-        'output_dir': config.execution.work_dir,
+        'output_dir': '.',
         'frame_start_times': frame_start_times,
         'frame_durations': frame_durations,
     }
@@ -545,7 +545,7 @@ def init_pet_fit_wf(
 
     if petref_strategy == 'sum':
         reference_function = _extract_sum_image
-        reference_kwargs = {'output_dir': config.execution.work_dir}
+        reference_kwargs = {'output_dir': '.'}
         reference_node_name = 'sum_reference'
         reference_input_names = ['pet_file', 'output_dir']
 
@@ -576,7 +576,7 @@ def init_pet_fit_wf(
             ),
             name='report_petref',
         )
-        report_pet_reference.inputs.output_dir = config.execution.work_dir
+        report_pet_reference.inputs.output_dir = '.'
         report_pet_reference.inputs.frame_start_times = frame_start_times
         report_pet_reference.inputs.frame_durations = frame_durations
 
@@ -595,7 +595,7 @@ def init_pet_fit_wf(
             ),
             name=reference_node_name,
         )
-        corrected_reference.inputs.output_dir = config.execution.work_dir
+        corrected_reference.inputs.output_dir = '.'
         if petref_strategy in {'twa', 'first5min'}:
             corrected_reference.inputs.frame_start_times = frame_start_times
             corrected_reference.inputs.frame_durations = frame_durations
@@ -610,7 +610,7 @@ def init_pet_fit_wf(
             ),
             name='auto_twa_reference',
         )
-        reference_nodes['twa'].inputs.output_dir = config.execution.work_dir
+        reference_nodes['twa'].inputs.output_dir = '.'
         reference_nodes['twa'].inputs.frame_start_times = frame_start_times
         reference_nodes['twa'].inputs.frame_durations = frame_durations
 
@@ -622,7 +622,7 @@ def init_pet_fit_wf(
             ),
             name='auto_sum_reference',
         )
-        reference_nodes['sum'].inputs.output_dir = config.execution.work_dir
+        reference_nodes['sum'].inputs.output_dir = '.'
 
         reference_nodes['first5min'] = pe.Node(
             niu.Function(
@@ -632,7 +632,7 @@ def init_pet_fit_wf(
             ),
             name='auto_first5min_reference',
         )
-        reference_nodes['first5min'].inputs.output_dir = config.execution.work_dir
+        reference_nodes['first5min'].inputs.output_dir = '.'
         reference_nodes['first5min'].inputs.frame_start_times = frame_start_times
         reference_nodes['first5min'].inputs.frame_durations = frame_durations
         reference_nodes['first5min'].inputs.fallback_to_first_frame = True
