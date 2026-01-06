@@ -38,6 +38,7 @@ from bids.layout import BIDSLayout
 from bids.utils import listify
 from packaging.version import Version
 
+from .. import config
 from ..data import load as load_data
 
 
@@ -71,7 +72,9 @@ def collect_derivatives(
     # search for both petrefs
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
-        item = layout.get(return_type='filename', **query)
+        item = _select_derivative_matches(
+            layout.get(return_type='filename', **query), layout=layout
+        )
         if not item:
             continue
         derivs_cache[f'{k}_petref'] = item[0] if len(item) == 1 else item
@@ -86,12 +89,31 @@ def collect_derivatives(
         # And transform suffixes will be "xfm",
         #   whereas relevant src file will be "bold".
         query = {**entities, **q}
-        item = layout.get(return_type='filename', **query)
+        item = _select_derivative_matches(
+            layout.get(return_type='filename', **query), layout=layout
+        )
         if not item:
             continue
         transforms_cache[xfm] = item[0] if len(item) == 1 else item
     derivs_cache['transforms'] = transforms_cache
     return derivs_cache
+
+
+def _select_derivative_matches(candidates: list[str], *, layout: BIDSLayout):
+    """Prefer the most appropriate derivative match for the current run context."""
+
+    if len(candidates) < 2:
+        return candidates
+
+    combine_runs = getattr(config.workflow, 'combine_runs', False)
+    if combine_runs:
+        non_run = [
+            path for path in candidates if 'run' not in layout.parse_file_entities(path)
+        ]
+        if non_run:
+            return [non_run[0]]
+
+    return candidates
 
 
 def write_bidsignore(deriv_dir):
