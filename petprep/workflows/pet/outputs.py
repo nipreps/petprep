@@ -148,6 +148,7 @@ def init_func_fit_reports_wf(
     inputfields = [
         'source_file',
         'petref',
+        'report_pet',
         'pet_mask',
         'petref2anat_xfm',
         't1w_preproc',
@@ -261,16 +262,16 @@ def init_func_fit_reports_wf(
         ]),
         (inputnode, t1w_petref, [
             ('t1w_preproc', 'input_image'),
-            ('petref', 'reference_image'),
+            ('report_pet', 'reference_image'),
             ('petref2anat_xfm', 'transforms'),
         ]),
         (inputnode, t1w_wm, [('t1w_dseg', 'in_seg')]),
         (inputnode, petref_wm, [
-            ('petref', 'reference_image'),
+            ('report_pet', 'reference_image'),
             ('petref2anat_xfm', 'transforms'),
         ]),
         (t1w_wm, petref_wm, [('out', 'input_image')]),
-        (inputnode, crop_petref, [('petref', 'in_file'), ('pet_mask', 'mask_file')]),
+        (inputnode, crop_petref, [('report_pet', 'in_file'), ('pet_mask', 'mask_file')]),
         (t1w_petref, crop_t1w_petref, [('output_image', 'in_file')]),
         (inputnode, crop_t1w_petref, [('pet_mask', 'mask_file')]),
         (petref_wm, crop_petref_wm, [('output_image', 'in_file')]),
@@ -284,7 +285,7 @@ def init_func_fit_reports_wf(
             ]),
             (inputnode, petref_refmask, [
                 ('refmask', 'input_image'),
-                ('petref', 'reference_image'),
+                ('report_pet', 'reference_image'),
                 ('petref2anat_xfm', 'transforms'),
             ]),
             (petref_refmask, crop_petref_refmask, [('output_image', 'in_file')]),
