@@ -107,9 +107,7 @@ def _select_derivative_matches(candidates: list[str], *, layout: BIDSLayout):
 
     combine_runs = getattr(config.workflow, 'combine_runs', False)
     if combine_runs:
-        non_run = [
-            path for path in candidates if 'run' not in layout.parse_file_entities(path)
-        ]
+        non_run = [path for path in candidates if 'run' not in layout.parse_file_entities(path)]
         if non_run:
             return [non_run[0]]
 

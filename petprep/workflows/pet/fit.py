@@ -346,9 +346,7 @@ def _select_single_derivative(derivative: object, label: str):
     if derivative is None:
         return None
 
-    if isinstance(derivative, Sequence) and not isinstance(
-        derivative, (str, bytes, PathLike)
-    ):
+    if isinstance(derivative, Sequence) and not isinstance(derivative, (str, bytes, PathLike)):
         selected = derivative[0]
         config.loggers.workflow.warning(
             'Multiple precomputed %s derivatives found; using %s', label, selected
@@ -457,9 +455,7 @@ def init_pet_fit_wf(
     #  1) petref2anat
     #  2) hmc
     transforms = precomputed.get('transforms', {})
-    hmc_xforms = _select_single_derivative(
-        transforms.get('hmc'), 'motion-correction transform'
-    )
+    hmc_xforms = _select_single_derivative(transforms.get('hmc'), 'motion-correction transform')
     petref2anat_xform = _select_single_derivative(
         transforms.get('petref2anat'), 'PET-to-T1w transform'
     )

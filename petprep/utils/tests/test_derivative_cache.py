@@ -61,9 +61,7 @@ def test_transforms_found_as_str(tmp_path: Path, xfm: str):
 def test_baseline_prefers_combined_run(tmp_path: Path):
     subject = '01'
 
-    combined = tmp_path.joinpath(
-        f'sub-{subject}', 'pet', f'sub-{subject}_desc-hmc_petref.nii.gz'
-    )
+    combined = tmp_path.joinpath(f'sub-{subject}', 'pet', f'sub-{subject}_desc-hmc_petref.nii.gz')
     run_file = tmp_path.joinpath(
         f'sub-{subject}', 'pet', f'sub-{subject}_run-1_desc-hmc_petref.nii.gz'
     )
