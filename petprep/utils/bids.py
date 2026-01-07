@@ -238,7 +238,7 @@ def _merge_frame_metadata(metas: list[dict]) -> dict:
 
 def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subjects, bids_filters):
     import nibabel as nb
-    from nipype.interfaces.freesurfer.utils import Concatenate
+    from nipype.interfaces.freesurfer.model import Concatenate
 
     combined_root = Path(work_dir) / 'combined_bids'
     if combined_root.exists():
