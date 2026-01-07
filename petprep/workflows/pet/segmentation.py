@@ -430,7 +430,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
 
         workflow.connect(
             [
-                (atlas_source_node, atlas_nodes['seg_source'], [(atlas_source_output, 'segmentation')]),
+                (
+                    atlas_source_node,
+                    atlas_nodes['seg_source'],
+                    [(atlas_source_output, 'segmentation')],
+                ),
                 (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
                 (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
                 (atlas_nodes['sources'], atlas_nodes['ds_seg'], [('out', 'Sources')]),
