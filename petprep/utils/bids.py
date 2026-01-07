@@ -31,7 +31,7 @@ import sys
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
-from shutil import copytree, rmtree
+from shutil import copytree, rmtree, which
 
 import numpy as np
 from bids.layout import BIDSLayout
@@ -304,8 +304,12 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
             output_img = combined_root / rel_path.with_name(new_name)
             output_img.parent.mkdir(exist_ok=True, parents=True)
-            concat = Concatenate(in_files=files, concatenated_file=str(output_img))
-            concat.run()
+            if which('mri_concat'):
+                concat = Concatenate(in_files=files, concatenated_file=str(output_img))
+                concat.run()
+            else:
+                combined_img = nb.concat_images(imgs)
+                nb.save(combined_img, str(output_img))
 
             combined_meta = _merge_frame_metadata(metas)
             meta_output = output_img.with_suffix('').with_suffix('.json')
