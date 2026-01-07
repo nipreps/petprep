@@ -31,7 +31,7 @@ import sys
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
-from shutil import copytree, rmtree, which
+from shutil import copytree, rmtree
 
 import numpy as np
 from bids.layout import BIDSLayout
@@ -253,8 +253,7 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
     pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
 
     combined_files = []
-    if which('mri_concat') is None:
-        raise RuntimeError('mri_concat is required to combine PET runs.')
+
     for subject in subjects:
         pet_files = layout.get(
             subject=subject,
