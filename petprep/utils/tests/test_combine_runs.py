@@ -25,7 +25,7 @@ def _write_dataset_description(path: Path) -> None:
     path.write_text(json.dumps({'Name': 'Test dataset', 'BIDSVersion': '1.8.0'}))
 
 
-def test_combine_pet_runs_concatenates_runs(tmp_path: Path) -> None:
+def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
@@ -47,6 +47,8 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path) -> None:
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
+
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
 
     combined_dir, combined_files = combine_pet_runs(
         bids_dir=bids_dir,
@@ -78,7 +80,7 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path) -> None:
     assert run_sources == []
 
 
-def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path) -> None:
+def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
@@ -100,6 +102,8 @@ def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path) -> None:
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
+
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
 
     combined_dir, combined_files = combine_pet_runs(
         bids_dir=bids_dir,
@@ -128,7 +132,7 @@ def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path) -> None:
     assert combined_meta['AcquisitionDuration'] == 5.0
 
 
-def test_combine_pet_runs_handles_mixed_dimensions(tmp_path: Path) -> None:
+def test_combine_pet_runs_handles_mixed_dimensions(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
@@ -150,6 +154,8 @@ def test_combine_pet_runs_handles_mixed_dimensions(tmp_path: Path) -> None:
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
+
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
 
     combined_dir, combined_files = combine_pet_runs(
         bids_dir=bids_dir,
