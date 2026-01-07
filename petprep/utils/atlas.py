@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from importlib.resources import files as ir_files
 from pathlib import Path
 from typing import Any
-
-from importlib.resources import files as ir_files
 
 from petprep.data import load as load_data
 

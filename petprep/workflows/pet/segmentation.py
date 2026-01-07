@@ -4,11 +4,11 @@
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
-from niworkflows.interfaces.utility import KeySelect
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
 from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
 from niworkflows.interfaces.nibabel import ApplyMask
+from niworkflows.interfaces.utility import KeySelect
 
 from ... import config
 from ...data import load as load_data
@@ -23,6 +23,7 @@ from ...interfaces.segmentation import (
     SegmentWM,
     SegStats,
 )
+from ...utils.atlas import get_atlas_files, load_atlas_config
 from ...utils.segmentation import (
     atlas_segmentation_to_morph,
     ctab_to_dsegtsv,
@@ -30,7 +31,7 @@ from ...utils.segmentation import (
     gtm_to_dsegtsv,
     summary_to_stats,
 )
-from ...utils.atlas import get_atlas_files, load_atlas_config
+
 
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
