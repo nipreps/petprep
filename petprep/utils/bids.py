@@ -304,10 +304,16 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
             output_img = combined_root / rel_path.with_name(new_name)
             output_img.parent.mkdir(exist_ok=True, parents=True)
+            concatenated = False
             if which('mri_concat'):
                 concat = Concatenate(in_files=files, concatenated_file=str(output_img))
-                concat.run()
-            else:
+                try:
+                    concat.run()
+                    concatenated = output_img.exists()
+                except FileNotFoundError:
+                    concatenated = False
+
+            if not concatenated:
                 normalized_imgs = []
                 for img in imgs:
                     if img.ndim == 3:
