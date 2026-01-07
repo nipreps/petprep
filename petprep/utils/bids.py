@@ -308,7 +308,16 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                 concat = Concatenate(in_files=files, concatenated_file=str(output_img))
                 concat.run()
             else:
-                combined_img = nb.concat_images(imgs)
+                normalized_imgs = []
+                for img in imgs:
+                    if img.ndim == 3:
+                        data = np.expand_dims(img.get_fdata(), axis=3)
+                        header = img.header.copy()
+                        header.set_data_shape(data.shape)
+                        normalized_imgs.append(nb.Nifti1Image(data, img.affine, header))
+                    else:
+                        normalized_imgs.append(img)
+                combined_img = nb.concat_images(normalized_imgs, axis=3)
                 nb.save(combined_img, str(output_img))
 
             combined_meta = _merge_frame_metadata(metas)
