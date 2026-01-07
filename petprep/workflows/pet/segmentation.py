@@ -32,7 +32,6 @@ from ...utils.segmentation import (
     summary_to_stats,
 )
 
-
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
 except Exception:  # pragma: no cover - Py<3.9 fallback
