@@ -31,7 +31,7 @@ import sys
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
-from shutil import copytree, rmtree
+from shutil import copytree, rmtree, which
 
 import numpy as np
 from bids.layout import BIDSLayout
@@ -238,6 +238,7 @@ def _merge_frame_metadata(metas: list[dict]) -> dict:
 
 def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subjects, bids_filters):
     import nibabel as nb
+    from nipype.interfaces.freesurfer.utils import Concatenate
 
     combined_root = Path(work_dir) / 'combined_bids'
     if combined_root.exists():
@@ -252,6 +253,8 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
     pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
 
     combined_files = []
+    if which('mri_concat') is None:
+        raise RuntimeError('mri_concat is required to combine PET runs.')
     for subject in subjects:
         pet_files = layout.get(
             subject=subject,
@@ -284,7 +287,6 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
-            concat_axis = None
 
             if imgs:
                 shapes = [img.shape for img in imgs]
@@ -298,32 +300,13 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                         'PET images must match in spatial dimensions when combining runs'
                     )
 
-                converted_imgs = []
-                for img in imgs:
-                    if len(img.shape) == 3:
-                        header = img.header.copy()
-                        header.set_data_shape(img.shape + (1,))
-                        converted_imgs.append(
-                            img.__class__(
-                                np.asanyarray(img.dataobj)[..., np.newaxis],
-                                img.affine,
-                                header,
-                            )
-                        )
-                    else:
-                        converted_imgs.append(img)
-
-                imgs = converted_imgs
-                concat_axis = 3
-
-            combined_img = nb.concat_images(imgs, axis=concat_axis)
-
             original = Path(files[0])
             rel_path = original.relative_to(bids_dir)
             new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
             output_img = combined_root / rel_path.with_name(new_name)
             output_img.parent.mkdir(exist_ok=True, parents=True)
-            combined_img.to_filename(output_img)
+            concat = Concatenate(in_files=files, concatenated_file=str(output_img))
+            concat.run()
 
             combined_meta = _merge_frame_metadata(metas)
             meta_output = output_img.with_suffix('').with_suffix('.json')
