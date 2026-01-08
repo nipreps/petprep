@@ -86,6 +86,13 @@ def build_psf_dict(fwhm_x=None, fwhm_y=None, fwhm_z=None):
     }
 
 
+def merge_metadata(base: dict | None, extra: dict | None = None) -> dict:
+    """Combine metadata dictionaries, preferring values from ``extra``."""
+    merged = dict(base or {})
+    merged.update(extra or {})
+    return merged
+
+
 def init_func_fit_reports_wf(
     *,
     freesurfer: bool,
@@ -652,6 +659,7 @@ def init_ds_pet_native_wf(
 ) -> pe.Workflow:
     metadata = all_metadata[0]
     timing_parameters = prepare_timing_parameters(metadata)
+    combined_metadata = merge_metadata(metadata, timing_parameters)
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
@@ -694,6 +702,7 @@ def init_ds_pet_native_wf(
             name='ds_pet',
             mem_gb=DEFAULT_MEMORY_MIN_GB,
         )
+        ds_pet.inputs.meta_dict = combined_metadata
         workflow.connect([
             (inputnode, ds_pet, [
                 ('source_files', 'source_file'),
@@ -709,11 +718,12 @@ def init_ds_volumes_wf(
     *,
     bids_root: str,
     output_dir: str,
-    metadata: list[dict],
+    metadata: dict,
     pvc_method: str | None = None,
     name='ds_volumes_wf',
 ) -> pe.Workflow:
     timing_parameters = prepare_timing_parameters(metadata)
+    combined_metadata = merge_metadata(metadata, timing_parameters)
 
     workflow = pe.Workflow(name=name)
     inputnode = pe.Node(
@@ -765,6 +775,17 @@ def init_ds_volumes_wf(
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
+    merged_metadata = pe.Node(
+        niu.Function(
+            input_names=['base', 'extra'],
+            output_names=['meta_dict'],
+            function=merge_metadata,
+        ),
+        name='merged_metadata',
+        run_without_submitting=True,
+        mem_gb=DEFAULT_MEMORY_MIN_GB,
+    )
+    merged_metadata.inputs.base = combined_metadata
 
     # PET is pre-resampled
     ds_pet = pe.Node(
@@ -803,7 +824,8 @@ def init_ds_volumes_wf(
             ('resolution', 'resolution'),
         ]),
         (sources, ds_pet, [('out', 'Sources')]),
-        (psf_meta, ds_pet, [('meta_dict', 'meta_dict')]),
+        (psf_meta, merged_metadata, [('meta_dict', 'extra')]),
+        (merged_metadata, ds_pet, [('meta_dict', 'meta_dict')]),
     ])  # fmt:skip
 
     resample_ref = pe.Node(
