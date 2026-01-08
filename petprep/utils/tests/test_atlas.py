@@ -57,7 +57,7 @@ def test_get_atlas_files_success(monkeypatch):
     }
 
     def fake_resolve(template, resource):
-        return f"{template}:{resource['path']}"
+        return f'{template}:{resource["path"]}'
 
     monkeypatch.setattr(atlas, 'load_atlas_config', lambda: config)
     monkeypatch.setattr(atlas, '_resolve_resource', fake_resolve)
