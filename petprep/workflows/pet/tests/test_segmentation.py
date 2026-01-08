@@ -85,7 +85,7 @@ def test_template_atlas_masking():
         edge_seg = wf._graph.get_edge_data(mask_node, seg_source)
 
         assert ('output_image', 'in_file') in edge_apply['connect']
-        assert ('t1w_mask', 'in_mask') in edge_mask['connect']
+        assert ('anat_ribbon', 'in_mask') in edge_mask['connect']
         assert ('out_file', 'segmentation') in edge_seg['connect']
 
 
