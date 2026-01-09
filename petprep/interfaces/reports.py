@@ -193,6 +193,8 @@ FUNCTIONAL_TEMPLATE = """\
 \t\t<ul class="elem-desc">
 \t\t\t<li>Original orientation: {ornt}</li>
 \t\t\t<li>Registration: {registration}</li>
+\t\t\t<li>Anatomical reference: {anat_reference}</li>
+\t\t\t<li>Reference image: {reference}</li>
 \t\t\t<li>Time zero: {time_zero}</li>
 \t\t\t<li>Radiotracer: {radiotracer}</li>
 \t\t\t<li>Injected dose: {dose} {dose_units}</li>
@@ -323,15 +325,54 @@ class FunctionalSummaryInputSpec(TraitedSpec):
     registration = traits.Enum(
         'mri_coreg',
         'mri_robust_register',
+        'ants_registration',
+        'auto_select',
         'Precomputed',
         mandatory=True,
         desc='PET/anatomical registration method',
+    )
+    registration_winner = traits.Enum(
+        None,
+        'ants',
+        'freesurfer',
+        allow_none=True,
+        desc='Winner selected during automatic PET-to-T1w registration',
     )
     registration_dof = traits.Enum(
         6, 9, 12, desc='Registration degrees of freedom', mandatory=True
     )
     orientation = traits.Str(mandatory=True, desc='Orientation of the voxel axes')
     metadata = traits.Dict(desc='PET metadata dictionary')
+    anatref_strategy = traits.Enum(
+        't1w', 'nu', 'auto', desc='Anatomical reference used for registration'
+    )
+    requested_anatref = traits.Enum(
+        None, 't1w', 'nu', 'auto', allow_none=True, desc='Requested anatomical reference'
+    )
+    volume_ratio = traits.Either(
+        None,
+        traits.Float(),
+        usedefault=True,
+        desc='PET-to-T1w mask volume ratio used for anatref auto-selection',
+    )
+    petref_strategy = traits.Enum(
+        'template',
+        'twa',
+        'sum',
+        'first5min',
+        'auto',
+        mandatory=True,
+        desc='PET reference generation strategy',
+    )
+    requested_petref_strategy = traits.Enum(
+        'template',
+        'twa',
+        'sum',
+        'first5min',
+        'auto',
+        desc='User-requested PET reference strategy',
+    )
+    hmc_disabled = traits.Bool(False, desc='Head motion correction disabled')
 
 
 class FunctionalSummary(SummaryInterface):
@@ -344,8 +385,48 @@ class FunctionalSummary(SummaryInterface):
             reg = 'Precomputed affine transformation'
         elif self.inputs.registration == 'mri_coreg':
             reg = f'FreeSurfer <code>mri_coreg</code> - {dof} dof'
+        elif self.inputs.registration == 'ants_registration':
+            reg = f'ANTs <code>ants_registration</code> ({dof} DoF)'
+        elif self.inputs.registration == 'mri_robust_register':
+            reg = 'FreeSurfer <code>mri_robust_register</code> (NMI cost)'
+        elif self.inputs.registration == 'auto_select':
+            winner = self.inputs.registration_winner
+            if winner == 'ants':
+                winner_desc = 'ANTs'
+            elif winner == 'freesurfer':
+                winner_desc = 'FreeSurfer'
+            else:
+                winner_desc = 'not recorded'
+            reg = f'Automatic selection between FreeSurfer and ANTs (best score: {winner_desc})'
         else:
-            reg = 'FreeSurfer <code>mri_robust_register</code> (ROBENT cost)'
+            reg = f'Unknown registration method: {self.inputs.registration}'
+
+        anat_map = {
+            't1w': 'Preprocessed T1w image',
+            'nu': 'FreeSurfer bias-corrected volume (nu.mgz)',
+            'auto': 'Automatically selected anatomical reference',
+        }
+        anat_reference = anat_map.get(self.inputs.anatref_strategy, 'Unknown')
+        requested_anat = getattr(self.inputs, 'requested_anatref', None)
+        volume_ratio = getattr(self.inputs, 'volume_ratio', None)
+        if requested_anat == 'auto' and volume_ratio is not None:
+            anat_reference += f' (PET/T1w mask volume ratio: {volume_ratio:.2f})'
+        if requested_anat and requested_anat != self.inputs.anatref_strategy:
+            anat_reference += f" (requested '{requested_anat}')"
+
+        reference_map = {
+            'template': 'Motion correction template',
+            'twa': 'Time-weighted average of motion-corrected series',
+            'sum': 'Summed motion-corrected series',
+            'first5min': 'Early (0-5 minute) average of motion-corrected series',
+            'auto': 'Automatically selected reference',
+        }
+        petref_strategy = reference_map.get(self.inputs.petref_strategy, 'Unknown')
+        requested = getattr(self.inputs, 'requested_petref_strategy', None)
+        if requested and requested != self.inputs.petref_strategy:
+            petref_strategy += f" (requested '{requested}')"
+        if self.inputs.hmc_disabled:
+            petref_strategy += ' (head motion correction disabled)'
 
         meta = self.inputs.metadata or {}
         time_zero = meta.get('TimeZero', None)
@@ -383,6 +464,8 @@ class FunctionalSummary(SummaryInterface):
 
         return FUNCTIONAL_TEMPLATE.format(
             registration=reg,
+            anat_reference=anat_reference,
+            reference=petref_strategy,
             ornt=self.inputs.orientation,
             # Use the metadata dictionary to fill in the details
             time_zero=time_zero,

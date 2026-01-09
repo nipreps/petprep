@@ -64,7 +64,9 @@ def test_atlas_segmentation_to_morph(tmp_path):
     img.to_filename(seg_file)
 
     label_file = tmp_path / 'labels.tsv'
-    pd.DataFrame({'index': [1, 2], 'name': ['one', 'two']}).to_csv(label_file, sep='\t', index=False)
+    pd.DataFrame({'index': [1, 2], 'name': ['one', 'two']}).to_csv(
+        label_file, sep='\t', index=False
+    )
 
     out, meta = atlas_segmentation_to_morph(seg_file, label_file)
     df = pd.read_csv(out, sep='\t')

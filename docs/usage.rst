@@ -211,23 +211,59 @@ Examples: ::
     $ petprep /data/bids_root /out participant --hmc-init-frame 10 --hmc-init-frame-fix
     $ petprep /data/bids_root /out participant --hmc-off
 
+
+PET reference image selection
+-------------------------
+Use :option:`--petref` to control how the reference volume is built from the
+dynamic PET series. Each strategy uses the frame timing metadata from
+``FrameTimesStart`` and ``FrameDuration`` to weight volumes; missing metadata
+will raise an error before preprocessing starts.
+
+* ``template`` (default) reuses the motion-correction template, providing a
+  consistent target for downstream registration. When :option:`--hmc-off`
+  disables motion correction, requesting ``template`` automatically falls back
+  to ``twa`` with a warning.
+* ``twa`` computes a time-weighted average, which often emphasizes later frames with
+  higher counts and longer durations.
+* ``sum`` produces a straightforward summed image.
+* ``first5min`` averages only the first 5 minutes of PET data to capture perfusion-like
+  uptake. When using the automatic PET reference selection, the workflow will
+  fall back to the first frame if no frames overlap the initial 5-minute
+  window.
+* ``auto`` builds all of the above candidates, runs
+  PET-to-T1w registrations for each, and keeps whichever option scores best for
+  anatomical alignment. 
+
+Anatomical reference selection
+------------------------------
+PETPrep uses an anatomical reference when registering PET data to the structural
+image. By default, :option:`--anatref auto` inspects the PET-derived brain mask
+volume relative to the anatomical mask. The workflow relies on the preprocessed
+T1w image unless the PET mask is substantially larger than expected
+(volume ratio > 1.5), in which case it automatically switches to the
+non-uniformity corrected ``nu.mgz`` volume produced by FreeSurfer to improve
+co-registration robustness. You can force either option with
+:option:`--anatref t1w` or :option:`--anatref nu`.
+
 Anatomical co-registration
 --------------------------
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
-deriving downstream outputs. By default, FreeSurfer's ``mri_coreg`` performs
-the alignment, with the :option:`--pet2anat-dof` flag controlling the degrees
-of freedom (rigid-body, 6 dof, is the default). When working with low
-signal-to-noise references or challenging anatomy, the
-:option:`--pet2anat-robust` flag enables ``mri_robust_register`` with an NMI
-cost function to improve robustness. This mode is restricted to rigid-body
-alignment and therefore requires ``--pet2anat-dof 6``.
+deriving downstream outputs. The anatomical image is first trimmed with
+FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration to brain voxels. Choose
+the registration backend with :option:`--pet2anat-method`: ``mri_coreg``
+(default FreeSurfer co-registration), ``robust`` (FreeSurfer
+``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid
+registration that consumes the unmasked T1w and a separate mask). The
+:option:`--pet2anat-dof` flag controls the degrees of freedom; ``robust`` and
+``ants`` are limited to rigid-body alignment and therefore require
+``--pet2anat-dof 6``. All modes emit paired ITK transforms for reuse in later
+resampling steps.
 
 Segmentation
 ----------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Additional atlas-based segmentations can be registered from template space by adding entries to ``petprep/data/segmentation/atlases.json`` and selecting the corresponding name with ``--seg``. When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space.
-
+Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the bundled atlas choices are ``HOCPA`` (harvard-oxford atlas), ``Schaefer2018100Parcels17Networks`` (schaefer atlas, 100 parcels, 17 networks), and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 

@@ -192,9 +192,10 @@ def atlas_segmentation_to_morph(
         in ``seg_file``.
     """
 
+    from pathlib import Path
+
     import nibabel as nb
     import numpy as np
-    from pathlib import Path
     import pandas as pd
 
     seg_img = nb.load(seg_file)
@@ -204,7 +205,7 @@ def atlas_segmentation_to_morph(
     labels = pd.read_csv(label_file, sep='\t')
     expected_cols = {'index', 'name'}
     if not expected_cols.issubset(labels.columns):
-        raise ValueError(f"Label table must contain columns {expected_cols}")
+        raise ValueError(f'Label table must contain columns {expected_cols}')
 
     volumes = [float((data == idx).sum() * voxel_vol_mm3) for idx in labels['index']]
     df = labels[['index', 'name']].copy()
