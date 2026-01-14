@@ -111,7 +111,7 @@ def test_functional_summary_with_metadata(registration):
     assert 'Number of frames: 2' in segment
 
 
-@pytest.mark.parametrize('winner, expected', [('ants', 'ANTs'), ('freesurfer', 'FreeSurfer')])
+@pytest.mark.parametrize(('winner', 'expected'), [('ants', 'ANTs'), ('freesurfer', 'FreeSurfer')])
 def test_functional_summary_auto_select(winner, expected):
     from ..reports import FunctionalSummary
 
