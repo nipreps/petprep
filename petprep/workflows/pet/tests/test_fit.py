@@ -622,7 +622,7 @@ def test_extract_twa_image_validation(
     pet_file = tmp_path / 'pet.nii.gz'
     pet_img.to_filename(pet_file)
 
-    with pytest.raises(ValueError, match=message):  # noqa: PT011
+    with pytest.raises(ValueError, match=message):
         _extract_twa_image(
             str(pet_file),
             tmp_path / 'out',
