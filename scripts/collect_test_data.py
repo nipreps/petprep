@@ -156,7 +156,7 @@ OPENNEURO_TEMPLATE_STRING = 'https://github.com/OpenNeuroDatasets/{DATASET_ID}.g
 def download_test_data(
     working_directory: Path | None = None,
     output_directory: Path | None = None,
-    pet_datasets_json: dict = None,  # Default to None, not the dict
+    pet_datasets_json: dict | None = None,  # Default to None, not the dict
     derivatives: list[str] | None = None,
 ):
     # Use default datasets if no JSON file provided

@@ -150,9 +150,9 @@ def _make_params(
     run_msmsulc: bool = True,
     skull_strip_t1w: str = 'auto',
     freesurfer: bool = True,
-    ignore: list[str] = None,
-    force: list[str] = None,
-    bids_filters: dict = None,
+    ignore: list[str] | None = None,
+    force: list[str] | None = None,
+    bids_filters: dict | None = None,
 ):
     if ignore is None:
         ignore = []
