@@ -206,7 +206,7 @@ def merge_help(wrapper_help, target_help):
     new_options = sum(
         (
             w_options[:2],
-            [opt for opt, flag in zip(t_options, t_flags) if flag not in overlap],
+            [opt for opt, flag in zip(t_options, t_flags, strict=False) if flag not in overlap],
             w_options[2:],
         ),
         [],
