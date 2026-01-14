@@ -68,7 +68,7 @@ def test_load_framewise_displacement_variants(tmp_path):
     assert np.allclose(values, [0.0])
 
     fd_path.write_text('other\n1.0\n')
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         motion._load_framewise_displacement(str(fd_path))
 
 
