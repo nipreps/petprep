@@ -148,4 +148,4 @@ class ExtractRefTAC(SimpleInterface):
         return runtime
 
 
-__all__ = ('ExtractTACs', 'ExtractRefTAC')
+__all__ = ('ExtractRefTAC', 'ExtractTACs')
