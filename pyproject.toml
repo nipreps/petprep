@@ -176,6 +176,7 @@ extend-select = [
 ignore = [
   "S311",  # We are not using random for cryptographic purposes
   "S603",
+  "F841",  # Local variable is assigned to but never used
 ]
 
 [tool.ruff.lint.flake8-quotes]
