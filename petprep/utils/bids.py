@@ -26,15 +26,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from collections import defaultdict
 from functools import cache
 from pathlib import Path
+from shutil import copytree, rmtree, which
 
+import numpy as np
 from bids.layout import BIDSLayout
 from bids.utils import listify
 from packaging.version import Version
 
+from .. import config
 from ..data import load as load_data
 
 
@@ -68,7 +72,9 @@ def collect_derivatives(
     # search for both petrefs
     for k, q in spec['baseline'].items():
         query = {**entities, **q}
-        item = layout.get(return_type='filename', **query)
+        item = _select_derivative_matches(
+            layout.get(return_type='filename', **query), layout=layout
+        )
         if not item:
             continue
         derivs_cache[f'{k}_petref'] = item[0] if len(item) == 1 else item
@@ -83,12 +89,29 @@ def collect_derivatives(
         # And transform suffixes will be "xfm",
         #   whereas relevant src file will be "bold".
         query = {**entities, **q}
-        item = layout.get(return_type='filename', **query)
+        item = _select_derivative_matches(
+            layout.get(return_type='filename', **query), layout=layout
+        )
         if not item:
             continue
         transforms_cache[xfm] = item[0] if len(item) == 1 else item
     derivs_cache['transforms'] = transforms_cache
     return derivs_cache
+
+
+def _select_derivative_matches(candidates: list[str], *, layout: BIDSLayout):
+    """Prefer the most appropriate derivative match for the current run context."""
+
+    if len(candidates) < 2:
+        return candidates
+
+    combine_runs = getattr(config.workflow, 'combine_runs', False)
+    if combine_runs:
+        non_run = [path for path in candidates if 'run' not in layout.parse_file_entities(path)]
+        if non_run:
+            return [non_run[0]]
+
+    return candidates
 
 
 def write_bidsignore(deriv_dir):
@@ -165,6 +188,144 @@ def write_derivative_description(bids_dir, deriv_dir, dataset_links=None):
             desc['DatasetLinks']['templateflow'] = 'https://github.com/templateflow/templateflow'
 
     Path.write_text(deriv_dir / 'dataset_description.json', json.dumps(desc, indent=4))
+
+
+def _ignore_run_pet_files(_, names):
+    run_pet = []
+    for name in names:
+        if '_run-' not in name:
+            continue
+        if name.endswith('_pet.nii.gz') or name.endswith('_pet.nii') or name.endswith('_pet.json'):
+            run_pet.append(name)
+    return run_pet
+
+
+def _merge_frame_metadata(metas: list[dict]) -> dict:
+    merged = metas[0].copy()
+    frame_times = []
+    frame_durations = []
+    offset = 0.0
+
+    for meta in metas:
+        starts = meta.get('FrameTimesStart') or []
+        durations = meta.get('FrameDuration') or []
+        run_duration = float(sum(durations)) if durations else 0.0
+        starts_are_relative = bool(starts) and np.isclose(min(starts), 0.0)
+
+        if starts:
+            if starts_are_relative:
+                frame_times.extend([float(start) + offset for start in starts])
+            else:
+                frame_times.extend([float(start) for start in starts])
+        if durations:
+            frame_durations.extend(durations)
+
+        if starts_are_relative:
+            offset += run_duration
+        elif starts:
+            offset = max(offset, float(max(starts)) + run_duration)
+        elif durations:
+            offset += run_duration
+
+    if frame_times:
+        merged['FrameTimesStart'] = frame_times
+    if frame_durations:
+        merged['FrameDuration'] = frame_durations
+        merged['AcquisitionDuration'] = float(sum(frame_durations))
+
+    return merged
+
+
+def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subjects, bids_filters):
+    import nibabel as nb
+    from nipype.interfaces.freesurfer.model import Concatenate
+
+    combined_root = Path(work_dir) / 'combined_bids'
+    if combined_root.exists():
+        rmtree(combined_root)
+    combined_root.mkdir(exist_ok=True, parents=True)
+
+    copytree(
+        bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files
+    )
+
+    pet_filters = (bids_filters or {}).get('pet', {})
+    pet_filters = {key: value for key, value in pet_filters.items() if key != 'run'}
+
+    combined_files = []
+
+    for subject in subjects:
+        pet_files = layout.get(
+            subject=subject,
+            suffix='pet',
+            extension=['.nii', '.nii.gz'],
+            return_type='filename',
+            **pet_filters,
+        )
+
+        if not pet_files:
+            continue
+
+        grouped: defaultdict[tuple, list[str]] = defaultdict(list)
+        for pet_file in pet_files:
+            entities = layout.parse_file_entities(pet_file)
+            entities.pop('run', None)
+            entities.pop('suffix', None)
+            entities.pop('extension', None)
+            entities.pop('datatype', None)
+            entities.pop('space', None)
+            key = tuple(sorted(entities.items()))
+            grouped[key].append(pet_file)
+
+        for files in grouped.values():
+            files = sorted(
+                files,
+                key=lambda path: layout.parse_file_entities(path).get('run')
+                or layout.parse_file_entities(path).get('acq')
+                or path,
+            )
+            imgs = [nb.load(file) for file in files]
+            metas = [layout.get_metadata(file) for file in files]
+
+            if imgs:
+                shapes = [img.shape for img in imgs]
+
+                if any(len(shape) < 3 or len(shape) > 4 for shape in shapes):
+                    raise ValueError('PET images must be 3D or 4D when combining runs')
+
+                spatial_shape = shapes[0][:3]
+                if any(shape[:3] != spatial_shape for shape in shapes):
+                    raise ValueError(
+                        'PET images must match in spatial dimensions when combining runs'
+                    )
+
+            original = Path(files[0])
+            rel_path = original.relative_to(bids_dir)
+            new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
+            output_img = combined_root / rel_path.with_name(new_name)
+            output_img.parent.mkdir(exist_ok=True, parents=True)
+            if which('mri_concat'):
+                concat = Concatenate(in_files=files, concatenated_file=str(output_img))
+                concat.run()
+            else:
+                normalized_imgs = []
+                for img in imgs:
+                    if img.ndim == 3:
+                        data = np.expand_dims(img.get_fdata(), axis=3)
+                        header = img.header.copy()
+                        header.set_data_shape(data.shape)
+                        normalized_imgs.append(nb.Nifti1Image(data, img.affine, header))
+                    else:
+                        normalized_imgs.append(img)
+                combined_img = nb.concat_images(normalized_imgs, axis=3)
+                nb.save(combined_img, str(output_img))
+
+            combined_meta = _merge_frame_metadata(metas)
+            meta_output = output_img.with_suffix('').with_suffix('.json')
+            meta_output.write_text(json.dumps(combined_meta, indent=4))
+            combined_files.append(str(output_img))
+
+    return combined_root, combined_files
 
 
 def validate_input_dir(exec_env, bids_dir, participant_label, need_T1w=True):
