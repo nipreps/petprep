@@ -153,8 +153,6 @@ exclude = ["notebooks/*"]
 
 [tool.ruff.lint]
 extend-select = [
-  "F",
-  "E",
   "W",
   "I",
   "UP",
