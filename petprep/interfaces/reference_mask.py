@@ -46,11 +46,11 @@ class ExtractRefRegion(SimpleInterface):
 
             try:
                 cfg = config[self.inputs.segmentation_type][self.inputs.region_name]
-            except KeyError:
+            except KeyError as e:
                 raise ValueError(
                     f"Configuration not found for segmentation='{self.inputs.segmentation_type}' "
                     f"and region='{self.inputs.region_name}'"
-                )
+                ) from e
 
         from petprep.utils.reference_mask import generate_reference_region
 
