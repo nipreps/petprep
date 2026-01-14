@@ -551,11 +551,11 @@ class SegStats(FSCommand):
         else:
             outputs['ctab_out_file'] = os.path.join(os.getcwd(), 'ctab_out.ctab')
 
-        suffices = dict(
-            avgwf_txt_file='_avgwf.txt',
-            avgwf_file='_avgwf.nii.gz',
-            sf_avg_file='sfavg.txt',
-        )
+        suffices = {
+            'avgwf_txt_file': '_avgwf.txt',
+            'avgwf_file': '_avgwf.nii.gz',
+            'sf_avg_file': 'sfavg.txt',
+        }
         if isdefined(self.inputs.segmentation_file):
             _, src = os.path.split(self.inputs.segmentation_file)
         if isdefined(self.inputs.annot):
