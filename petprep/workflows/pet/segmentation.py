@@ -29,7 +29,7 @@ from ...utils.segmentation import (
 
 try:  # Py>=3.9
     from importlib.resources import files as ir_files
-except Exception:  # pragma: no cover - Py<3.9 fallback
+except ImportError:  # pragma: no cover - Py<3.9 fallback
     from importlib_resources import files as ir_files
 
 SEG_DATA = ir_files('petprep.data.segmentation')
