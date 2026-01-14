@@ -1349,7 +1349,7 @@ def init_pet_native_wf(
                 'metadata',
                 # Transforms
                 'motion_xfm',
-            ],  # fmt:skip
+            ],
         ),
         name='outputnode',
     )
