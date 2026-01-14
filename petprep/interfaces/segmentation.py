@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Interfaces for running a variety of FreeSurfer segmentation tools.
 
 This module wraps a number of FreeSurfer command line utilities used to
 generate region-of-interest segmentations. It also defines a small utility
 function used by the segmentation workflow.
 """
+
+from __future__ import annotations
 
 import os
 import subprocess
