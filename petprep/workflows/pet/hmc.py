@@ -78,7 +78,14 @@ def get_start_frame(
     if frame_starts is None:
         midpoints = np.cumsum(durations) - durations / 2.0
     else:
-        midpoints = np.asarray(frame_starts, dtype=float) + durations / 2.0
+        frame_starts = np.asarray(frame_starts, dtype=float)
+        if frame_starts.size == durations.size + 1:
+            frame_starts = frame_starts[:-1]
+        if frame_starts.size != durations.size:
+            size = min(frame_starts.size, durations.size)
+            frame_starts = frame_starts[:size]
+            durations = durations[:size]
+        midpoints = frame_starts + durations / 2.0
 
     idxs = np.where(midpoints > start_time)[0]
     return int(idxs[0]) if idxs.size > 0 else int(len(midpoints) - 1)

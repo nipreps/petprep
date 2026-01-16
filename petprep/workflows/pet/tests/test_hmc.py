@@ -24,6 +24,12 @@ def test_get_start_frame_with_starts():
     assert get_start_frame(durations, 15, frame_starts) == 1
 
 
+def test_get_start_frame_with_extra_start():
+    durations = [3600, 300, 300, 300, 300, 300, 300]
+    frame_starts = [0, 3600, 3900, 4200, 4500, 4800, 5100, 5400]
+    assert get_start_frame(durations, 0, frame_starts) == 0
+
+
 def test_get_start_frame_empty():
     assert get_start_frame([], 50) == 0
     assert get_start_frame(None, 50) == 0
