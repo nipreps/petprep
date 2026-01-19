@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from imageio import v2 as imageio
 from nilearn import image
+from nilearn.masking import compute_epi_mask
 from nilearn.plotting import plot_epi
 from nilearn.plotting.find_cuts import find_xyz_cut_coords
 from nipype.interfaces.base import (
@@ -67,10 +68,12 @@ class MotionPlot(SimpleInterface):
         svg_file = runtime.cwd / 'pet_motion_hmc.svg'
         svg_file.parent.mkdir(parents=True, exist_ok=True)
 
-        mid_orig, cut_coords_orig, vmin_orig, vmax_orig = self._compute_display_params(
-            self.inputs.original_pet
+        mid_orig, cut_coords_orig, vmin_orig, vmax_orig, crop_slices = (
+            self._compute_display_params(self.inputs.original_pet)
         )
-        _, _, vmin_corr, vmax_corr = self._compute_display_params(self.inputs.corrected_pet)
+        _, _, vmin_corr, vmax_corr, _ = self._compute_display_params(
+            self.inputs.corrected_pet, crop_slices=crop_slices
+        )
 
         fd_values = None
         if isdefined(self.inputs.fd_file):
@@ -84,6 +87,7 @@ class MotionPlot(SimpleInterface):
             vmax_orig=vmax_orig,
             vmin_corr=vmin_corr,
             vmax_corr=vmax_corr,
+            crop_slices=crop_slices,
             fd_values=fd_values,
         )
 
@@ -91,19 +95,59 @@ class MotionPlot(SimpleInterface):
 
         return runtime
 
-    def _compute_display_params(self, in_file: str):
+    def _compute_display_params(
+        self,
+        in_file: str,
+        crop_slices: tuple[slice, slice, slice] | None = None,
+    ):
         img = nib.load(in_file)
         if img.ndim == 3:
             mid_img = img
         else:
             mid_img = image.index_img(in_file, img.shape[-1] // 2)
 
-        data = mid_img.get_fdata().astype(float)
+        if crop_slices is None:
+            crop_slices = self._compute_crop_slices(mid_img)
+
+        cropped_mid = self._crop_img(mid_img, crop_slices)
+        data = cropped_mid.get_fdata().astype(float)
         vmax = float(np.percentile(data.flatten(), 99.9))
         vmin = float(np.percentile(data.flatten(), 80))
-        cut_coords = find_xyz_cut_coords(mid_img)
+        cut_coords = find_xyz_cut_coords(cropped_mid)
 
-        return mid_img, cut_coords, vmin, vmax
+        return cropped_mid, cut_coords, vmin, vmax, crop_slices
+
+    def _compute_crop_slices(
+        self, img: nib.spatialimages.SpatialImage
+    ) -> tuple[slice, slice, slice] | None:
+        try:
+            mask_img = compute_epi_mask(img)
+            mask_data = np.asanyarray(mask_img.dataobj) > 0
+        except Exception:
+            mask_data = np.asanyarray(img.dataobj) > 0
+
+        if not mask_data.any():
+            return None
+
+        coords = np.array(np.where(mask_data))
+        start = coords.min(axis=1)
+        end = coords.max(axis=1) + 1
+        return tuple(slice(int(s), int(e)) for s, e in zip(start, end))
+
+    def _crop_img(
+        self,
+        img: nib.spatialimages.SpatialImage,
+        crop_slices: tuple[slice, slice, slice] | None,
+    ) -> nib.spatialimages.SpatialImage:
+        if crop_slices is None:
+            return img
+
+        data = np.asanyarray(img.dataobj)[crop_slices]
+        affine = img.affine.copy()
+        zooms = img.header.get_zooms()[:3]
+        starts = np.array([slc.start or 0 for slc in crop_slices])
+        affine[:3, 3] += starts * zooms
+        return img.__class__(data, affine, img.header)
 
     def _load_framewise_displacement(self, fd_file: str) -> np.ndarray:
         framewise_disp = pd.read_csv(fd_file, sep='\t')
@@ -130,6 +174,7 @@ class MotionPlot(SimpleInterface):
         vmax_orig: float,
         vmin_corr: float,
         vmax_corr: float,
+        crop_slices: tuple[slice, slice, slice] | None,
         fd_values: np.ndarray | None,
     ) -> Path:
         orig_img = nib.load(self.inputs.original_pet)
@@ -150,8 +195,14 @@ class MotionPlot(SimpleInterface):
                 orig_png = Path(tmpdir) / f'orig_{idx:04d}.png'
                 corr_png = Path(tmpdir) / f'corr_{idx:04d}.png'
 
+                orig_frame = self._crop_img(
+                    image.index_img(self.inputs.original_pet, idx), crop_slices
+                )
+                corr_frame = self._crop_img(
+                    image.index_img(self.inputs.corrected_pet, idx), crop_slices
+                )
                 plot_epi(
-                    image.index_img(self.inputs.original_pet, idx),
+                    orig_frame,
                     colorbar=True,
                     display_mode='ortho',
                     title=f'Before motion correction | Frame {idx + 1}',
@@ -161,7 +212,7 @@ class MotionPlot(SimpleInterface):
                     output_file=str(orig_png),
                 )
                 plot_epi(
-                    image.index_img(self.inputs.corrected_pet, idx),
+                    corr_frame,
                     colorbar=True,
                     display_mode='ortho',
                     title=f'After motion correction | Frame {idx + 1}',
