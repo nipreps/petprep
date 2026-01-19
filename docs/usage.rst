@@ -251,6 +251,13 @@ will raise an error before preprocessing starts.
   PET-to-T1w registrations for each, and keeps whichever option scores best for
   anatomical alignment. 
 
+Left-right flips
+----------------
+PETPrep expects the PET NIfTI headers to have correct orientation information.
+If your PET data were converted with a left-right flip (for example, from Analyze
+to NIfTI), use :option:`--pet-lr-flip` to flip the data before preprocessing so
+that downstream registration and outputs are consistent.
+
 Anatomical reference selection
 ------------------------------
 PETPrep uses an anatomical reference when registering PET data to the structural

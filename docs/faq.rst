@@ -41,6 +41,20 @@ downstream consequences in `#939 <https://github.com/nipreps/petprep/issues/939>
 So for OpenFMRI, we've been excluding these subjects, and for user-supplied data, we would recommend
 reverting to the original, defaced, T1w images to ensure more uniform preprocessing.
 
+How should I safeguard against left-right (LR) flips in PET data?
+-----------------------------------------------------------------
+PETPrep assumes the NIfTI header affines are correct and does not automatically correct
+left-right flips introduced during conversion (for example, when going from Analyze to NIfTI).
+If a PET series is LR-flipped, registration to the (RAS-conformed) T1w reference will typically
+appear mirrored in reportlets.
+
+To safeguard against this, validate and, if needed, fix PET orientation before running PETPrep.
+After running, review the reportlets and the reported "Original orientation" for each PET series
+to ensure the orientation matches expectations for your site and scanner. If a mismatch is
+detected, fix the PET NIfTI header (or re-convert from the original data) and rerun PETPrep so
+all downstream outputs are consistent. For datasets that require a manual correction, you can
+also provide the ``--pet-lr-flip`` flag to flip the PET data before preprocessing.
+
 
 My *PETPrep* run is hanging...
 -------------------------------

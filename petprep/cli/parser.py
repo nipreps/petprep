@@ -409,6 +409,13 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         ),
     )
     g_conf.add_argument(
+        '--pet-lr-flip',
+        action='store_true',
+        default=False,
+        help='Flip PET data left-right before preprocessing. Use this option to correct '
+        'datasets that were converted with a left-right flip.',
+    )
+    g_conf.add_argument(
         '--force-bbr',
         action=DeprecatedAction,
         help='Deprecated - use `--force bbr` instead.',

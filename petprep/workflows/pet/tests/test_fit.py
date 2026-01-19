@@ -17,6 +17,7 @@ from ..fit import (
     _construct_nu_path,
     _detect_large_pet_mask,
     _extract_first5min_image,
+    _flip_lr_image,
     _extract_sum_image,
     _extract_twa_image,
     _select_anatomical_reference,
@@ -649,6 +650,20 @@ def test_extract_sum_image(tmp_path: Path):
     pet_3d = tmp_path / 'pet3d.nii.gz'
     nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(pet_3d)
     assert _extract_sum_image(str(pet_3d), tmp_path / 'out') == str(pet_3d)
+
+
+def test_flip_lr_image(tmp_path: Path):
+    data = np.arange(8, dtype=np.float32).reshape((2, 2, 2))
+    pet_img = nb.Nifti1Image(data, np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    pet_img.to_filename(pet_file)
+
+    out_file = _flip_lr_image(str(pet_file), tmp_path / 'out')
+
+    flipped = nb.load(out_file)
+    assert np.allclose(flipped.get_fdata(), np.flip(data, axis=0))
+    assert np.allclose(flipped.affine[0, 0], -1.0)
+    assert np.allclose(flipped.affine[0, 3], 1.0)
 
 
 def test_extract_first5min_image(tmp_path: Path):

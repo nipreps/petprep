@@ -622,6 +622,8 @@ class workflow(_Config):
     """Whether to fix the reference frame during head-motion estimation."""
     hmc_off: bool = False
     """Disable head-motion correction and keep data uncorrected."""
+    pet_lr_flip: bool = False
+    """Flip PET data left-right before processing."""
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""

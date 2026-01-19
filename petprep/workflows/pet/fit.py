@@ -223,6 +223,37 @@ def _extract_sum_image(pet_file: str, output_dir: 'Path') -> str:
     return str(out_file)
 
 
+def _flip_lr_image(pet_file: str, output_dir: 'Path') -> str:
+    """Flip a PET NIfTI left-right in voxel space."""
+
+    from pathlib import Path
+
+    import nibabel as nb
+    import numpy as np
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    img = nb.load(pet_file)
+    data = np.asanyarray(img.dataobj)
+    flipped = np.flip(data, axis=0)
+
+    affine = img.affine.copy()
+    affine[:3, 0] *= -1
+    affine[:3, 3] += img.affine[:3, 0] * (img.shape[0] - 1)
+
+    hdr = img.header.copy()
+
+    pet_path = Path(pet_file)
+    pet_stem = pet_path
+    while pet_stem.suffix:
+        pet_stem = pet_stem.with_suffix('')
+    out_file = output_dir / f'{pet_stem.name}_lrflip.nii.gz'
+
+    img.__class__(flipped, affine, hdr).to_filename(out_file)
+    return str(out_file)
+
+
 def _select_best_petref(labels, scores, transforms, inv_transforms, winners, petrefs):
     """Select the PET reference with the lowest registration cost."""
 
@@ -440,12 +471,14 @@ def init_pet_fit_wf(
     if precomputed is None:
         precomputed = {}
     pet_series = listify(pet_series)
+    source_pet_series = pet_series
     layout = config.execution.layout
 
-    pet_file = pet_series[0]
+    source_pet_file = source_pet_series[0]
+    pet_file = source_pet_file
 
     # Get metadata from PET file(s)
-    metadata = layout.get_metadata(pet_file)
+    metadata = layout.get_metadata(source_pet_file)
     orientation = ''.join(nb.aff2axcodes(nb.load(pet_file).affine))
 
     pet_tlen, mem_gb = estimate_pet_mem_usage(pet_file)
@@ -460,6 +493,12 @@ def init_pet_fit_wf(
         transforms.get('petref2anat'), 'PET-to-T1w transform'
     )
 
+    if config.workflow.pet_lr_flip and (petref or hmc_xforms or petref2anat_xform):
+        raise ValueError(
+            'The --pet-lr-flip option cannot be combined with precomputed PET derivatives. '
+            'Disable --pet-lr-flip or remove the precomputed petref/transforms.'
+        )
+
     if (petref is None) ^ (hmc_xforms is None):
         raise ValueError("Both 'petref' and 'hmc' transforms must be provided together.")
 
@@ -470,12 +509,24 @@ def init_pet_fit_wf(
         petref = None
         hmc_xforms = None
 
+    if config.workflow.pet_lr_flip:
+        config.loggers.workflow.warning(
+            'Applying requested left-right flip to PET data before preprocessing.'
+        )
+        config.execution.work_dir.mkdir(parents=True, exist_ok=True)
+        pet_series = [
+            _flip_lr_image(pet_file, config.execution.work_dir) for pet_file in source_pet_series
+        ]
+        pet_file = pet_series[0]
+        orientation = ''.join(nb.aff2axcodes(nb.load(pet_file).affine))
+
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
         niu.IdentityInterface(
             fields=[
                 'pet_file',
+                'source_file',
                 # Anatomical coregistration
                 't1w_preproc',
                 't1w_mask',
@@ -491,6 +542,7 @@ def init_pet_fit_wf(
         name='inputnode',
     )
     inputnode.inputs.pet_file = pet_series
+    inputnode.inputs.source_file = source_pet_file
 
     outputnode = pe.Node(
         niu.IdentityInterface(
@@ -731,7 +783,7 @@ def init_pet_fit_wf(
             ('hmc_xforms', 'motion_xfm'),
         ]),
         (inputnode, func_fit_reports_wf, [
-            ('pet_file', 'inputnode.source_file'),
+            ('source_file', 'inputnode.source_file'),
             ('t1w_preproc', 'inputnode.t1w_preproc'),
             # May not need all of these
             ('t1w_mask', 'inputnode.t1w_mask'),
@@ -768,7 +820,7 @@ def init_pet_fit_wf(
             bids_root=layout.root,
             output_dir=config.execution.petprep_dir,
         )
-        ds_hmc_wf.inputs.inputnode.source_files = [pet_file]
+        ds_hmc_wf.inputs.inputnode.source_files = [source_pet_file]
 
         ds_petref_wf = init_ds_petref_wf(
             bids_root=layout.root,
@@ -776,7 +828,7 @@ def init_pet_fit_wf(
             desc='hmc',
             name='ds_petref_wf',
         )
-        ds_petref_wf.inputs.inputnode.source_files = [pet_file]
+        ds_petref_wf.inputs.inputnode.source_files = [source_pet_file]
 
         # Validation node for the original PET file
         val_pet = pe.Node(ValidateImage(), name='val_pet')
@@ -962,7 +1014,7 @@ def init_pet_fit_wf(
         desc='brain',
         name='ds_petmask_wf',
     )
-    ds_petmask_wf.inputs.inputnode.source_files = [pet_file]
+    ds_petmask_wf.inputs.inputnode.source_files = [source_pet_file]
     workflow.connect([(merge_mask, ds_petmask_wf, [('out', 'inputnode.petmask')])])
 
     # Stage 3: Coregistration
@@ -1133,7 +1185,7 @@ def init_pet_fit_wf(
 
         pet_ref_tacs_wf = init_pet_ref_tacs_wf(name='pet_ref_tacs_wf')
         pet_ref_tacs_wf.inputs.inputnode.metadata = str(
-            Path(pet_file).with_suffix('').with_suffix('.json')
+            Path(source_pet_file).with_suffix('').with_suffix('.json')
         )
         pet_ref_tacs_wf.inputs.inputnode.ref_mask_name = config.workflow.ref_mask_name
 
@@ -1152,7 +1204,7 @@ def init_pet_fit_wf(
                 run_without_submitting=True,
                 mem_gb=config.DEFAULT_MEMORY_MIN_GB,
             )
-            ds_ref_tacs.inputs.source_file = pet_file
+            ds_ref_tacs.inputs.source_file = source_pet_file
 
         workflow.connect([(inputnode, gm_select, [('t1w_tpms', 'inlist')])])
 
