@@ -30,6 +30,23 @@ Example: ::
 Further information about BIDS and BIDS-Apps can be found at the
 `NiPreps portal <https://www.nipreps.org/apps/framework/>`__.
 
+Combining multiple PET runs within a session
+--------------------------------------------
+Some PET datasets include multiple ``run`` acquisitions for the same
+``subject``/``session``/``task``/``tracer`` combination (for example, for long 
+scans where the subject is in and out of the scanner). When the runs belong 
+together, add :option:`--combine-runs` to
+have *PETPrep* concatenate them before building the preprocessing workflow.
+
+Enabling :option:`--combine-runs` instructs *PETPrep* to create a temporary,
+run-less copy of the BIDS tree in the working directory. For each group of runs
+sharing the same non-run entities, PET images are concatenated along the final
+dimension when they contain multiple frames (or along the volume dimension for
+static images). Frame timing metadata from the individual sidecar JSON files is
+merged with adjusted offsets, and the combined image and metadata are written
+without the ``run`` entity in their filenames. Subsequent preprocessing then
+operates on these merged series rather than the original per-run inputs.
+
 Command-Line Arguments
 ----------------------
 .. argparse::

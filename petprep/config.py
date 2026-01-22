@@ -438,6 +438,8 @@ class execution(_Config):
     """List of tracer identifiers that are to be preprocessed."""
     run_label = None
     """List of run identifiers that are to be preprocessed."""
+    combine_runs = False
+    """Combine multiple runs for each PET series before preprocessing."""
     task_id = None
     """Select a particular task from all available in the dataset."""
     templateflow_home = _templateflow_home
