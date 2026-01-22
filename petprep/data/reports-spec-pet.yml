@@ -6,6 +6,7 @@ sections:
   reportlets:
   - bids: {datatype: figures, desc: summary, suffix: pet}
   - bids: {datatype: figures, desc: validation, suffix: pet}
+  - bids: {datatype: figures, desc: hmc, suffix: pet}
   - bids: {datatype: figures, desc: carpetplot, suffix: pet}
   - bids: {datatype: figures, desc: confoundcorr, suffix: pet}
   - bids: {datatype: figures, desc: coreg, suffix: pet}

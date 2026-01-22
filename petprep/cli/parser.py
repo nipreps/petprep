@@ -96,6 +96,11 @@ def _build_parser(**kwargs):
         """Parse an integer value or the special 'auto' keyword."""
         return 'auto' if value == 'auto' else int(value)
 
+    def _run_label(value):
+        """Normalize run labels, allowing both run-01 and 1 forms."""
+        value = value.removeprefix('run-')
+        return int(value) if value.isdigit() else value
+
     def _to_gb(value):
         scale = {'G': 1, 'T': 10**3, 'M': 1e-3, 'K': 1e-6, 'B': 1e-9}
         digits = ''.join([c for c in value if c.isdigit()])
@@ -188,8 +193,33 @@ def _build_parser(**kwargs):
         'identifier (the sub- prefix can be removed)',
     )
     # Re-enable when option is actually implemented
-    # g_bids.add_argument('-s', '--session-id', action='store', default='single_session',
-    #                     help='Select a specific session to be processed')
+    g_bids.add_argument(
+        '--session-label',
+        nargs='+',
+        type=lambda label: label.removeprefix('ses-'),
+        help='A space delimited list of session identifiers or a single '
+        'identifier (the ses- prefix can be removed)',
+    )
+    g_bids.add_argument(
+        '--tracer-label',
+        nargs='+',
+        type=lambda label: label.removeprefix('trc-'),
+        help='A space delimited list of tracer identifiers or a single '
+        'identifier (the trc- prefix can be removed)',
+    )
+    g_bids.add_argument(
+        '--run-label',
+        nargs='+',
+        type=_run_label,
+        help='A space delimited list of run identifiers or a single identifier '
+        '(the run- prefix can be removed)',
+    )
+    g_bids.add_argument(
+        '--combine-runs',
+        action='store_true',
+        help='Concatenate PET runs within each session before preprocessing. '
+        'Combined files omit the run entity.',
+    )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
     #                     help='Select a specific run to be processed')
@@ -351,6 +381,32 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         type=int,
         help='Degrees of freedom when registering PET to anatomical images. '
         '6 degrees (rotation and translation) are used by default.',
+    )
+    g_conf.add_argument(
+        '--pet2anat-method',
+        action='store',
+        default='mri_coreg',
+        choices=['mri_coreg', 'robust', 'ants', 'auto'],
+        help='Method for PET-to-anatomical registration. '
+        '"mri_coreg" (default) uses FreeSurfer mri_coreg. '
+        '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
+        '"ants" uses ANTs rigid registration (6 DoF only). '
+        '"auto" runs both FreeSurfer and ANTs and selects the best.',
+    )
+    g_conf.add_argument(
+        '--anatref',
+        action='store',
+        default='auto',
+        choices=['t1w', 'nu', 'auto'],
+        help=(
+            'Anatomical reference to use for PET-to-T1w registration. '
+            "The default ('auto') inspects the PET-derived mask and uses the "
+            'preprocessed T1-weighted image unless the mask is unusually large, in which case '
+            "it switches to FreeSurfer's bias-corrected nu.mgz. "
+            "Use 't1w' to always keep the preprocessed T1w image, or 'nu' to always prefer "
+            "FreeSurfer's bias-corrected volume (an intensity normalized volume generated after "
+            'correcting for non-uniformity in the orig.mgz).'
+        ),
     )
     g_conf.add_argument(
         '--force-bbr',
@@ -558,6 +614,25 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         action='store_true',
         help=('Keep the chosen initial reference frame fixed during head-motion estimation.'),
     )
+    g_hmc.add_argument(
+        '--hmc-off',
+        dest='hmc_off',
+        action='store_true',
+        help='Disable head-motion correction and use the uncorrected data.',
+    )
+    g_hmc.add_argument(
+        '--petref',
+        default='template',
+        choices=['template', 'twa', 'sum', 'first5min', 'auto'],
+        help=(
+            "Strategy for generating the PET reference. 'template' uses the "
+            "motion correction template, while 'twa' computes a time-weighted "
+            "average, 'sum' produces a summed image of the motion-corrected "
+            "series, and 'first5min' averages the early (0-5 minute) portion "
+            "of the acquisition. 'auto' evaluates multiple strategies to "
+            'select the best reference.'
+        ),
+    )
 
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
@@ -738,8 +813,13 @@ def parse_args(args=None, namespace=None):
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
 
+    argv = list(args) if args is not None else sys.argv[1:]
     parser = _build_parser()
-    opts = parser.parse_args(args, namespace)
+    opts = parser.parse_args(argv, namespace)
+
+    # Validate DoF constraints for registration methods
+    if opts.pet2anat_method in ('robust', 'ants') and opts.pet2anat_dof != 6:
+        parser.error(f'--pet2anat-method {opts.pet2anat_method} requires --pet2anat-dof=6.')
 
     if opts.config_file:
         skip = {} if opts.reports_only else {'execution': ('run_uuid',)}
@@ -748,6 +828,30 @@ def parse_args(args=None, namespace=None):
 
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+
+    config.workflow.petref_specified = '--petref' in argv
+    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
+
+    if config.execution.session_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'session': config.execution.session_label,
+        }
+
+    if config.execution.tracer_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'tracer': config.execution.tracer_label,
+        }
+
+    if config.execution.run_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'run': config.execution.run_label,
+        }
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
     if any(val is not None for val in pvc_vals) and not all(val is not None for val in pvc_vals):
@@ -908,5 +1012,86 @@ applied."""
             f'One or more participant labels were not found in the BIDS directory: {", ".join(missing_subjects)}.'
         )
 
+    if config.execution.session_label:
+        available_sessions = set(
+            config.execution.layout.get_sessions(subject=list(participant_label) or None)
+        )
+        missing_sessions = set(config.execution.session_label) - available_sessions
+        if missing_sessions:
+            parser.error(
+                'One or more session labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(missing_sessions))}.'
+            )
+
+    if config.execution.tracer_label:
+        tracer_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        tracer_filters = {key: value for key, value in tracer_filters.items() if key != 'tracer'}
+        available_tracers = set(
+            config.execution.layout.get(
+                target='tracer',
+                return_type='id',
+                subject=list(participant_label) or None,
+                **tracer_filters,
+            )
+        )
+        missing_tracers = set(config.execution.tracer_label) - available_tracers
+        if missing_tracers:
+            parser.error(
+                'One or more tracer labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(missing_tracers))}.'
+            )
+
+    if config.execution.run_label:
+        run_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        run_filters = {key: value for key, value in run_filters.items() if key != 'run'}
+        available_runs = set(
+            config.execution.layout.get_runs(
+                subject=list(participant_label) or None,
+                **run_filters,
+            )
+        )
+        missing_runs = set(config.execution.run_label) - available_runs
+        if missing_runs:
+            parser.error(
+                'One or more run labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(map(str, missing_runs)))}.'
+            )
+
+    if config.execution.run_label:
+        config.execution.run_label = sorted(set(config.execution.run_label))
+        config.execution.bids_filters['pet']['run'] = config.execution.run_label
+
     config.execution.participant_label = sorted(participant_label)
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
+
+    if config.execution.combine_runs:
+        from ..utils.bids import combine_pet_runs
+
+        build_log.info('Combining PET runs prior to preprocessing')
+        combined_dir, combined_files = combine_pet_runs(
+            bids_dir=bids_dir,
+            layout=config.execution.layout,
+            work_dir=config.execution.work_dir / config.execution.run_uuid,
+            subjects=config.execution.participant_label,
+            bids_filters=config.execution.bids_filters or {},
+        )
+
+        if not combined_files:
+            build_log.warning('No PET runs found to combine; proceeding with original inputs.')
+        else:
+            build_log.info(f'Combined {len(combined_files)} PET file(s) into run-less series.')
+
+        config.execution.bids_dir = combined_dir
+        config.execution.bids_database_dir = (
+            config.execution.work_dir / config.execution.run_uuid / 'combined_bids_db'
+        )
+        config.execution._layout = None
+        config.execution.layout = None
+        config.execution.init()
+        if config.execution.bids_filters and 'pet' in config.execution.bids_filters:
+            config.execution.bids_filters['pet'].pop('run', None)
+        config.execution.run_label = None

@@ -431,7 +431,7 @@ def init_pet_pvc_wf(
             workflow.connect([(pvc_node, outputnode, [('mg', 'pet_pvc_file')])])
 
         elif method_key == 'RBV':
-            workflow.connect([(pvc_node, outputnode, [('pet_file', 'pet_pvc_file')])])
+            workflow.connect([(pvc_node, outputnode, [('rbv', 'pet_pvc_file')])])
 
         workflow.connect([(pvc_node, outputnode, [('tissue_fraction', 'pet_pvc_mask')])])
 

@@ -342,29 +342,19 @@ PET reference image estimation
     wf = init_raw_petref_wf()
 
 This workflow estimates a reference image for a
-:abbr:`PET (positron emission tomography)` series as follows:
-When T1-saturation effects ("dummy scans" or non-steady state volumes) are
-detected, they are averaged and used as reference due to their
-superior tissue contrast.
-Otherwise, a median of motion corrected subset of volumes is used.
+:abbr:`PET (positron emission tomography)` series according to the strategy
+requested with :option:`--petref`:
 
-This reference is used for :ref:`head-motion estimation <pet_hmc>`.
-
-For the :ref:`registration workflow <pet_reg>`, the reference image is
-either the above described reference image or a single-band reference,
-if one is found in the input dataset.
-In either case, this image is contrast-enhanced and skull-stripped
-(see :py:func:`~niworkflows.func.util.init_enhance_and_skullstrip_bold_wf`).
-If fieldmaps are present, the skull-stripped reference is corrected
-prior to registration.
-
-.. figure:: _static/sub-01_task-balloonanalogrisktask_run-1_desc-rois_bold.svg
-
-    The red contour shows the brain mask estimated for a PET reference volume.
-    The blue and magenta contours show the tCompCor and aCompCor masks,
-    respectively. (See :ref:`pet_confounds`, below.)
-
-.. _pet_hmc:
+* ``template`` (default) uses the motion-correction template built during
+  head-motion estimation. When head-motion correction is disabled, ``template``
+  automatically falls back to ``twa`` while emitting a warning.
+* ``twa`` computes a time-weighted average of the motion-corrected series,
+  preserving dynamic information when later frames carry more counts.
+* ``sum`` produces a summed image of the motion-corrected series.
+* ``first5min`` weights only the first five minutes of the acquisition, which
+  can be helpful for tracers whose early dynamics resemble perfusion. During
+  automatic reference selection, the workflow falls back to the first frame if
+  no frames overlap the initial 5-minute window.
 
 Head-motion estimation
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -427,42 +417,34 @@ Interpolation uses a Lanczos kernel.
 
 PET to T1w registration
 ~~~~~~~~~~~~~~~~~~~~~~~
-:py:func:`~petprep.workflows.pet.registration.init_bbreg_wf`
+:py:func:`~petprep.workflows.pet.registration.init_pet_reg_wf`
 
 .. workflow::
     :graph2use: hierarchical
     :simple_form: yes
 
-    from petprep.workflows.pet.registration import init_bbreg_wf
-    wf = init_bbreg_wf(
+    from petprep.workflows.pet.registration import init_pet_reg_wf
+    wf = init_pet_reg_wf(
         omp_nthreads=1,
-        use_bbr=True,
-        pet2anat_dof=9,
-        pet2anat_init='t2w',
+        pet2anat_dof=6,
+        mem_gb=3,
+        pet2anat_method='mri_coreg',
     )
 
-``pet2anat_init`` selects the initialization strategy for PET-to-anatomical
-registration. The default ``'auto'`` setting uses available metadata to choose
-between header information and intensity-based approaches.
-
-The alignment between the reference :abbr:`EPI (echo-planar imaging)` image
-of each run and the reconstructed subject using the gray/white matter boundary
-(FreeSurfer's ``?h.white`` surfaces) is calculated by the ``bbregister`` routine.
-See :func:`petprep.workflows.pet.registration.init_bbreg_wf` for further details.
-
-.. figure:: _static/EPIT1Normalization.svg
-
-    Animation showing :abbr:`EPI (echo-planar imaging)` to T1w registration (FreeSurfer ``bbregister``)
-
-If FreeSurfer processing is disabled, FSL ``flirt`` is run with the
-:abbr:`BBR (boundary-based registration)` cost function, using the
-``fast`` segmentation to establish the gray/white matter boundary.
-See :func:`petprep.workflows.pet.registration.init_fsl_bbr_wf` for further details.
-
-After either :abbr:`BBR (boundary-based registration)` workflow is run, the resulting affine
-transform will be compared to the initial transform found by FLIRT.
-Excessive deviation will result in rejecting the BBR refinement and accepting the
-original, affine registration.
+The PET reference volume is aligned to the skull-stripped anatomical image
+using the method selected via :option:`--pet2anat-method`. The anatomical image
+is first cropped with FSL's ``robustfov`` and masked to focus the alignment on
+brain tissue (ANTs receives the unmasked cropped image together with its mask).
+By default, the workflow runs FreeSurfer's ``mri_coreg`` with the number of
+degrees of freedom set via the :option:`--pet2anat-dof` flag. Alternative modes
+include FreeSurfer's ``mri_robust_register`` (``--pet2anat-method robust``) and
+ANTs rigid registration (``--pet2anat-method ants``). Both alternatives are
+limited to rigid-body alignment (6 DoF). An ``auto`` mode
+(``--pet2anat-method auto``) runs both FreeSurfer and ANTs registrations in
+parallel, applies the resulting transforms to the PET reference, computes a
+similarity score within the T1w brain mask, and selects the best-performing
+transform. The resulting affine is converted to ITK format for downstream
+application, along with its inverse.
 
 Resampling PET runs onto standard spaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -478,11 +460,10 @@ Resampling PET runs onto standard spaces
     )
 
 This sub-workflow concatenates the transforms calculated upstream (see
-`Head-motion estimation`_, `Susceptibility Distortion Correction (SDC)`_ --if
-fieldmaps are available--, `EPI to T1w registration`_, and an anatomical-to-standard
+`Head-motion estimation`_, `PET to T1w registration`_, and an anatomical-to-standard
 transform from `Preprocessing of structural MRI`_) to map the
-:abbr:`EPI (echo-planar imaging)`
-image to the standard spaces given by the ``--output-spaces`` argument
+:abbr:`PET (positron emission tomography)` series from native space to
+the standard spaces given by the ``--output-spaces`` argument
 (see :ref:`output-spaces`).
 It also maps the T1w-based mask to each of those standard spaces.
 
@@ -492,7 +473,7 @@ step, so as little information is lost as possible.
 The output space grid can be specified using modifiers to the ``--output-spaces``
 argument.
 
-EPI sampled to FreeSurfer surfaces
+PET sampled to FreeSurfer surfaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :py:func:`~petprep.workflows.pet.resampling.init_pet_surf_wf`
 
@@ -509,7 +490,7 @@ EPI sampled to FreeSurfer surfaces
         output_dir='.',
     )
 
-If FreeSurfer processing is enabled, the motion-corrected functional series
+If FreeSurfer processing is enabled, the motion-corrected PET series
 (after single shot resampling to T1w space) is sampled to the
 surface by averaging across the cortical ribbon.
 Specifically, at each vertex, the segment normal to the white-matter surface, extending to the pial

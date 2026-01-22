@@ -432,6 +432,14 @@ class execution(_Config):
     """Unique identifier of this particular run."""
     participant_label = None
     """List of participant identifiers that are to be preprocessed."""
+    session_label = None
+    """List of session identifiers that are to be preprocessed."""
+    tracer_label = None
+    """List of tracer identifiers that are to be preprocessed."""
+    run_label = None
+    """List of run identifiers that are to be preprocessed."""
+    combine_runs = False
+    """Combine multiple runs for each PET series before preprocessing."""
     task_id = None
     """Select a particular task from all available in the dataset."""
     templateflow_home = _templateflow_home
@@ -515,7 +523,9 @@ class execution(_Config):
                 else:
                     return (
                         getattr(Query, value[7:-4])
-                        if not isinstance(value, Query) and 'Query' in value
+                        if isinstance(value, str)
+                        and not isinstance(value, Query)
+                        and 'Query' in value
                         else value
                     )
 
@@ -556,6 +566,16 @@ class workflow(_Config):
     """Degrees of freedom of the PET-to-anatomical registration steps."""
     pet2anat_init = 'auto'
     """Initial transform for PET-to-anatomical registration."""
+    pet2anat_method: str = 'mri_coreg'
+    """PET-to-anatomical registration method (mri_coreg, robust, ants, or auto)."""
+    pet2anat_method_specified: bool = False
+    """Flag indicating whether ``--pet2anat-method`` was explicitly provided."""
+    anatref: str = 'auto'
+    """Anatomical reference for PET-to-T1w registration (``'t1w'``, ``'nu'``, or ``'auto'``)."""
+    petref: str = 'template'
+    """Strategy for building the PET reference (``'template'``, ``'twa'``, ``'sum'``, ``'first5min'`` or ``'auto'``)."""
+    petref_specified: bool = False
+    """Flag indicating whether ``--petref`` was explicitly provided."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
     hires = None
@@ -602,6 +622,8 @@ class workflow(_Config):
     """Index of initial frame for head-motion estimation ('auto' selects highest uptake)."""
     hmc_fix_frame: bool = False
     """Whether to fix the reference frame during head-motion estimation."""
+    hmc_off: bool = False
+    """Disable head-motion correction and keep data uncorrected."""
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
     'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""

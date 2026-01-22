@@ -566,7 +566,7 @@ def _binary_union(mask1, mask2):
     return str(out_name)
 
 
-def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
+def _smooth_binarize(in_file, fwhm=10.0, thresh=20.0, use_robust_range=True):
     """Smooth ``in_file`` with a Gaussian kernel, binarize and keep largest cluster."""
     from pathlib import Path
 
@@ -579,7 +579,16 @@ def _smooth_binarize(in_file, fwhm=10.0, thresh=0.2):
     zooms = np.array(img.header.get_zooms()[:3], dtype=float)
     sigma = (fwhm / 2.3548) / zooms
     smoothed = gaussian_filter(data, sigma=sigma)
-    mask = smoothed > (thresh * smoothed.max())
+    if use_robust_range:
+        lower = np.percentile(smoothed, 2)
+        upper = np.percentile(smoothed, 98)
+        threshold = lower + (thresh / 100.0) * (upper - lower)
+        # Fall back to max-based thresholding if the robust range collapses
+        if upper <= lower:
+            threshold = thresh * smoothed.max()
+    else:
+        threshold = thresh * smoothed.max()
+    mask = smoothed > threshold
 
     labeled, n_labels = label(mask)
     if n_labels > 1:

@@ -6,6 +6,7 @@ Bug-fix release in the 0.0.x series.
 * FIX: fix thresholding to be a percentage (#151)
 * FIX: Update TACs interface to match PET-BIDS derivatives spec (#146)
 * ENH: Create morph refmask and derivatives (#143)
+* ENH: Add ``--combine-runs`` option to merge PET acquisitions prior to preprocessing (#xxx)
 * DOC: Fix the path to the `sample_report` folder in the output doc (#97)
 * DOC: Add preliminary release to "What is new" page (#103)
 * REF: Remove unused parameters from PET confound workflow initialization (#107)

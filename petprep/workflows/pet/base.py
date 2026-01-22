@@ -39,7 +39,7 @@ from niworkflows.interfaces.utility import DictMerge
 from niworkflows.utils.connections import listify
 
 from ... import config
-from ...interfaces import DerivativesDataSink
+from ...interfaces import DerivativesDataSink, MotionPlot
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
@@ -274,6 +274,39 @@ configured with cubic B-spline interpolation.
             ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
         ]),
     ])  # fmt:skip
+
+    if nvols > 1:
+        motion_report = pe.Node(MotionPlot(), name='motion_report', mem_gb=0.1)
+        ds_motion_report = pe.Node(
+            DerivativesDataSink(
+                base_directory=petprep_dir,
+                desc='hmc',
+                datatype='figures',
+                suffix='pet',
+            ),
+            name='ds_report_motion',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_motion_report.inputs.source_file = pet_file
+
+        workflow.connect(
+            [
+                (
+                    pet_native_wf,
+                    motion_report,
+                    [
+                        ('outputnode.pet_minimal', 'original_pet'),
+                        ('outputnode.pet_native', 'corrected_pet'),
+                    ],
+                ),
+                (motion_report, ds_motion_report, [('svg_file', 'in_file')]),
+            ]
+        )
+    else:
+        config.loggers.workflow.warning(
+            f'Motion report will be skipped - series has only {nvols} frame(s)'
+        )
 
     petref_out = bool(nonstd_spaces.intersection(('pet', 'run', 'petref')))
     petref_out &= config.workflow.level == 'full'
@@ -790,6 +823,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('outputnode.confounds_metadata', 'meta_dict'),
             ]),
         ])  # fmt:skip
+
+        if nvols > 1:
+            workflow.connect(
+                pet_confounds_wf,
+                'outputnode.confounds_file',
+                motion_report,
+                'fd_file',
+            )
 
         if spaces.get_spaces(nonstandard=False, dim=(3,)):
             carpetplot_wf = init_carpetplot_wf(

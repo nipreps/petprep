@@ -127,6 +127,11 @@ sections:
     static: false
     subtitle: PET Summary and Carpet Plot
 
+  - bids: {datatype: figures, desc: hmc, suffix: pet}
+    caption: Animated frames before and after PET head motion correction with synchronized framewise displacement trace (keep cursor over image to restart). Below is a lineplot of the Framewise Displacement (FD) in mm per frame. Red line segments between points indicate frames where FD exceeds 3 mm, suggesting motion that may impact data quality.
+    static: false
+    subtitle: Motion correction
+
   - bids: {datatype: figures, desc: confoundcorr, suffix: pet}
     caption: |
       Left: Correlation heatmap illustrating relationships among PET-derived confound variables (e.g., motion parameters, global signal).
