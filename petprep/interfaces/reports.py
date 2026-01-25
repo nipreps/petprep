@@ -32,6 +32,7 @@ from uuid import uuid4
 
 import nibabel as nb
 import numpy as np
+import svgutils.transform as svgt
 from nilearn import image as nlimage
 from nilearn.plotting import plot_anat
 
@@ -46,11 +47,9 @@ from nipype.interfaces.base import (
     isdefined,
     traits,
 )
-from smriprep.interfaces.freesurfer import ReconAll
-
-import svgutils.transform as svgt
 from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
+from smriprep.interfaces.freesurfer import ReconAll
 
 LOGGER = logging.getLogger('nipype.interface')
 
@@ -515,11 +514,12 @@ class AtlasROIsReport(SimpleInterface):
     output_spec = _AtlasROIsReportOutputSpec
 
     def _run_interface(self, runtime):
-        import pandas as pd
         import matplotlib
+        import pandas as pd
 
         matplotlib.use('Agg', force=True)
-        from matplotlib import cm, pyplot as plt
+        from matplotlib import cm
+        from matplotlib import pyplot as plt
         from matplotlib.colors import ListedColormap
         from matplotlib.patches import Patch
 
@@ -557,7 +557,7 @@ class AtlasROIsReport(SimpleInterface):
                 Patch(
                     facecolor=rgba[:3],
                     edgecolor='none',
-                    label=f"{label} - {label_lookup[label]}",
+                    label=f'{label} - {label_lookup[label]}',
                 )
             )
         cmap = ListedColormap(rgba_colors)

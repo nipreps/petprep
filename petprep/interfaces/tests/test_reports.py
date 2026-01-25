@@ -132,8 +132,8 @@ def test_functional_summary_auto_select(winner, expected):
 
 
 def test_atlas_rois_report(tmp_path):
-    import numpy as np
     import nibabel as nb
+    import numpy as np
 
     from ..reports import AtlasROIsReport
 
