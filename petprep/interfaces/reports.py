@@ -35,7 +35,6 @@ from uuid import uuid4
 import nibabel as nb
 import numpy as np
 import svgutils.transform as svgt
-from svgutils.compose import Unit
 from nilearn import image as nlimage
 from nilearn.plotting import plot_anat
 from nipype.interfaces.base import (
@@ -52,6 +51,7 @@ from nipype.interfaces.base import (
 from nireports.reportlets.utils import cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
 from smriprep.interfaces.freesurfer import ReconAll
+from svgutils.compose import Unit
 
 LOGGER = logging.getLogger('nipype.interface')
 
