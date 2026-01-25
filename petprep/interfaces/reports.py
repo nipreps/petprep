@@ -35,7 +35,6 @@ import numpy as np
 import svgutils.transform as svgt
 from nilearn import image as nlimage
 from nilearn.plotting import plot_anat
-
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
     Directory,
