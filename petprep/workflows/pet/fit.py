@@ -754,12 +754,18 @@ def init_pet_fit_wf(
         (summary, func_fit_reports_wf, [('out_report', 'inputnode.summary_report')]),
     ])  # fmt:skip
     if atlas_segmentation:
-        workflow.connect([
-            (inputnode, func_fit_reports_wf, [
-                ('segmentation', 'inputnode.segmentation'),
-                ('dseg_tsv', 'inputnode.dseg_tsv'),
-            ]),
-        ])
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    func_fit_reports_wf,
+                    [
+                        ('segmentation', 'inputnode.segmentation'),
+                        ('dseg_tsv', 'inputnode.dseg_tsv'),
+                    ],
+                ),
+            ]
+        )
 
     # Stage 1: Estimate head motion and reference image
     if not hmc_xforms:
