@@ -138,9 +138,9 @@ def test_atlas_rois_report(tmp_path):
     from ..reports import AtlasROIsReport
 
     affine = np.diag([2, 2, 2, 1])
-    t1_data = np.zeros((12, 12, 12), dtype=float)
-    pet_data = np.zeros((12, 12, 12), dtype=float)
-    seg_data = np.zeros((12, 12, 12), dtype=int)
+    t1_data = np.zeros((12, 12, 12), dtype=np.float32)
+    pet_data = np.zeros((12, 12, 12), dtype=np.float32)
+    seg_data = np.zeros((12, 12, 12), dtype=np.uint8)
     seg_data[3:9, 3:9, 3:6] = 1
     seg_data[4:10, 4:10, 6:9] = 2
 
