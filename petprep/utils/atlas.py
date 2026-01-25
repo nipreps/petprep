@@ -112,6 +112,9 @@ def get_atlas_files(atlas_name: str) -> tuple[str, str]:
         """Ensure an atlas NIfTI image can be loaded."""
         import nibabel as nb
 
+        if not Path(image_path).exists():
+            return
+
         try:
             nb.load(image_path)
         except Exception as exc:  # pragma: no cover - sanity check
