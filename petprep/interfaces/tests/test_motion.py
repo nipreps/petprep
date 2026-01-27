@@ -99,3 +99,68 @@ def test_build_animation_includes_fd_plot(tmp_path, monkeypatch):
     assert 'fd-plot' in content
     assert 'FD (mm)' in content
     assert 'frame-2' not in content  # limited to FD length
+
+
+def test_compute_crop_slices_returns_none_without_positive(tmp_path, monkeypatch):
+    img_path = tmp_path / 'zeros.nii.gz'
+    img = nb.Nifti1Image(np.zeros((4, 4, 4), dtype=float), np.eye(4))
+    img.to_filename(img_path)
+
+    def raise_error(_img):
+        raise RuntimeError
+
+    monkeypatch.setattr('petprep.interfaces.motion.compute_epi_mask', raise_error)
+
+    motion = MotionPlot()
+    result = motion._compute_crop_slices(nb.load(str(img_path)))
+
+    assert result is None
+
+
+def test_largest_connected_component_selects_largest():
+    motion = MotionPlot()
+    mask = np.zeros((3, 3, 3), dtype=bool)
+    mask[0, 0, 0] = True
+    mask[1:3, 1:3, 1] = True
+
+    largest = motion._largest_connected_component(mask)
+
+    assert largest.sum() == 4
+    assert largest[0, 0, 0] == 0
+
+
+def test_crop_img_adjusts_affine():
+    motion = MotionPlot()
+    data = np.ones((4, 4, 4), dtype=float)
+    affine = np.diag([2.0, 3.0, 4.0, 1.0])
+    img = nb.Nifti1Image(data, affine)
+
+    cropped = motion._crop_img(img, (slice(1, 3), slice(0, 2), slice(2, 4)))
+
+    assert np.allclose(cropped.affine[:3, 3], [2.0, 0.0, 8.0])
+
+
+def test_build_animation_with_single_frame_fd_ticks(tmp_path, monkeypatch):
+    orig_path = _write_image(tmp_path / 'orig_single.nii.gz', (4, 4, 4, 1))
+    corr_path = _write_image(tmp_path / 'corr_single.nii.gz', (4, 4, 4, 1))
+    fd_path = tmp_path / 'fd_single.tsv'
+    fd_path.write_text('framewise_displacement\n0\n')
+
+    def fake_plot_epi(img, **kwargs):
+        array = np.ones((8, 8, 3), dtype=np.uint8) * 255
+        from imageio import v2 as imageio
+
+        imageio.imwrite(kwargs['output_file'], array)
+
+    monkeypatch.setattr('petprep.interfaces.motion.plot_epi', fake_plot_epi)
+
+    motion = MotionPlot()
+    motion.inputs.original_pet = str(orig_path)
+    motion.inputs.corrected_pet = str(corr_path)
+    motion.inputs.fd_file = str(fd_path)
+    motion.inputs.duration = 0.01
+
+    result = motion.run(cwd=tmp_path)
+    content = Path(result.outputs.svg_file).read_text()
+
+    assert 'Frame 1' in content
