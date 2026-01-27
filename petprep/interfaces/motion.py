@@ -70,9 +70,7 @@ class MotionPlot(SimpleInterface):
         svg_file.parent.mkdir(parents=True, exist_ok=True)
 
         mid_orig, cut_coords_orig, vmin_orig, vmax_orig, crop_slices = (
-            self._compute_display_params(
-                self.inputs.original_pet, return_crop_slices=True
-            )
+            self._compute_display_params(self.inputs.original_pet, return_crop_slices=True)
         )
         _, _, vmin_corr, vmax_corr, _ = self._compute_display_params(
             self.inputs.corrected_pet,
