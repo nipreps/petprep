@@ -70,10 +70,14 @@ class MotionPlot(SimpleInterface):
         svg_file.parent.mkdir(parents=True, exist_ok=True)
 
         mid_orig, cut_coords_orig, vmin_orig, vmax_orig, crop_slices = (
-            self._compute_display_params(self.inputs.original_pet)
+            self._compute_display_params(
+                self.inputs.original_pet, return_crop_slices=True
+            )
         )
         _, _, vmin_corr, vmax_corr, _ = self._compute_display_params(
-            self.inputs.corrected_pet, crop_slices=crop_slices
+            self.inputs.corrected_pet,
+            crop_slices=crop_slices,
+            return_crop_slices=True,
         )
 
         fd_values = None
@@ -100,7 +104,7 @@ class MotionPlot(SimpleInterface):
         self,
         in_file: str,
         crop_slices: tuple[slice, slice, slice] | None = None,
-    ):
+        return_crop_slices: bool = False,
         img = nib.load(in_file)
         if img.ndim == 3:
             mid_img = img
@@ -116,7 +120,9 @@ class MotionPlot(SimpleInterface):
         vmin = float(np.percentile(data.flatten(), 80))
         cut_coords = find_xyz_cut_coords(cropped_mid)
 
-        return cropped_mid, cut_coords, vmin, vmax, crop_slices
+        if return_crop_slices:
+            return cropped_mid, cut_coords, vmin, vmax, crop_slices
+        return cropped_mid, cut_coords, vmin, vmax
 
     def _compute_crop_slices(
         self, img: nib.spatialimages.SpatialImage
