@@ -105,6 +105,7 @@ class MotionPlot(SimpleInterface):
         in_file: str,
         crop_slices: tuple[slice, slice, slice] | None = None,
         return_crop_slices: bool = False,
+    ):
         img = nib.load(in_file)
         if img.ndim == 3:
             mid_img = img
