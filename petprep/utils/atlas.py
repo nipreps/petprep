@@ -54,8 +54,6 @@ def _materialize_resource(resource_path: str) -> str:
     """Copy a resolved resource into the current working directory."""
 
     src = Path(resource_path)
-    if not src.exists():
-        return str(src)
     try:
         src_parent = src.resolve().parent
         cwd = Path.cwd().resolve()
