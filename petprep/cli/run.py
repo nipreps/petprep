@@ -22,6 +22,7 @@
 #
 """PET preprocessing workflow."""
 
+
 from .. import config
 
 
@@ -74,7 +75,12 @@ def main():
     # CRITICAL Call build_workflow(config_file, retval) in a subprocess.
     # Because Python on Linux does not ever free virtual memory (VM), running the
     # workflow construction jailed within a process preempts excessive VM buildup.
-    if 'pdb' not in config.execution.debug:
+    # Skip multiprocessing if debugging (pdb) or if running under a debugger
+
+    is_debugging = (
+        'pdb' in config.execution.debug or hasattr(sys, 'gettrace') and sys.gettrace() is not None
+    )
+    if not is_debugging:
         with Manager() as mgr:
             retval = mgr.dict()
             p = Process(target=build_workflow, args=(str(config_file), retval))
