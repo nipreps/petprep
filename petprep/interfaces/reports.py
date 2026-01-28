@@ -546,10 +546,7 @@ class AtlasROIsReport(SimpleInterface):
 
         muting_cycle = 2
         n_base_colors = max(1, int(np.ceil(len(present_labels) / muting_cycle)))
-        if hasattr(matplotlib, 'colormaps'):
-            color_map = matplotlib.colormaps.get_cmap('gist_rainbow').resampled(n_base_colors)
-        else:
-            color_map = cm.get_cmap('gist_rainbow', n_base_colors)
+        color_map = cm.get_cmap('gist_rainbow', n_base_colors)
         rgba_colors = [(0, 0, 0, 0)]
         legend_handles = []
         for idx, label in enumerate(present_labels):
