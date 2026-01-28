@@ -70,7 +70,6 @@ _OPPOSITE = {
     'I': 'S',
 }
 
-
 def _plot_registration_with_overlays(
     anat_nii,
     div_id,
@@ -525,9 +524,7 @@ class AtlasROIsReport(SimpleInterface):
 
         atlas_labels = pd.read_csv(self.inputs.dseg_tsv, sep='\t')
         label_ids = [int(idx) for idx in atlas_labels.iloc[:, 0].tolist()]
-        label_names = (
-            atlas_labels.iloc[:, 1].tolist() if len(atlas_labels.columns) > 1 else label_ids
-        )
+        label_names = atlas_labels.iloc[:, 1].tolist() if len(atlas_labels.columns) > 1 else label_ids
         label_lookup = dict(zip(label_ids, map(str, label_names), strict=False))
 
         t1w_img = nb.load(self.inputs.t1w_image)
@@ -648,7 +645,9 @@ class AtlasROIsReport(SimpleInterface):
             legend_body = inner_match.group(1) if inner_match else legend_text
             legend_width, legend_height = _extract_dims_from_text(legend_text)
             scale = width / legend_width if legend_width else 1.0
-            legend_group = f'<g transform="translate(0,{height}) scale({scale})">{legend_body}</g>'
+            legend_group = (
+                f'<g transform="translate(0,{height}) scale({scale})">{legend_body}</g>'
+            )
             total_height += legend_height * scale
             overlay_text = overlay_text.replace('</svg>', f'{legend_group}</svg>')
 
