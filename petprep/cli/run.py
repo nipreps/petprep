@@ -22,7 +22,6 @@
 #
 """PET preprocessing workflow."""
 
-
 from .. import config
 
 
