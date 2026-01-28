@@ -118,7 +118,9 @@ def get_atlas_files(atlas_name: str) -> tuple[str, str]:
             raise ValueError(f'Atlas file {image_path} is not a valid NIfTI image') from exc
 
     template = atlas_config['template']
-    segmentation_resources = segmentation if isinstance(segmentation, (list, tuple)) else [segmentation]
+    segmentation_resources = (
+        segmentation if isinstance(segmentation, (list, tuple)) else [segmentation]
+    )
     seg_file = None
     seg_errors: list[str] = []
 
@@ -136,7 +138,9 @@ def get_atlas_files(atlas_name: str) -> tuple[str, str]:
             break
 
     if seg_file is None:
-        error_msg = '; '.join(seg_errors) or f'No valid segmentation resources for atlas {atlas_name}'
+        error_msg = (
+            '; '.join(seg_errors) or f'No valid segmentation resources for atlas {atlas_name}'
+        )
         raise ValueError(error_msg)
 
     label_file = _materialize_resource(_resolve_resource(template, labels))
