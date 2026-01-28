@@ -161,6 +161,6 @@ def test_atlas_rois_report(tmp_path):
         dseg_tsv=str(tsv_file),
         atlas_name='TestAtlas',
     )
-    result = report.run()
+    result = report.run(cwd=tmp_path)
     assert result.outputs.out_file
     assert Path(result.outputs.out_file).exists()
