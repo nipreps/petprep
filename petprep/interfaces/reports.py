@@ -28,14 +28,11 @@ import os
 import re
 import time
 from collections import Counter
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 import nibabel as nb
 import numpy as np
 import svgutils.transform as svgt
-from svgutils.compose import Unit
 from nilearn import image as nlimage
 from nilearn.plotting import plot_anat
 from nipype.interfaces.base import (
@@ -49,7 +46,7 @@ from nipype.interfaces.base import (
     isdefined,
     traits,
 )
-from nireports.reportlets.utils import cuts_from_bbox, extract_svg, robust_set_limits
+from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
 from smriprep.interfaces.freesurfer import ReconAll
 
@@ -150,78 +147,6 @@ def _plot_registration_with_overlays(
         out_svgs.append(svgt.fromstring(svg))
 
     return out_svgs
-
-
-def _compose_view_svgt(bg_svgs, fg_svgs, ref=0, out_file='report.svg'):
-    """Compose SVG figures into a standalone SVG with flickering foreground."""
-    out_file = Path(out_file).absolute()
-    out_file.write_text('\n'.join(_compose_view_lines_svgt(bg_svgs, fg_svgs, ref=ref)))
-    return str(out_file)
-
-
-def _compose_view_lines_svgt(bg_svgs, fg_svgs, ref=0):
-    if fg_svgs is None:
-        fg_svgs = []
-
-    svgs = bg_svgs + fg_svgs
-    roots = [f.getroot() for f in svgs]
-
-    sizes = []
-    for fig in svgs:
-        viewbox = [float(v) for v in fig.root.get('viewBox').split(' ')]
-        width = int(viewbox[2])
-        height = int(viewbox[3])
-        sizes.append((width, height))
-    nsvgs = len(bg_svgs)
-
-    sizes = np.array(sizes)
-    width = sizes[ref, 0]
-    scales = width / sizes[:, 0]
-    heights = sizes[:, 1] * scales
-
-    fig = svgt.SVGFigure(Unit(f'{width}px'), Unit(f'{heights[:nsvgs].sum()}px'))
-
-    yoffset = 0
-    for i, root in enumerate(roots):
-        root.moveto(0, yoffset, scale_x=scales[i])
-        if i == (nsvgs - 1):
-            yoffset = 0
-        else:
-            yoffset += heights[i]
-
-    if fg_svgs:
-        newroots = [
-            svgt.GroupElement(roots[:nsvgs], {'class': 'background-svg'}),
-            svgt.GroupElement(roots[nsvgs:], {'class': 'foreground-svg'}),
-        ]
-    else:
-        newroots = roots
-    fig.append(newroots)
-    fig.root.attrib.pop('width', None)
-    fig.root.attrib.pop('height', None)
-    fig.root.set('preserveAspectRatio', 'xMidYMid meet')
-
-    with TemporaryDirectory() as tmpdirname:
-        tmp_file = Path(tmpdirname) / 'tmp.svg'
-        fig.save(str(tmp_file))
-        svg_lines = tmp_file.read_text().splitlines()
-
-    if svg_lines and svg_lines[0].startswith('<?xml'):
-        svg_lines = svg_lines[1:]
-
-    if fg_svgs:
-        svg_lines.insert(
-            2,
-            """\
-<style type="text/css">
-@keyframes flickerAnimation%s { 0%% {opacity: 1;} 100%% { opacity: 0; }}
-.foreground-svg { animation: 1s ease-in-out 0s alternate none infinite paused flickerAnimation%s;}
-.foreground-svg:hover { animation-play-state: running;}
-</style>"""
-            % tuple([uuid4()] * 2),
-        )
-
-    return svg_lines
 
 
 def _blend_with_white(rgba, blend=0.5):
@@ -698,7 +623,7 @@ class AtlasROIsReport(SimpleInterface):
             legend_svg = svgt.fromstring(buf.getvalue())
 
         overlay_file = os.path.join(runtime.cwd, 'atlas_rois_overlay.svg')
-        _compose_view_svgt(pet_svgs, t1_svgs, out_file=overlay_file)
+        compose_view(pet_svgs, t1_svgs, out_file=overlay_file)
 
         with open(overlay_file) as fobj:
             overlay_text = fobj.read()
