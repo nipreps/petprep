@@ -280,9 +280,11 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
         for files in grouped.values():
             files = sorted(
                 files,
-                key=lambda path: layout.parse_file_entities(path).get('run')
-                or layout.parse_file_entities(path).get('acq')
-                or path,
+                key=lambda path: (
+                    layout.parse_file_entities(path).get('run')
+                    or layout.parse_file_entities(path).get('acq')
+                    or path
+                ),
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]

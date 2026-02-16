@@ -591,7 +591,7 @@ class SegStats(FSCommand):
         elif name == 'in_intensity':
             intensity_name = os.path.basename(self.inputs.in_intensity).replace('.mgz', '')
             return spec.argstr % (value, intensity_name)
-        return super(SegStats, self)._format_arg(name, spec, value)
+        return super()._format_arg(name, spec, value)
 
     def _gen_filename(self, name):
         if name == 'summary_file' or name == 'ctab_out_file':

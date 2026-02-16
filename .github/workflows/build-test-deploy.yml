@@ -37,6 +37,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Clean build-and-inspect venv
+        run: rm -rf /tmp/baipp
       - uses: hynek/build-and-inspect-python-package@v2
         id: build-petprep
         with:
@@ -44,6 +46,8 @@ jobs:
           attest-build-provenance-github: ${{ github.event_name != 'pull_request' }}
       - name: Clean up package build
         run: rm -r ${{ steps.build-petprep.outputs.dist }}
+      - name: Clean build-and-inspect venv
+        run: rm -rf /tmp/baipp
       - uses: hynek/build-and-inspect-python-package@v2
         id: build-wrapper
         with:
