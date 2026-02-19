@@ -556,8 +556,8 @@ class GTMPVC(FSCommand):
     >>> gtmpvc.inputs.pvc_dir = 'pvc'
     >>> gtmpvc.inputs.mg = (0.5, ["ROI1", "ROI2"])
     >>> gtmpvc.cmdline  # doctest: +NORMALIZE_WHITESPACE
-    'mri_gtmpvc --i sub-01_ses-baseline_pet.nii.gz --mg 0.5 ROI1 ROI2 --o pvc '
-    '--regheader --seg gtmseg.mgz'
+    'mri_gtmpvc --i sub-01_ses-baseline_pet.nii.gz --mg 0.5 ROI1 ROI2 --o pvc \
+    --regheader --seg gtmseg.mgz'
     """
 
     _cmd = 'mri_gtmpvc'
