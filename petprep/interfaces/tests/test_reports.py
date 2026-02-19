@@ -20,7 +20,7 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
-
+import math
 import pytest
 
 from ..reports import get_world_pedir
