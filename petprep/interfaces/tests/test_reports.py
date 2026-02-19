@@ -20,8 +20,6 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
-from pathlib import Path
-
 import pytest
 
 from ..reports import get_world_pedir
