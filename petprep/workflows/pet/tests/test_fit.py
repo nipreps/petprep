@@ -241,9 +241,9 @@ def test_reference_extraction_helpers(tmp_path: Path):
     # Only the first frame overlaps the 30s window
     assert np.allclose(first_img.get_fdata(), 1.0)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='Frame timing metadata are required'):
         _extract_twa_image(str(pet_4d), tmp_path, None, None)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='No frames overlap'):
         _extract_first5min_image(str(pet_4d), tmp_path, [0.0], [1.0], window_sec=-1)
 
 
@@ -284,9 +284,9 @@ def test_pet_reference_utilities(tmp_path: Path):
     assert selection[0] == 'sum'
     assert selection[1] == 0.25
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='No PET reference candidates were provided'):
         _select_best_petref([], [], [], [], [], [])
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='No registration scores were available'):
         _select_best_petref(['a'], [None], ['x'], ['y'], ['w'], ['z'])
 
     xform_file = _write_identity_xforms(2, tmp_path / 'xfms' / 'itk.txt')

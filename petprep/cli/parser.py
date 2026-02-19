@@ -141,6 +141,7 @@ def _build_parser(**kwargs):
     verstr = f'PETPrep v{config.environment.version}'
     currentv = Version(config.environment.version)
     is_release = not any((currentv.is_devrelease, currentv.is_prerelease, currentv.is_postrelease))
+    docs_version = currentv.base_version if is_release else 'latest'
 
     parser = ArgumentParser(
         description=f'PETPrep: PET PREProcessing workflows v{config.environment.version}',
@@ -232,10 +233,12 @@ def _build_parser(**kwargs):
         action='store',
         type=BIDSFilter,
         metavar='FILE',
-        help='A JSON file describing custom BIDS input filters using PyBIDS. '
-        'For further details, please check out '
-        f'https://petprep.readthedocs.io/en/{currentv.base_version if is_release else "latest"}/faq.html#'
-        'how-do-I-select-only-certain-files-to-be-input-to-PETPrep',
+        help=(
+            'A JSON file describing custom BIDS input filters using PyBIDS. '
+            'For further details, please check out '
+            f'https://petprep.readthedocs.io/en/{docs_version}/faq.html#'
+            'how-do-I-select-only-certain-files-to-be-input-to-PETPrep'
+        ),
     )
     g_bids.add_argument(
         '-d',
@@ -366,7 +369,7 @@ Non-standard spaces imply specific orientations and sampling grids. \
 Important to note, the ``res-*`` modifier does not define the resolution used for \
 the spatial normalization. To generate no PET outputs, use this option without specifying \
 any spatial references. For further details, please check out \
-https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'latest'}/spaces.html""",
+https://petprep.readthedocs.io/en/{docs_version}/spaces.html""",
     )
     g_conf.add_argument(
         '--longitudinal',
@@ -968,9 +971,10 @@ applied."""
     # Ensure input and output folders are not the same
     if output_dir == bids_dir:
         ver = version.split('+')[0]
+        suggested_output = bids_dir / 'derivatives' / f'petprep-{ver}'
         parser.error(
             'The selected output folder is the same as the input BIDS folder. '
-            f'Please modify the output path (suggestion: {bids_dir / "derivatives" / f"petprep-{ver}"}).'
+            f'Please modify the output path (suggestion: {suggested_output}).'
         )
 
     if bids_dir in work_dir.parents:
@@ -1008,8 +1012,10 @@ applied."""
     participant_label = set(config.execution.participant_label)
     missing_subjects = participant_label - set(all_subjects)
     if missing_subjects:
+        missing_subjects_text = ', '.join(sorted(missing_subjects))
         parser.error(
-            f'One or more participant labels were not found in the BIDS directory: {", ".join(missing_subjects)}.'
+            'One or more participant labels were not found in the BIDS directory: '
+            f'{missing_subjects_text}.'
         )
 
     if config.execution.session_label:

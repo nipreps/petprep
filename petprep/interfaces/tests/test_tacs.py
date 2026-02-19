@@ -161,7 +161,7 @@ def test_tacs_workflow(tmp_path):
     resampled_pet = tmp_path / 'pet_tacs_wf' / 'resample_pet' / 'pet_resampled.nii.gz'
     tac_inputs_file = tmp_path / 'pet_tacs_wf' / 'tac' / '_inputs.pklz'
     with gzip.open(tac_inputs_file, 'rb') as f:
-        inputs = pickle.load(f)
+        inputs = pickle.load(f)  # noqa: S301 - loading test-generated fixture data
 
     assert inputs['in_file'] == str(resampled_pet)
     assert Path(tmp_path / 'pet_tacs_wf' / 'tac' / 'pet_resampled_tacs.tsv').exists()

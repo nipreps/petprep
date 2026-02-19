@@ -172,7 +172,8 @@ def init_pet_wf(
     nvols, mem_gb = estimate_pet_mem_usage(pet_file)
 
     config.loggers.workflow.debug(
-        f'Creating pet processing workflow for <{pet_file}> ({mem_gb["filesize"]:.2f} GB / {nvols} frames). '
+        f'Creating pet processing workflow for <{pet_file}> '
+        f'({mem_gb["filesize"]:.2f} GB / {nvols} frames). '
         f'Memory resampled/largemem={mem_gb["resampled"]:.2f}/{mem_gb["largemem"]:.2f} GB.'
     )
 
@@ -412,9 +413,7 @@ configured with cubic B-spline interpolation.
             run_without_submitting=True,
         )
 
-        merge_cifti_meta = pe.Node(
-            DictMerge(), name='merge_cifti_meta', run_without_submitting=True
-        )
+        pe.Node(DictMerge(), name='merge_cifti_meta', run_without_submitting=True)
 
         workflow.connect([
             (pet_fit_wf, petref_t1w, [

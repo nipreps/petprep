@@ -61,7 +61,10 @@ class Binarise4DSegmentationOutputSpec(TraitedSpec):
     out_file = File(exists=True, desc='Output 4D binary segmentation file')
     label_list = traits.List(
         traits.Int,
-        desc='List of labels corresponding to the segmentation regions, including background as the first label',
+        desc=(
+            'List of labels corresponding to the segmentation regions, '
+            'including background as the first label'
+        ),
     )
 
 
@@ -340,14 +343,19 @@ class GTMPVCInputSpec(FSTraitedSpec):
 
     rbv_res = traits.Float(
         argstr='--rbv-res %f',
-        desc='voxsize : set RBV voxel resolution (good for when standard res takes too much memory)',
+        desc=(
+            'voxsize : set RBV voxel resolution (good for when standard res takes too much memory)'
+        ),
     )
 
     mg = traits.Tuple(
         traits.Float,
         traits.List(traits.String),
         argstr='--mg %g %s',
-        desc='gmthresh RefId1 RefId2 ...: perform Mueller-Gaertner PVC, gmthresh is min gm pvf bet 0 and 1',
+        desc=(
+            'gmthresh RefId1 RefId2 ...: perform Mueller-Gaertner PVC, '
+            'gmthresh is min gm pvf bet 0 and 1'
+        ),
     )
 
     mg_ref_cerebral_wm = traits.Bool(
@@ -379,7 +387,11 @@ class GTMPVCInputSpec(FSTraitedSpec):
         traits.Float,
         traits.Float,
         argstr='--ss %f %f %f',
-        desc='bpc scale dcf : steady-state analysis spec blood plasma concentration, unit scale and decay correction factor. You must also spec --km-ref. Turns off rescaling',
+        desc=(
+            'bpc scale dcf : steady-state analysis spec blood plasma concentration, '
+            'unit scale and decay correction factor. You must also spec --km-ref. '
+            'Turns off rescaling'
+        ),
     )
 
     X = traits.Bool(argstr='--X', desc='save X matrix in matlab4 format as X.mat (it will be big)')
@@ -437,7 +449,10 @@ class GTMPVCInputSpec(FSTraitedSpec):
         traits.Float,
         traits.Float,
         argstr='--opt-tol %i %f %f',
-        desc='n_iters_max ftol lin_min_tol : optimization parameters for adaptive gtm using fminsearch',
+        desc=(
+            'n_iters_max ftol lin_min_tol : optimization parameters for adaptive gtm '
+            'using fminsearch'
+        ),
     )
 
     opt_brain = traits.Bool(argstr='--opt-brain', desc='apply adaptive GTM')
@@ -499,7 +514,10 @@ class GTMPVCOutputSpec(TraitedSpec):
         desc='4D PET file with full FOV of signal estimate (yhat) after PVC (smoothed with PSF)',
     )
     yhat_with_noise = File(
-        desc='4D PET file with full FOV of signal estimate (yhat) with noise after PVC (smoothed with PSF)',
+        desc=(
+            '4D PET file with full FOV of signal estimate (yhat) with noise after PVC '
+            '(smoothed with PSF)'
+        ),
     )
 
 
@@ -538,7 +556,8 @@ class GTMPVC(FSCommand):
     >>> gtmpvc.inputs.pvc_dir = 'pvc'
     >>> gtmpvc.inputs.mg = (0.5, ["ROI1", "ROI2"])
     >>> gtmpvc.cmdline  # doctest: +NORMALIZE_WHITESPACE
-    'mri_gtmpvc --i sub-01_ses-baseline_pet.nii.gz --mg 0.5 ROI1 ROI2 --o pvc --regheader --seg gtmseg.mgz'
+    'mri_gtmpvc --i sub-01_ses-baseline_pet.nii.gz --mg 0.5 ROI1 ROI2 --o pvc '
+    '--regheader --seg gtmseg.mgz'
     """
 
     _cmd = 'mri_gtmpvc'

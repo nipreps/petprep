@@ -100,8 +100,10 @@ def build_workflow(config_file, retval):
             session_list=session_list,
         )
         if failed_reports:
+            failed_reports_text = ', '.join(failed_reports)
             config.loggers.cli.error(
-                f'Report generation was not successful for the following participants : {", ".join(failed_reports)}.'
+                'Report generation was not successful for the following participants : '
+                f'{failed_reports_text}.'
             )
 
         retval['return_code'] = len(failed_reports)
@@ -157,9 +159,8 @@ license file at several paths, in this order: 1) command line argument ``--fs-li
         return retval
 
     config.to_filename(config_file)
-    build_log.info(
-        f'PETPrep workflow graph with {len(retval["workflow"]._get_all_nodes())} nodes built successfully.'
-    )
+    node_count = len(retval['workflow']._get_all_nodes())
+    build_log.info(f'PETPrep workflow graph with {node_count} nodes built successfully.')
     retval['return_code'] = 0
     return retval
 

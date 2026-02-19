@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Interfaces for running a variety of FreeSurfer segmentation tools.
 
 This module wraps a number of FreeSurfer command line utilities used to
 generate region-of-interest segmentations. It also defines a small utility
 function used by the segmentation workflow.
 """
+
+from __future__ import annotations
 
 import os
 import subprocess
@@ -460,7 +460,10 @@ class SegStatsInputSpec(FSTraitedSpec):
     brainmask_file = File(
         argstr='--brainmask %s',
         exists=True,
-        desc='Load brain mask and compute the volume of the brain as the non-zero voxels in this volume',
+        desc=(
+            'Load brain mask and compute the volume of the brain as the non-zero voxels '
+            'in this volume'
+        ),
     )
     etiv = traits.Bool(argstr='--etiv', desc='Compute ICV from talairach transform')
     etiv_only = traits.Enum(
@@ -531,7 +534,8 @@ class SegStats(FSCommand):
     >>> ss.inputs.avgwf_txt_file = 'avgwf.txt'  # doctest: +SKIP
     >>> ss.inputs.summary_file = 'summary.stats'  # doctest: +SKIP
     >>> ss.cmdline  # doctest: +SKIP
-    'mri_segstats --annot PWS04 lh aparc --avgwf ./avgwf.txt --i functional.nii --sum ./summary.stats'
+    'mri_segstats --annot PWS04 lh aparc --avgwf ./avgwf.txt '
+    '--i functional.nii --sum ./summary.stats'
 
     """
 
@@ -551,11 +555,11 @@ class SegStats(FSCommand):
         else:
             outputs['ctab_out_file'] = os.path.join(os.getcwd(), 'ctab_out.ctab')
 
-        suffices = dict(
-            avgwf_txt_file='_avgwf.txt',
-            avgwf_file='_avgwf.nii.gz',
-            sf_avg_file='sfavg.txt',
-        )
+        suffices = {
+            'avgwf_txt_file': '_avgwf.txt',
+            'avgwf_file': '_avgwf.nii.gz',
+            'sf_avg_file': 'sfavg.txt',
+        }
         if isdefined(self.inputs.segmentation_file):
             _, src = os.path.split(self.inputs.segmentation_file)
         if isdefined(self.inputs.annot):

@@ -11,31 +11,19 @@ repos:
           bash -c '
           set -euo pipefail
 
-          if git rev-parse --verify "@{upstream}" >/dev/null 2>&1; then
-            base_ref="$(git merge-base HEAD @{upstream})"
-            mapfile -t py_files < <(git diff --name-only --diff-filter=ACMR "$base_ref" HEAD -- "*.py" "*.pyi")
-          else
-            mapfile -t py_files < <(git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- "*.py" "*.pyi" || true)
-          fi
-
-          if [ "${#py_files[@]}" -eq 0 ]; then
-            echo "No Python files changed in commits to push."
-            exit 0
-          fi
-
           if command -v tox >/dev/null 2>&1; then
-            tox -e style-fix -- "${py_files[@]}"
+            tox -e style-fix
           elif command -v uvx >/dev/null 2>&1; then
-            uvx --with tox-uv tox -e style-fix -- "${py_files[@]}"
+            uvx --with tox-uv tox -e style-fix
           elif command -v uv >/dev/null 2>&1; then
-            uv tool run --with tox-uv tox -e style-fix -- "${py_files[@]}"
+            uv tool run --with tox-uv tox -e style-fix
           else
             echo "tox not found. Install tox or uv first."
             exit 1
           fi
 
-          if ! git diff --quiet -- "${py_files[@]}"; then
-            git add -- "${py_files[@]}"
+          if ! git diff --quiet; then
+            git add -A
             git commit -m "STYLE: auto-fix before push"
             echo "Auto-fix commit created. Run git push again."
             exit 1

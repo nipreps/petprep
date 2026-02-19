@@ -129,7 +129,7 @@ class MotionPlot(SimpleInterface):
         try:
             mask_img = compute_epi_mask(img)
             mask_data = np.asanyarray(mask_img.dataobj) > 0
-        except Exception:
+        except (RuntimeError, ValueError):
             data = np.asanyarray(img.dataobj)
             positive = data[data > 0]
             if positive.size == 0:
@@ -145,7 +145,7 @@ class MotionPlot(SimpleInterface):
         coords = np.array(np.where(mask_data))
         start = coords.min(axis=1)
         end = coords.max(axis=1) + 1
-        return tuple(slice(int(s), int(e)) for s, e in zip(start, end))
+        return tuple(slice(int(s), int(e)) for s, e in zip(start, end, strict=False))
 
     def _largest_connected_component(self, mask_data: np.ndarray) -> np.ndarray:
         labeled, num = ndimage.label(mask_data)
@@ -430,7 +430,8 @@ class MotionPlot(SimpleInterface):
                     '    fdMarker.setAttribute("cy", point.getAttribute("cy"));',
                     '    if (fdValueLabel) {',
                     '      const value = parseFloat(point.dataset.value || "0");',
-                    '      fdValueLabel.textContent = `Frame ${index + 1}: ${value.toFixed(3)} mm`;',
+                    '      fdValueLabel.textContent = `Frame ${index + 1}: '
+                    '${value.toFixed(3)} mm`;',
                     '    }',
                     '  };',
                     '  const showFrame = (index) => {',
