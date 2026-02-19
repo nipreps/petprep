@@ -192,7 +192,7 @@ jobs:
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
       - name: Install tox
-        run: uv tool install tox --with=tox-uv
+        run: uv tool install tox --with=tox-uv --with=tox-gh-actions
       - name: Show tox config
         run: tox c -e ${{ matrix.check }}
       - name: Run check
