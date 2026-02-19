@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: tox-style-fix-pre-push
+        name: tox style-fix before push
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+        entry: >
+          bash -c 'tox -e style-fix &&
+          git diff --quiet ||
+          { echo "Style fixes were applied. Commit them, then push again."; exit 1; }'
