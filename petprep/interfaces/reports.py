@@ -32,7 +32,6 @@ from uuid import uuid4
 
 import nibabel as nb
 import numpy as np
-import svgutils.transform as svgt
 from nilearn import image as nlimage
 from nilearn.plotting import plot_anat
 from nipype.interfaces.base import (
@@ -46,6 +45,7 @@ from nipype.interfaces.base import (
     isdefined,
     traits,
 )
+from nireports._vendored.svgutils import transform as svgt
 from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
 from smriprep.interfaces.freesurfer import ReconAll
