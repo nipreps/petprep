@@ -7,7 +7,21 @@ repos:
         stages: [pre-push]
         always_run: true
         pass_filenames: false
-        entry: >
-          bash -c 'tox -e style-fix &&
-          git diff --quiet ||
-          { echo "Style fixes were applied. Commit them, then push again."; exit 1; }'
+        entry: |
+          bash -c '
+          if command -v tox >/dev/null 2>&1; then
+            tox -e style-fix
+          elif command -v uv >/dev/null 2>&1; then
+            uv run tox -e style-fix
+          else
+            echo "tox not found. Install dev dependencies first."
+            exit 1
+          fi
+
+          if ! git diff --quiet; then
+            git add -A
+            git commit -m "STYLE: auto-fix before push"
+            echo "Auto-fix commit created. Run git push again."
+            exit 1
+          fi
+          '
