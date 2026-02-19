@@ -9,12 +9,16 @@ repos:
         pass_filenames: false
         entry: |
           bash -c '
+          set -euo pipefail
+
           if command -v tox >/dev/null 2>&1; then
             tox -e style-fix
+          elif command -v uvx >/dev/null 2>&1; then
+            uvx --with tox-uv tox -e style-fix
           elif command -v uv >/dev/null 2>&1; then
-            uv run tox -e style-fix
+            uv tool run --with tox-uv tox -e style-fix
           else
-            echo "tox not found. Install dev dependencies first."
+            echo "tox not found. Install tox or uv first."
             exit 1
           fi
 
