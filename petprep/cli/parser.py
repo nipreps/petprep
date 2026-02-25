@@ -1065,7 +1065,43 @@ applied."""
         config.execution.run_label = sorted(set(config.execution.run_label))
         config.execution.bids_filters['pet']['run'] = config.execution.run_label
 
-    config.execution.participant_label = sorted(participant_label)
+    # Drop participants that do not have the required inputs before building workflows.
+    import copy
+
+    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES, collect_data
+
+    valid_participants = set(participant_label)
+    participants_missing_t1w = []
+    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+    queries['t1w'].pop('datatype', None)
+
+    for subject in sorted(participant_label):
+        subject_data = collect_data(
+            config.execution.bids_dir,
+            subject,
+            bids_filters=config.execution.bids_filters,
+            queries=queries,
+        )[0]
+
+        # When no anatomical derivatives are provided, PETPrep requires a structural T1w image.
+        if not config.execution.derivatives and not subject_data['t1w']:
+            participants_missing_t1w.append(subject)
+            valid_participants.discard(subject)
+
+    if participants_missing_t1w:
+        build_log.warning(
+            'Skipping participants without T1w structural MRI images: '
+            f'{", ".join(participants_missing_t1w)}.'
+        )
+
+    if not valid_participants:
+        parser.error(
+            'No participants have the required inputs for PETPrep. '
+            'Each selected participant must have a T1w image '
+            '(unless anatomical derivatives are provided).'
+        )
+
+    config.execution.participant_label = sorted(valid_participants)
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
 
     if config.execution.combine_runs:
