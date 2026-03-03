@@ -45,7 +45,11 @@ from nipype.interfaces.base import (
     isdefined,
     traits,
 )
-from nireports._vendored.svgutils import transform as svgt
+
+try:
+    from nireports._vendored.svgutils import transform as svgt
+except ModuleNotFoundError:  # nireports versions before vendoring svgutils
+    from svgutils import transform as svgt
 from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
 from nireports.tools.ndimage import rotate_affine, rotation2canonical
 from smriprep.interfaces.freesurfer import ReconAll
