@@ -20,7 +20,6 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
-from pathlib import Path
 
 import pytest
 
