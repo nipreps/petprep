@@ -1,6 +1,8 @@
 import sys
 import types
 
+import nibabel as nb
+import numpy as np
 import pytest
 
 from petprep.utils import atlas
@@ -47,24 +49,26 @@ def test_resolve_resource_package_and_file(tmp_path):
     assert resolved_file == str(file_path)
 
 
-def test_get_atlas_files_success(monkeypatch):
+def test_get_atlas_files_success(monkeypatch, tmp_path):
+    seg_file = tmp_path / 'seg.nii.gz'
+    labels_file = tmp_path / 'labels.tsv'
+    nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.uint8), affine=np.eye(4)).to_filename(seg_file)
+    labels_file.write_text('index\tname\n1\tone\n')
+
     config = {
         'Demo': {
             'template': 'MNI152NLin6Asym',
-            'segmentation': {'source': 'file', 'path': '/tmp/seg.nii.gz'},
-            'labels': {'source': 'file', 'path': '/tmp/labels.tsv'},
+            'segmentation': {'source': 'file', 'path': str(seg_file)},
+            'labels': {'source': 'file', 'path': str(labels_file)},
         }
     }
 
-    def fake_resolve(template, resource):
-        return f'{template}:{resource["path"]}'
-
     monkeypatch.setattr(atlas, 'load_atlas_config', lambda: config)
-    monkeypatch.setattr(atlas, '_resolve_resource', fake_resolve)
+    monkeypatch.setattr(atlas, '_materialize_resource', lambda path: path)
 
     seg, labels = atlas.get_atlas_files('Demo')
-    assert seg == 'MNI152NLin6Asym:/tmp/seg.nii.gz'
-    assert labels == 'MNI152NLin6Asym:/tmp/labels.tsv'
+    assert seg == str(seg_file)
+    assert labels == str(labels_file)
 
 
 def test_get_atlas_files_missing_entries(monkeypatch):
