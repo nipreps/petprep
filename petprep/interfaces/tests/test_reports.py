@@ -161,5 +161,5 @@ def test_atlas_rois_report(tmp_path):
         atlas_name='TestAtlas',
     )
     result = report.run(cwd=tmp_path)
-    #assert result.outputs.out_file
-    #assert Path(result.outputs.out_file).exists()
+    # assert result.outputs.out_file
+    # assert Path(result.outputs.out_file).exists()
