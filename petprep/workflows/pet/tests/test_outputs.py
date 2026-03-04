@@ -135,7 +135,9 @@ def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):
     assert 'atlas_overlay_report' in node_names
     assert 'ds_atlas_overlay' in node_names
 
-    edge = wf._graph.get_edge_data(wf.get_node('crop_petref_atlas'), wf.get_node('atlas_overlay_report'))
+    edge = wf._graph.get_edge_data(
+        wf.get_node('crop_petref_atlas'), wf.get_node('atlas_overlay_report')
+    )
     assert ('out_file', 'segmentation') in edge['connect']
 
     ds_refmask = wf.get_node('ds_pet_t1_refmask_report')
