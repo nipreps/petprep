@@ -91,3 +91,67 @@ def test_refmask_sources(tmp_path: Path):
         assert any('T1w' in src for src in sources)
         assert any('dseg' in src for src in sources)
         assert all('/pet/' not in src for src in sources)
+
+
+def test_prepare_timing_parameters_and_psf_metadata():
+    from nipype.interfaces.base import Undefined
+
+    from ..outputs import build_psf_dict, prepare_timing_parameters
+
+    timing = prepare_timing_parameters(
+        {
+            'VolumeTiming': [0, 10],
+            'AcquisitionDuration': [10, 10],
+            'InjectedRadioactivity': 120,
+            'InjectedRadioactivityUnits': 'MBq',
+            'Units': 'Bq/mL',
+        }
+    )
+    assert timing == {
+        'FrameTimesStart': [0, 10],
+        'FrameDuration': [10, 10],
+        'InjectedRadioactivity': 120,
+        'InjectedRadioactivityUnits': 'MBq',
+        'Units': 'Bq/mL',
+    }
+
+    assert build_psf_dict(3, 4.5, 5) == {'fwhm_x': 3.0, 'fwhm_y': 4.5, 'fwhm_z': 5.0}
+    assert build_psf_dict(Undefined, 4.5, 5) == {}
+    assert build_psf_dict(None, 4.5, 5) == {}
+
+
+def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):
+    from ..outputs import init_func_fit_reports_wf
+
+    wf = init_func_fit_reports_wf(
+        freesurfer=True,
+        output_dir=str(tmp_path / 'out'),
+        ref_name='cerebellum',
+        atlas_name='HOCPA',
+    )
+
+    node_names = wf.list_node_names()
+    assert 'ds_report_refmask' in node_names
+    assert 'atlas_overlay_report' in node_names
+    assert 'ds_atlas_overlay' in node_names
+
+    edge = wf._graph.get_edge_data(wf.get_node('crop_petref_atlas'), wf.get_node('atlas_overlay_report'))
+    assert ('out_file', 'segmentation') in edge['connect']
+
+    ds_refmask = wf.get_node('ds_pet_t1_refmask_report')
+    assert ds_refmask.inputs.label == 'cerebellum'
+
+
+def test_init_func_fit_reports_wf_without_optional_reports(tmp_path: Path):
+    from ..outputs import init_func_fit_reports_wf
+
+    wf = init_func_fit_reports_wf(
+        freesurfer=False,
+        output_dir=str(tmp_path / 'out'),
+        ref_name='',
+        atlas_name=None,
+    )
+
+    node_names = wf.list_node_names()
+    assert 'ds_report_refmask' not in node_names
+    assert 'atlas_overlay_report' not in node_names

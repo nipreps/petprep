@@ -522,3 +522,27 @@ def test_hmc_off_flag(tmp_path):
 
     opts = parser.parse_args(base_args + ['--hmc-off'])
     assert opts.hmc_off is True
+
+
+def test_atlas_seg_adds_template_output_space(tmp_path, minimal_bids):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+
+    try:
+        parse_args(
+            args=[
+                str(minimal_bids),
+                str(out_dir),
+                'participant',
+                '--seg',
+                'HOCPA',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        refs = config.execution.output_spaces.references
+        assert any(ref.space == 'MNI152NLin6Asym' for ref in refs)
+    finally:
+        _reset_config()
