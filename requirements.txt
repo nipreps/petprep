@@ -180,6 +180,7 @@ looseversion==1.3.0
 lxml==5.3.1
     # via
     #   nilearn
+    #   nipype
     #   prov
     #   svgutils
 mapca==0.0.5
@@ -230,7 +231,7 @@ nilearn==0.11.1
     #   nireports
     #   niworkflows
     #   tedana
-nipype==1.9.2
+nipype==1.11.0
     # via
     #   petprep (pyproject.toml)
     #   nireports
@@ -244,7 +245,7 @@ nitransforms==24.1.1
     # via
     #   petprep (pyproject.toml)
     #   niworkflows
-niworkflows==1.14.3
+niworkflows==1.14.4
     # via
     #   petprep (pyproject.toml)
     #   smriprep
