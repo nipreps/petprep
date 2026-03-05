@@ -5,6 +5,7 @@ import nitransforms as nt
 import numpy as np
 import pytest
 import yaml
+from nipype.interfaces.base import Undefined
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
@@ -12,7 +13,18 @@ from .... import config, data
 from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
-from ..fit import _extract_twa_image, init_pet_fit_wf, init_pet_native_wf
+from ..fit import (
+    _construct_nu_path,
+    _detect_large_pet_mask,
+    _extract_first5min_image,
+    _extract_sum_image,
+    _extract_twa_image,
+    _select_anatomical_reference,
+    _select_best_petref,
+    _write_identity_xforms,
+    init_pet_fit_wf,
+    init_pet_native_wf,
+)
 from ..outputs import init_refmask_report_wf
 
 
@@ -176,20 +188,112 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     assert ('out', 'inputnode.petmask') in ds_edge['connect']
 
 
-def test_petref_report_connections(bids_root: Path, tmp_path: Path):
-    """Ensure the PET reference is passed to the reports workflow."""
-    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+def test_reports_use_motion_corrected_average(bids_root: Path, tmp_path: Path):
+    """Co-registration report should show the motion corrected time-weighted average."""
 
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 2.0)), axis=-1)
+    img = nb.Nifti1Image(data, np.eye(4))
     for path in pet_series:
         img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}')
 
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
-    petref_buffer = wf.get_node('petref_buffer')
-    edge = wf._graph.get_edge_data(petref_buffer, wf.get_node('func_fit_reports_wf'))
-    assert ('petref', 'inputnode.petref') in edge['connect']
+    assert 'report_petref' in wf.list_node_names()
+    reports_node = wf.get_node('func_fit_reports_wf')
+    report_petref = wf.get_node('report_petref')
+    edge = wf._graph.get_edge_data(report_petref, reports_node)
+    assert ('out_file', 'inputnode.report_pet') in edge['connect']
+
+
+def test_reference_extraction_helpers(tmp_path: Path):
+    pet_4d = tmp_path / 'pet.nii.gz'
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 2.0)), axis=-1)
+    nb.Nifti1Image(data, np.eye(4)).to_filename(pet_4d)
+
+    sidecar = {'FrameTimesStart': [0.0, 60.0], 'FrameDuration': [60.0, 60.0]}
+    out = _extract_twa_image(
+        str(pet_4d), tmp_path, sidecar['FrameTimesStart'], sidecar['FrameDuration']
+    )
+    assert Path(out).name.endswith('_timeavgref.nii.gz')
+    img = nb.load(out)
+    assert img.shape == (2, 2, 2)
+    assert np.allclose(img.get_fdata(), 1.5)
+
+    sum_out = _extract_sum_image(str(pet_4d), tmp_path)
+    assert Path(sum_out).name.endswith('_sumref.nii.gz')
+    sum_img = nb.load(sum_out)
+    assert np.allclose(sum_img.get_fdata(), 3.0)
+
+    first5 = _extract_first5min_image(
+        str(pet_4d),
+        tmp_path,
+        sidecar['FrameTimesStart'],
+        sidecar['FrameDuration'],
+        window_sec=30.0,
+    )
+    assert Path(first5).name.endswith('_first5minref.nii.gz')
+    first_img = nb.load(first5)
+    # Only the first frame overlaps the 30s window
+    assert np.allclose(first_img.get_fdata(), 1.0)
+
+    with pytest.raises(ValueError):
+        _extract_twa_image(str(pet_4d), tmp_path, None, None)
+    with pytest.raises(ValueError):
+        _extract_first5min_image(str(pet_4d), tmp_path, [0.0], [1.0], window_sec=-1)
+
+
+def test_petref_default_twa_when_hmc_disabled(bids_root: Path, tmp_path: Path):
+    """Disabling HMC should fall back to TWA references and note it in reports."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 2.0)), axis=-1)
+    img = nb.Nifti1Image(data, np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}')
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = True
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    assert 'twa_reference' in wf.list_node_names()
+
+    summary = wf.get_node('summary')
+    assert summary.inputs.petref_strategy == 'twa'
+    assert summary.inputs.requested_petref_strategy == 'template'
+    assert summary.inputs.requested_anatref == 'auto'
+    assert summary.inputs.hmc_disabled is True
+
+
+def test_pet_reference_utilities(tmp_path: Path):
+    labels = ['template', 'twa', 'sum']
+    scores = [0.5, None, 0.25]
+    transforms = ['ants', 'fs', 'fs']
+    inv_transforms = ['ants_inv', 'fs_inv', 'fs_inv']
+    winners = ['ants', 'fs', 'fs']
+    petrefs = ['tpl.nii.gz', 'twa.nii.gz', 'sum.nii.gz']
+    selection = _select_best_petref(labels, scores, transforms, inv_transforms, winners, petrefs)
+    assert selection[0] == 'sum'
+    assert selection[1] == 0.25
+
+    with pytest.raises(ValueError):
+        _select_best_petref([], [], [], [], [], [])
+    with pytest.raises(ValueError):
+        _select_best_petref(['a'], [None], ['x'], ['y'], ['w'], ['z'])
+
+    xform_file = _write_identity_xforms(2, tmp_path / 'xfms' / 'itk.txt')
+    assert xform_file.exists()
+
+    nu_path = _construct_nu_path('/subjects', 'sub-01')
+    assert nu_path.endswith('sub-01/mri/nu.mgz')
 
 
 @pytest.mark.parametrize('pvc_method', [None, 'gtm'])
@@ -288,6 +392,73 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
 
 
+def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
+    """Robust PET-to-anatomical registration swaps in mri_robust_register."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_method = 'robust'
+        config.workflow.pet2anat_dof = 6
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf.mri_robust_register' in node_names
+    assert 'pet_reg_wf.mri_coreg' not in node_names
+    assert 'pet_reg_wf.ants_registration' not in node_names
+
+
+def test_init_pet_fit_wf_ants_registration(bids_root: Path, tmp_path: Path):
+    """Test PET fit workflow with ANTs registration."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_method = 'ants'
+        config.workflow.pet2anat_dof = 6
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf.ants_registration' in node_names
+    assert 'pet_reg_wf.mri_coreg' not in node_names
+    assert 'pet_reg_wf.mri_robust_register' not in node_names
+
+
+def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
+    """Auto PET-to-anatomical registration runs and scores both branches."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_method = 'auto'
+        config.workflow.pet2anat_dof = 6
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf.ants_registration' in node_names
+    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert 'pet_reg_wf.select_best' in node_names
+    assert 'pet_reg_wf.score_ants' in node_names
+    assert 'pet_reg_wf.score_fs' in node_names
+    assert 'pet_reg_wf.warp_pet_ants' in node_names
+    assert 'pet_reg_wf.warp_pet_fs' in node_names
+
+
 def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
     """Supplying only one of petref or HMC transforms should raise an error."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
@@ -349,6 +520,50 @@ def test_pet_fit_stage1_with_cached_baseline(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
+
+
+def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tmp_path: Path):
+    """Explicit default CLI flags should also ignore cached transforms."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    deriv_root = tmp_path / 'derivs'
+    petref = deriv_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_desc-hmc_petref.nii.gz'
+    hmc_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-orig_to-petref_mode-image_xfm.txt'
+    )
+    petref2anat_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-petref_to-anat_mode-image_xfm.txt'
+    )
+
+    petref.parent.mkdir(parents=True)
+    img.to_filename(petref)
+    np.savetxt(hmc_xfm, np.eye(4))
+    np.savetxt(petref2anat_xfm, np.eye(4))
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    entities = bids.extract_entities(pet_series)
+    precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref_specified = True
+        config.workflow.pet2anat_method_specified = True
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
@@ -416,6 +631,88 @@ def test_extract_twa_image_validation(
         )
 
 
+def test_extract_sum_image(tmp_path: Path):
+    """Summed references are written out with the expected contents."""
+
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 3.0)), axis=-1)
+    pet_img = nb.Nifti1Image(data.astype(np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    pet_img.to_filename(pet_file)
+
+    out_file = _extract_sum_image(str(pet_file), tmp_path / 'out')
+
+    summed = nb.load(out_file).get_fdata()
+    assert np.allclose(summed, 4.0)
+    assert Path(out_file).name == 'pet_sumref.nii.gz'
+
+    # 3D inputs should round-trip without creating a new file
+    pet_3d = tmp_path / 'pet3d.nii.gz'
+    nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(pet_3d)
+    assert _extract_sum_image(str(pet_3d), tmp_path / 'out') == str(pet_3d)
+
+
+def test_extract_first5min_image(tmp_path: Path):
+    """Early reference averages only the first 5 minutes of data."""
+
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 3.0)), axis=-1)
+    pet_img = nb.Nifti1Image(data.astype(np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    pet_img.to_filename(pet_file)
+
+    out_file = _extract_first5min_image(
+        str(pet_file),
+        tmp_path / 'out',
+        frame_start_times=[0, 400],
+        frame_durations=[400, 200],
+    )
+
+    averaged = nb.load(out_file).get_fdata()
+    expected = (1.0 * 300 + 3.0 * 0) / 300
+    assert np.allclose(averaged, expected)
+    assert Path(out_file).name == 'pet_first5minref.nii.gz'
+
+
+def test_extract_first5min_image_fallback_first_frame(tmp_path: Path):
+    """If early frames are missing, fall back to the first frame."""
+
+    data = np.stack((np.ones((2, 2, 2)), np.full((2, 2, 2), 5.0)), axis=-1)
+    pet_img = nb.Nifti1Image(data.astype(np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    pet_img.to_filename(pet_file)
+
+    out_file = _extract_first5min_image(
+        str(pet_file),
+        tmp_path / 'out',
+        frame_start_times=[600, 1200],
+        frame_durations=[600, 600],
+        fallback_to_first_frame=True,
+    )
+
+    averaged = nb.load(out_file).get_fdata()
+    assert np.allclose(averaged, 1.0)
+    assert Path(out_file).name == 'pet_first5minref.nii.gz'
+
+
+def test_report_petref_receives_frame_metadata(bids_root: Path, tmp_path: Path):
+    """Report reference node always receives timing metadata."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'sum'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    report_petref = wf.get_node('report_petref')
+    assert report_petref.inputs.frame_start_times == [0, 1]
+    assert report_petref.inputs.frame_durations == [1, 1]
+
+
 def test_pet_fit_hmc_off_ignores_precomputed(bids_root: Path, tmp_path: Path):
     """Precomputed derivatives are ignored when ``--hmc-off`` is set."""
 
@@ -451,6 +748,153 @@ def test_pet_fit_hmc_off_ignores_precomputed(bids_root: Path, tmp_path: Path):
     assert Path(petref_buffer.inputs.petref).name.endswith('_timeavgref.nii.gz')
     assert hmc_buffer.inputs.hmc_xforms != str(precomputed_hmc)
     assert Path(hmc_buffer.inputs.hmc_xforms).name == 'idmat.tfm'
+
+
+def test_pet_fit_picks_single_precomputed_derivative(bids_root: Path, tmp_path: Path):
+    """When multiple cached derivatives are present, pick the first one."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}')
+
+    petrefs = [tmp_path / 'petref_a.nii.gz', tmp_path / 'petref_b.nii.gz']
+    hmc_list = [tmp_path / 'hmc_a.txt', tmp_path / 'hmc_b.txt']
+    petref2anat_list = [tmp_path / 'petref2anat_a.txt', tmp_path / 'petref2anat_b.txt']
+
+    for path in petrefs:
+        img.to_filename(path)
+    for path in hmc_list + petref2anat_list:
+        np.savetxt(path, np.eye(4))
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={
+                'petref': [str(p) for p in petrefs],
+                'transforms': {
+                    'hmc': [str(p) for p in hmc_list],
+                    'petref2anat': [str(p) for p in petref2anat_list],
+                },
+            },
+            omp_nthreads=1,
+        )
+
+    petref_buffer = wf.get_node('petref_buffer')
+    hmc_buffer = wf.get_node('hmc_buffer')
+    outputnode = wf.get_node('outputnode')
+
+    assert petref_buffer.inputs.petref == str(petrefs[0])
+    assert hmc_buffer.inputs.hmc_xforms == str(hmc_list[0])
+    assert outputnode.inputs.petref2anat_xfm == str(petref2anat_list[0])
+
+
+def test_write_identity_xforms_minimum(tmp_path: Path):
+    """At least one identity transform should always be written."""
+
+    xfm_file = _write_identity_xforms(0, tmp_path / 'idmat.tfm')
+
+    xforms = nt.linear.load(xfm_file)
+    matrices = np.asarray(xforms.matrix)
+    if matrices.ndim == 2:
+        matrices = matrices[np.newaxis, ...]
+
+    assert matrices.shape[0] == 1
+    assert np.allclose(matrices[0], np.eye(4))
+
+
+def test_select_anatomical_reference_prefers_nu(tmp_path: Path):
+    """Selecting ``anatref='nu'`` should return the FreeSurfer nu image when present."""
+
+    t1 = tmp_path / 't1.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(t1)
+
+    nu = tmp_path / 'nu.mgz'
+    nb.MGHImage(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(nu)
+
+    selected, label = _select_anatomical_reference('nu', str(t1), str(nu), False)
+
+    assert label == 'nu'
+    assert selected == str(nu)
+
+
+def test_select_anatomical_reference_fallback(tmp_path: Path):
+    """When ``anatref`` is ``'auto'`` and nu.mgz is missing, keep the T1w reference."""
+
+    t1 = tmp_path / 't1.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(t1)
+
+    selected, label = _select_anatomical_reference(
+        'auto', str(t1), str(tmp_path / 'missing.mgz'), True
+    )
+
+    assert label == 't1w'
+    assert selected == str(t1)
+
+
+def test_detect_large_pet_mask(tmp_path: Path):
+    """PET masks substantially larger than the anatomical mask trigger a recommendation."""
+
+    pet_mask = tmp_path / 'pet_mask.nii.gz'
+    nb.Nifti1Image(np.ones((4, 4, 4), dtype=np.uint8), np.eye(4)).to_filename(pet_mask)
+
+    t1_mask = tmp_path / 't1_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(t1_mask)
+
+    use_nu, ratio, pet_vol, t1_vol = _detect_large_pet_mask(str(pet_mask), str(t1_mask))
+
+    assert use_nu is True
+    assert ratio > 1.5
+    assert pet_vol > t1_vol
+
+
+def test_detect_large_pet_mask_within_threshold(tmp_path: Path):
+    """Ratios below the threshold should not recommend switching references."""
+
+    pet_mask = tmp_path / 'pet_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(pet_mask)
+
+    t1_mask = tmp_path / 't1_mask.nii.gz'
+    nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.uint8), np.eye(4)).to_filename(t1_mask)
+
+    use_nu, ratio, pet_vol, t1_vol = _detect_large_pet_mask(str(pet_mask), str(t1_mask))
+
+    assert use_nu is False
+    assert ratio == pytest.approx(1.0)
+    assert pet_vol == pytest.approx(t1_vol)
+
+
+def test_construct_nu_path_generates_expected_location():
+    """``nu.mgz`` paths should be constructed in the standard FreeSurfer layout."""
+
+    path = _construct_nu_path('/opt/freesurfer/subjects', 'sub-01')
+    assert path.endswith('/opt/freesurfer/subjects/sub-01/mri/nu.mgz')
+
+
+def test_volume_ratio_forwarded_to_summary(bids_root: Path, tmp_path: Path):
+    """The PET/T1w volume ratio should flow into the report summary node."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    detect_large_mask = wf.get_node('detect_large_mask')
+    summary = wf.get_node('summary')
+
+    edge = wf._graph.get_edge_data(detect_large_mask, summary)
+    assert ('volume_ratio', 'volume_ratio') in edge['connect']
+    assert detect_large_mask.inputs.volume_ratio_threshold == 1.5
 
 
 def test_init_refmask_report_wf(tmp_path: Path):
