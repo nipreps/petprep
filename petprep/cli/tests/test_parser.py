@@ -140,6 +140,17 @@ def test_get_parser_blacklist(monkeypatch, capsys, flagged):
         assert (flagged[1] or 'reason: unknown') in captured
 
 
+def test_default_pet_selection_options(tmp_path):
+    """Ensure robust automatic PET reference and registration are defaults."""
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+
+    opts = _build_parser().parse_args([str(datapath)] + MIN_ARGS[1:])
+
+    assert opts.petref == 'auto'
+    assert opts.pet2anat_method == 'auto'
+
+
 def test_parse_args(tmp_path, minimal_bids):
     """Basic smoke test showing that our parse_args() function
     implements the BIDS App protocol"""

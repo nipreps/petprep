@@ -236,7 +236,9 @@ dynamic PET series. Each strategy uses the frame timing metadata from
 ``FrameTimesStart`` and ``FrameDuration`` to weight volumes; missing metadata
 will raise an error before preprocessing starts.
 
-* ``template`` (default) reuses the motion-correction template, providing a
+* ``auto`` (default) builds candidate references, runs PET-to-T1w registration
+  for each, and keeps whichever option scores best for anatomical alignment.
+* ``template`` reuses the motion-correction template, providing a
   consistent target for downstream registration. When :option:`--hmc-off`
   disables motion correction, requesting ``template`` automatically falls back
   to ``twa`` with a warning.
@@ -247,9 +249,6 @@ will raise an error before preprocessing starts.
   uptake. When using the automatic PET reference selection, the workflow will
   fall back to the first frame if no frames overlap the initial 5-minute
   window.
-* ``auto`` builds all of the above candidates, runs
-  PET-to-T1w registrations for each, and keeps whichever option scores best for
-  anatomical alignment. 
 
 Anatomical reference selection
 ------------------------------
@@ -267,8 +266,9 @@ Anatomical co-registration
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
 deriving downstream outputs. The anatomical image is first trimmed with
 FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration to brain voxels. Choose
-the registration backend with :option:`--pet2anat-method`: ``mri_coreg``
-(default FreeSurfer co-registration), ``robust`` (FreeSurfer
+the registration backend with :option:`--pet2anat-method`: ``auto``
+(default; runs both FreeSurfer and ANTs and selects the better result),
+``mri_coreg`` (FreeSurfer co-registration), ``robust`` (FreeSurfer
 ``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid
 registration that consumes the unmasked T1w and a separate mask). The
 :option:`--pet2anat-dof` flag controls the degrees of freedom; ``robust`` and
