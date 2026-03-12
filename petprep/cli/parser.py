@@ -629,7 +629,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
             "motion correction template, while 'twa' computes a time-weighted "
             "average, 'sum' produces a summed image of the motion-corrected "
             "series, and 'first5min' averages the early (0-5 minute) portion "
-            "of the acquisition."
+            'of the acquisition.'
         ),
     )
 
