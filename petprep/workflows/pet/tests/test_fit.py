@@ -557,6 +557,8 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.pet2anat_method = 'mri_coreg'
         config.workflow.petref_specified = True
         config.workflow.pet2anat_method_specified = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
