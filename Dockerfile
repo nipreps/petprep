@@ -41,7 +41,20 @@ ENV MAMBA_ROOT_PREFIX="/opt/conda"
 COPY env.yml /tmp/env.yml
 COPY requirements.txt /tmp/requirements.txt
 WORKDIR /tmp
-RUN micromamba create -y -f /tmp/env.yml && \
+RUN set -eux; \
+    attempts=5; \
+    for attempt in $(seq 1 "$attempts"); do \
+        if micromamba create -y -f /tmp/env.yml; then \
+            break; \
+        fi; \
+        if [ "$attempt" -eq "$attempts" ]; then \
+            echo "micromamba create failed after ${attempts} attempts" >&2; \
+            exit 1; \
+        fi; \
+        sleep_time=$((attempt * 5)); \
+        echo "micromamba create failed (attempt ${attempt}/${attempts}), retrying in ${sleep_time}s" >&2; \
+        sleep "$sleep_time"; \
+    done; \
     micromamba clean -y -a
 
 # UV_USE_IO_URING for apparent race-condition (https://github.com/nodejs/node/issues/48444)
