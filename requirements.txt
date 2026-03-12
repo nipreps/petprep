@@ -457,7 +457,7 @@ svgutils==0.3.4
     #   niworkflows
 tedana==23.0.2
     # via petprep (pyproject.toml)
-templateflow==25.1.2
+templateflow @ git+https://github.com/templateflow/python-client.git@27f5a96ff70a0a8bc43bd1985dbb53ea42d836de
     # via
     #   petprep (pyproject.toml)
     #   nireports
