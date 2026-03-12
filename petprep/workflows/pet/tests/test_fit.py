@@ -564,7 +564,7 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert any(name.endswith('.mri_coreg') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
