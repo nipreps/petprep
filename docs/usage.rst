@@ -30,6 +30,23 @@ Example: ::
 Further information about BIDS and BIDS-Apps can be found at the
 `NiPreps portal <https://www.nipreps.org/apps/framework/>`__.
 
+Combining multiple PET runs within a session
+--------------------------------------------
+Some PET datasets include multiple ``run`` acquisitions for the same
+``subject``/``session``/``task``/``tracer`` combination (for example, for long 
+scans where the subject is in and out of the scanner). When the runs belong 
+together, add :option:`--combine-runs` to
+have *PETPrep* concatenate them before building the preprocessing workflow.
+
+Enabling :option:`--combine-runs` instructs *PETPrep* to create a temporary,
+run-less copy of the BIDS tree in the working directory. For each group of runs
+sharing the same non-run entities, PET images are concatenated along the final
+dimension when they contain multiple frames (or along the volume dimension for
+static images). Frame timing metadata from the individual sidecar JSON files is
+merged with adjusted offsets, and the combined image and metadata are written
+without the ``run`` entity in their filenames. Subsequent preprocessing then
+operates on these merged series rather than the original per-run inputs.
+
 Command-Line Arguments
 ----------------------
 .. argparse::
@@ -211,16 +228,53 @@ Examples: ::
     $ petprep /data/bids_root /out participant --hmc-init-frame 10 --hmc-init-frame-fix
     $ petprep /data/bids_root /out participant --hmc-off
 
+
+PET reference image selection
+-------------------------
+Use :option:`--petref` to control how the reference volume is built from the
+dynamic PET series. Each strategy uses the frame timing metadata from
+``FrameTimesStart`` and ``FrameDuration`` to weight volumes; missing metadata
+will raise an error before preprocessing starts.
+
+* ``template`` (default) reuses the motion-correction template, providing a
+  consistent target for downstream registration. When :option:`--hmc-off`
+  disables motion correction, requesting ``template`` automatically falls back
+  to ``twa`` with a warning.
+* ``twa`` computes a time-weighted average, which often emphasizes later frames with
+  higher counts and longer durations.
+* ``sum`` produces a straightforward summed image.
+* ``first5min`` averages only the first 5 minutes of PET data to capture perfusion-like
+  uptake. When using the automatic PET reference selection, the workflow will
+  fall back to the first frame if no frames overlap the initial 5-minute
+  window.
+* ``auto`` builds all of the above candidates, runs
+  PET-to-T1w registrations for each, and keeps whichever option scores best for
+  anatomical alignment. 
+
+Anatomical reference selection
+------------------------------
+PETPrep uses an anatomical reference when registering PET data to the structural
+image. By default, :option:`--anatref auto` inspects the PET-derived brain mask
+volume relative to the anatomical mask. The workflow relies on the preprocessed
+T1w image unless the PET mask is substantially larger than expected
+(volume ratio > 1.5), in which case it automatically switches to the
+non-uniformity corrected ``nu.mgz`` volume produced by FreeSurfer to improve
+co-registration robustness. You can force either option with
+:option:`--anatref t1w` or :option:`--anatref nu`.
+
 Anatomical co-registration
 --------------------------
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
-deriving downstream outputs. By default, FreeSurfer's ``mri_coreg`` performs
-the alignment, with the :option:`--pet2anat-dof` flag controlling the degrees
-of freedom (rigid-body, 6 dof, is the default). When working with low
-signal-to-noise references or challenging anatomy, the
-:option:`--pet2anat-robust` flag enables ``mri_robust_register`` with an NMI
-cost function to improve robustness. This mode is restricted to rigid-body
-alignment and therefore requires ``--pet2anat-dof 6``.
+deriving downstream outputs. The anatomical image is first trimmed with
+FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration to brain voxels. Choose
+the registration backend with :option:`--pet2anat-method`: ``mri_coreg``
+(default FreeSurfer co-registration), ``robust`` (FreeSurfer
+``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid
+registration that consumes the unmasked T1w and a separate mask). The
+:option:`--pet2anat-dof` flag controls the degrees of freedom; ``robust`` and
+``ants`` are limited to rigid-body alignment and therefore require
+``--pet2anat-dof 6``. All modes emit paired ITK transforms for reuse in later
+resampling steps.
 
 Segmentation
 ----------------
