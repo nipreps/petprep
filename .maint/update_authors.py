@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 # vi: set ft=python sts=4 ts=4 sw=4 et:
 #
@@ -215,8 +216,9 @@ def zenodo(
 
     missing = {*miss_creators} & {*miss_contributors}
     if missing:
+        missing_list = ', '.join(sorted(missing))
         print(
-            f'Some people made commits, but are missing in .maint/ files: {", ".join(sorted(missing))}.',
+            f'Some people made commits, but are missing in .maint/ files: {missing_list}.',
             file=sys.stderr,
         )
 

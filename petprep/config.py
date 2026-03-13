@@ -571,7 +571,10 @@ class workflow(_Config):
     anatref: str = 'auto'
     """Anatomical reference for PET-to-T1w registration (``'t1w'``, ``'nu'``, or ``'auto'``)."""
     petref: str = 'template'
-    """Strategy for building the PET reference (``'template'``, ``'twa'``, ``'sum'``, ``'first5min'`` or ``'auto'``)."""
+    """Strategy for building the PET reference.
+
+    Allowed values are ``'template'``, ``'twa'``, ``'sum'``, ``'first5min'``, or ``'auto'``.
+    """
     petref_specified: bool = False
     """Flag indicating whether ``--petref`` was explicitly provided."""
     cifti_output = None

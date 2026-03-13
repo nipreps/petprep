@@ -815,7 +815,11 @@ def init_pet_fit_wf(
                 (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
                 (corrected_pet_for_report, reference_nodes['twa'], [('out_file', 'pet_file')]),
                 (corrected_pet_for_report, reference_nodes['sum'], [('out_file', 'pet_file')]),
-                (corrected_pet_for_report, reference_nodes['first5min'], [('out_file', 'pet_file')]),
+                (
+                    corrected_pet_for_report,
+                    reference_nodes['first5min'],
+                    [('out_file', 'pet_file')],
+                ),
                 (reference_nodes['twa'], petref_candidates, [('out_file', 'twa')]),
                 (reference_nodes['sum'], petref_candidates, [('out_file', 'sum')]),
                 (reference_nodes['first5min'], petref_candidates, [('out_file', 'first5min')]),
@@ -849,7 +853,11 @@ def init_pet_fit_wf(
                 (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
                 (corrected_pet_for_report, reference_nodes['twa'], [('out_file', 'pet_file')]),
                 (corrected_pet_for_report, reference_nodes['sum'], [('out_file', 'pet_file')]),
-                (corrected_pet_for_report, reference_nodes['first5min'], [('out_file', 'pet_file')]),
+                (
+                    corrected_pet_for_report,
+                    reference_nodes['first5min'],
+                    [('out_file', 'pet_file')],
+                ),
                 (reference_nodes['twa'], petref_candidates, [('out_file', 'twa')]),
                 (reference_nodes['sum'], petref_candidates, [('out_file', 'sum')]),
                 (reference_nodes['first5min'], petref_candidates, [('out_file', 'first5min')]),
@@ -967,9 +975,6 @@ def init_pet_fit_wf(
 
     # Stage 3: Coregistration
 
-    pet_to_t1_source = None
-    pet_to_t1_field = None
-
     if not petref2anat_xform:
         config.loggers.workflow.info('PET Stage 3: Adding co-registration workflow of PET to T1w')
 
@@ -1059,8 +1064,6 @@ def init_pet_fit_wf(
                 (select_best_ref, summary, [('best_label', 'petref_strategy')]),
             ])  # fmt:skip
 
-            pet_to_t1_source = select_best_ref
-            pet_to_t1_field = 'best_transform'
         else:
             # calculate PET registration to T1w
             pet_reg_wf = init_pet_reg_wf(
@@ -1092,8 +1095,6 @@ def init_pet_fit_wf(
                 (pet_reg_wf, summary, [('outputnode.registration_winner', 'registration_winner')]),
             ])  # fmt:skip
 
-            pet_to_t1_source = pet_reg_wf
-            pet_to_t1_field = 'outputnode.itk_pet_to_t1'
     else:
         config.loggers.workflow.info('PET Stage 3: Found PET-to-T1w transform - skipping Stage 3')
         outputnode.inputs.petref2anat_xfm = petref2anat_xform

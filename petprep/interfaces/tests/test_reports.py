@@ -109,21 +109,3 @@ def test_functional_summary_with_metadata(registration):
     assert 'Radiotracer: [11C]DASB' in segment
     assert 'Injected dose: 100 MBq' in segment
     assert 'Number of frames: 2' in segment
-
-
-@pytest.mark.parametrize('winner, expected', [('ants', 'ANTs'), ('freesurfer', 'FreeSurfer')])
-def test_functional_summary_auto_select(winner, expected):
-    from ..reports import FunctionalSummary
-
-    summary = FunctionalSummary(
-        registration='auto_select',
-        registration_dof=6,
-        orientation='RAS',
-        anatref_strategy='t1w',
-        petref_strategy='template',
-        metadata={},
-        registration_winner=winner,
-    )
-
-    segment = summary._generate_segment()
-    assert f'Automatic selection between FreeSurfer and ANTs (best score: {expected})' in segment

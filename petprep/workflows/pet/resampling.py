@@ -508,7 +508,11 @@ def init_pet_grayords_wf(
             :simple_form: yes
 
             from petprep.workflows.pet.resampling import init_pet_grayords_wf
-            wf = init_pet_grayords_wf(mem_gb=0.1, grayord_density="91k", metadata={"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]})
+            wf = init_pet_grayords_wf(
+                mem_gb=0.1,
+                grayord_density="91k",
+                metadata={"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]},
+            )
 
     Parameters
     ----------

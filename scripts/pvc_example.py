@@ -12,7 +12,7 @@ import nipype.pipeline.engine as pe
 from petprep.workflows.pet_pvc import init_pet_pvc_wf
 
 
-def test_pet_pvc_workflow(tool='PETPVC', method='GTM'):
+def run_pet_pvc_workflow(tool: str, method: str):
     workflow = pe.Workflow(name=f'test_{tool.lower()}_{method.lower()}_workflow')
 
     inputnode = pe.Node(
@@ -49,9 +49,18 @@ def test_pet_pvc_workflow(tool='PETPVC', method='GTM'):
     )
 
     # Define inputs
-    workflow.inputs.inputnode.pet_file = '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/sub-010_ses-baseline_space-T1w_desc-preproc_pet.nii.gz'
-    workflow.inputs.inputnode.petref = '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/sub-010_ses-baseline_space-T1w_petref.nii.gz'
-    workflow.inputs.inputnode.segmentation = '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/sub-010_ses-baseline_desc-gtm_dseg.nii.gz'
+    workflow.inputs.inputnode.pet_file = (
+        '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/'
+        'sub-010_ses-baseline_space-T1w_desc-preproc_pet.nii.gz'
+    )
+    workflow.inputs.inputnode.petref = (
+        '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/'
+        'sub-010_ses-baseline_space-T1w_petref.nii.gz'
+    )
+    workflow.inputs.inputnode.segmentation = (
+        '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/'
+        'sub-010_ses-baseline_desc-gtm_dseg.nii.gz'
+    )
     workflow.inputs.inputnode.t1w_tpms = [
         '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/sub-010_ses-baseline_label-GM_probseg.nii.gz',
         '/Users/martinnorgaard/Dropbox/Mac/Desktop/ses-baseline/test_pvc/sub-010_ses-baseline_label-WM_probseg.nii.gz',
@@ -67,4 +76,4 @@ def test_pet_pvc_workflow(tool='PETPVC', method='GTM'):
 
 
 # Example usage:
-test_pet_pvc_workflow(tool='petsurfer', method='GTM')
+run_pet_pvc_workflow(tool='petsurfer', method='GTM')
