@@ -291,7 +291,7 @@ To run the segmentation with the default ``gtm`` method, use: ::
 Atlas Segmentation
 --------------------
 
-PetPrep currently supports three atlases: 
+PETPrep currently supports three atlases: 
 
 ``HOCPA`` : the Harvard-Oxford cortical and subcortical atlas (HOCPA)
 
@@ -301,9 +301,44 @@ PetPrep currently supports three atlases:
 
 .. figure:: _static/Schaefer2018100Parcels17Networks.png
 
-``MASSP20`` : the MASSP20 subcortical atlas. When an atlas is selected with ``--seg``, PetPrep automatically adds the corresponding template to the ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about these atlases, see their respective publications:
+``MASSP20`` : the MASSP20 subcortical atlas. When an atlas is selected with ``--seg``, PETPrep automatically adds the corresponding template to the ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about these atlases, see their respective publications:
 
 .. figure:: _static/MASSP20.png
+
+References
+~~~~~~~~~~
+
+**MASSP20**
+
+Bazin P-L, Groot JM, Miletic S, Groenewegen L, Trutti AC, Mulder MJ,
+Forstmann BU, Alkemade A. Automated parcellation and atlasing of the human
+subcortex with ultra-high resolution quantitative MRI. *Imaging Neuroscience*.
+2025;3:imag_a_00560. doi: `10.1162/imag_a_00560 <https://doi.org/10.1162/imag_a_00560>`_.
+
+**Schaefer2018100Parcels17Networks**
+
+Schaefer 2018 parcellation repository:
+`https://github.com/ThomasYeoLab/CBIG/tree/v0.14.3-Update_Yeo2011_Schaefer2018_labelname/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations <https://github.com/ThomasYeoLab/CBIG/tree/v0.14.3-Update_Yeo2011_Schaefer2018_labelname/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations>`_.
+Accessed: 2021-05-19.
+
+**HOCPA (Harvard-Oxford cortical and subcortical atlas)**
+
+1. Makris N, Goldstein JM, Kennedy D, Hodge SM, Caviness VS, Faraone SV,
+   Tsuang MT, Seidman LJ. Decreased volume of left and total anterior insular
+   lobule in schizophrenia. *Schizophrenia Research*. 2006;83(2-3):155-171.
+   doi: `10.1016/j.schres.2005.11.020 <https://doi.org/10.1016/j.schres.2005.11.020>`_.
+2. Desikan RS, Ségonne F, Fischl B, Quinn BT, Dickerson BC, Blacker D,
+   Buckner RL, Dale AM, Maguire RP, Hyman BT, et al. An automated labeling
+   system for subdividing the human cerebral cortex on MRI scans into gyral
+   based regions of interest. *NeuroImage*. 2006;31(3):968-980.
+3. Frazier JA, Chiu S, Breeze JL, Makris N, Lange N, Kennedy DN, Herbert MR,
+   Bent EK, Koneru VK, Dieterich ME, et al. Structural brain magnetic resonance
+   imaging of limbic and thalamic volumes in pediatric bipolar disorder.
+   *American Journal of Psychiatry*. 2005;162(7):1256-1265.
+4. Goldstein JM, Seidman LJ, Makris N, Ahern T, O'Brien LM, Caviness VS Jr,
+   Kennedy DN, Faraone SV, Tsuang MT. Hypothalamic abnormalities in
+   schizophrenia: sex effects and genetic vulnerability. *Biological
+   Psychiatry*. 2007;61(8):935-945.
 
 Partial volume correction
 -------------------------
