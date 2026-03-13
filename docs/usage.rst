@@ -311,7 +311,7 @@ References
 **MASSP20**
 
 Bazin P-L, Groot JM, Miletic S, Groenewegen L, Trutti AC, Mulder MJ,
-Forstmann BU, Alkemade A. Automated parcellation and atlasing of the human
+Forstmann B.U., Alkemade A. Automated parcellation and atlasing of the human
 subcortex with ultra-high resolution quantitative MRI. *Imaging Neuroscience*.
 2025;3:imag_a_00560. doi: `10.1162/imag_a_00560 <https://doi.org/10.1162/imag_a_00560>`_.
 
