@@ -21,6 +21,7 @@
 #     https://www.nipreps.org/community/licensing/
 #
 from collections.abc import Sequence
+from os import PathLike
 from pathlib import Path
 
 import nibabel as nb
@@ -337,6 +338,24 @@ def _select_anatomical_reference(
     return selected, used_label
 
 
+def _select_single_derivative(derivative: object, label: str):
+    """Pick a single derivative when multiple candidates are provided."""
+
+    from petprep import config
+
+    if derivative is None:
+        return None
+
+    if isinstance(derivative, Sequence) and not isinstance(derivative, (str, bytes, PathLike)):
+        selected = derivative[0]
+        config.loggers.workflow.warning(
+            'Multiple precomputed %s derivatives found; using %s', label, selected
+        )
+        return selected
+
+    return derivative
+
+
 def init_pet_fit_wf(
     *,
     pet_series: list[str],
@@ -431,13 +450,15 @@ def init_pet_fit_wf(
 
     pet_tlen, mem_gb = estimate_pet_mem_usage(pet_file)
 
-    petref = precomputed.get('petref')
+    petref = _select_single_derivative(precomputed.get('petref'), 'PET reference')
     # Can contain
     #  1) petref2anat
     #  2) hmc
     transforms = precomputed.get('transforms', {})
-    hmc_xforms = transforms.get('hmc')
-    petref2anat_xform = transforms.get('petref2anat')
+    hmc_xforms = _select_single_derivative(transforms.get('hmc'), 'motion-correction transform')
+    petref2anat_xform = _select_single_derivative(
+        transforms.get('petref2anat'), 'PET-to-T1w transform'
+    )
 
     if (petref is None) ^ (hmc_xforms is None):
         raise ValueError("Both 'petref' and 'hmc' transforms must be provided together.")

@@ -56,3 +56,37 @@ def test_transforms_found_as_str(tmp_path: Path, xfm: str):
         entities=entities,
     )
     assert derivs == {'transforms': {xfm: str(to_find)}}
+
+
+def test_baseline_prefers_combined_run(tmp_path: Path):
+    subject = '01'
+
+    combined = tmp_path.joinpath(f'sub-{subject}', 'pet', f'sub-{subject}_desc-hmc_petref.nii.gz')
+    run_file = tmp_path.joinpath(
+        f'sub-{subject}', 'pet', f'sub-{subject}_run-1_desc-hmc_petref.nii.gz'
+    )
+    combined.parent.mkdir(parents=True)
+    combined.touch()
+    run_file.touch()
+
+    entities = {
+        'subject': subject,
+        'datatype': 'pet',
+        'suffix': 'petref',
+        'extension': '.nii.gz',
+    }
+
+    from petprep import config
+
+    combine_runs = getattr(config.workflow, 'combine_runs', False)
+    config.workflow.combine_runs = True
+    try:
+        derivs = bids.collect_derivatives(derivatives_dir=tmp_path, entities=entities)
+    finally:
+        config.workflow.combine_runs = combine_runs
+
+    assert dict(derivs) == {
+        'petref': str(combined),
+        'hmc_petref': str(combined),
+        'transforms': {},
+    }

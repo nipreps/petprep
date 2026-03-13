@@ -214,6 +214,12 @@ def _build_parser(**kwargs):
         help='A space delimited list of run identifiers or a single identifier '
         '(the run- prefix can be removed)',
     )
+    g_bids.add_argument(
+        '--combine-runs',
+        action='store_true',
+        help='Concatenate PET runs within each session before preprocessing. '
+        'Combined files omit the run entity.',
+    )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
     #                     help='Select a specific run to be processed')
@@ -1061,3 +1067,31 @@ applied."""
 
     config.execution.participant_label = sorted(participant_label)
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
+
+    if config.execution.combine_runs:
+        from ..utils.bids import combine_pet_runs
+
+        build_log.info('Combining PET runs prior to preprocessing')
+        combined_dir, combined_files = combine_pet_runs(
+            bids_dir=bids_dir,
+            layout=config.execution.layout,
+            work_dir=config.execution.work_dir / config.execution.run_uuid,
+            subjects=config.execution.participant_label,
+            bids_filters=config.execution.bids_filters or {},
+        )
+
+        if not combined_files:
+            build_log.warning('No PET runs found to combine; proceeding with original inputs.')
+        else:
+            build_log.info(f'Combined {len(combined_files)} PET file(s) into run-less series.')
+
+        config.execution.bids_dir = combined_dir
+        config.execution.bids_database_dir = (
+            config.execution.work_dir / config.execution.run_uuid / 'combined_bids_db'
+        )
+        config.execution._layout = None
+        config.execution.layout = None
+        config.execution.init()
+        if config.execution.bids_filters and 'pet' in config.execution.bids_filters:
+            config.execution.bids_filters['pet'].pop('run', None)
+        config.execution.run_label = None

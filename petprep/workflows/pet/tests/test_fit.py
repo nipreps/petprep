@@ -779,6 +779,48 @@ def test_pet_fit_hmc_off_ignores_precomputed(bids_root: Path, tmp_path: Path):
     assert Path(hmc_buffer.inputs.hmc_xforms).name == 'idmat.tfm'
 
 
+def test_pet_fit_picks_single_precomputed_derivative(bids_root: Path, tmp_path: Path):
+    """When multiple cached derivatives are present, pick the first one."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}')
+
+    petrefs = [tmp_path / 'petref_a.nii.gz', tmp_path / 'petref_b.nii.gz']
+    hmc_list = [tmp_path / 'hmc_a.txt', tmp_path / 'hmc_b.txt']
+    petref2anat_list = [tmp_path / 'petref2anat_a.txt', tmp_path / 'petref2anat_b.txt']
+
+    for path in petrefs:
+        img.to_filename(path)
+    for path in hmc_list + petref2anat_list:
+        np.savetxt(path, np.eye(4))
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={
+                'petref': [str(p) for p in petrefs],
+                'transforms': {
+                    'hmc': [str(p) for p in hmc_list],
+                    'petref2anat': [str(p) for p in petref2anat_list],
+                },
+            },
+            omp_nthreads=1,
+        )
+
+    petref_buffer = wf.get_node('petref_buffer')
+    hmc_buffer = wf.get_node('hmc_buffer')
+    outputnode = wf.get_node('outputnode')
+
+    assert petref_buffer.inputs.petref == str(petrefs[0])
+    assert hmc_buffer.inputs.hmc_xforms == str(hmc_list[0])
+    assert outputnode.inputs.petref2anat_xfm == str(petref2anat_list[0])
+
+
 def test_write_identity_xforms_minimum(tmp_path: Path):
     """At least one identity transform should always be written."""
 
