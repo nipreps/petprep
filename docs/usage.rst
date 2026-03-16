@@ -17,6 +17,9 @@ that is to be processed.
 The input dataset is required to be in valid :abbr:`BIDS (Brain Imaging Data
 Structure)` format, and it must include at least one T1w structural image and
 (unless disabled with a flag) a PET scan.
+When multiple participants are selected, participants without a T1w image are
+skipped with a warning during input parsing (unless anatomical derivatives are
+provided via :option:`--derivatives`).
 We highly recommend that you validate your dataset with the free, online
 `BIDS Validator <https://bids-standard.github.io/bids-validator/>`_.
 
