@@ -408,9 +408,9 @@ def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_robust_register' in node_names
-    assert 'pet_reg_wf.mri_coreg' not in node_names
-    assert 'pet_reg_wf.ants_registration' not in node_names
+    assert any(name.endswith('.mri_robust_register') for name in node_names)
+    assert not any(name.endswith('.mri_coreg') for name in node_names)
+    assert not any(name.endswith('.ants_registration') for name in node_names)
 
 
 def test_init_pet_fit_wf_ants_registration(bids_root: Path, tmp_path: Path):
@@ -429,9 +429,9 @@ def test_init_pet_fit_wf_ants_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.ants_registration' in node_names
-    assert 'pet_reg_wf.mri_coreg' not in node_names
-    assert 'pet_reg_wf.mri_robust_register' not in node_names
+    assert any(name.endswith('.ants_registration') for name in node_names)
+    assert not any(name.endswith('.mri_coreg') for name in node_names)
+    assert not any(name.endswith('.mri_robust_register') for name in node_names)
 
 
 def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
@@ -450,13 +450,13 @@ def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.ants_registration' in node_names
-    assert 'pet_reg_wf.mri_coreg' in node_names
-    assert 'pet_reg_wf.select_best' in node_names
-    assert 'pet_reg_wf.score_ants' in node_names
-    assert 'pet_reg_wf.score_fs' in node_names
-    assert 'pet_reg_wf.warp_pet_ants' in node_names
-    assert 'pet_reg_wf.warp_pet_fs' in node_names
+    assert any(name.endswith('.ants_registration') for name in node_names)
+    assert any(name.endswith('.mri_coreg') for name in node_names)
+    assert any(name.endswith('.select_best') for name in node_names)
+    assert any(name.endswith('.score_ants') for name in node_names)
+    assert any(name.endswith('.score_fs') for name in node_names)
+    assert any(name.endswith('.warp_pet_ants') for name in node_names)
+    assert any(name.endswith('.warp_pet_fs') for name in node_names)
 
 
 def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
@@ -557,12 +557,14 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.pet2anat_method = 'mri_coreg'
         config.workflow.petref_specified = True
         config.workflow.pet2anat_method_specified = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert any(name.endswith('.mri_coreg') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
