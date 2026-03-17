@@ -295,15 +295,15 @@ PETPrep currently supports three atlases:
 
 ``HOCPA`` : the Harvard-Oxford cortical and subcortical atlas (HOCPA)
 
-.. figure:: _static/HOCPA.png
+.. figure:: _static/atlas_HOCPA.svg
 
 ``Schaefer2018100Parcels17Networks`` : the Schaefer 2018 parcellation with 100 parcels and 17 networks
 
-.. figure:: _static/Schaefer2018100Parcels17Networks.png
+.. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
 ``MASSP20`` : the MASSP20 subcortical atlas. When an atlas is selected with ``--seg``, PETPrep automatically adds the corresponding template to the ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about these atlases, see their respective publications:
 
-.. figure:: _static/MASSP20.png
+.. figure:: _static/atlas_MASSP20.svg
 
 References
 ~~~~~~~~~~
