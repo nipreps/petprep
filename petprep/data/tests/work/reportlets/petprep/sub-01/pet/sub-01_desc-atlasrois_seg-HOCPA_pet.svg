@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140">
+  <rect width="200" height="140" fill="#f0f0f0" stroke="#cccccc"/>
+  <text x="100" y="30" font-size="16" text-anchor="middle" fill="#333333">Atlas ROIs</text>
+  <rect x="30" y="50" width="40" height="40" fill="#5e3c99" fill-opacity="0.6"/>
+  <rect x="80" y="50" width="40" height="40" fill="#fdb863" fill-opacity="0.6"/>
+  <rect x="130" y="50" width="40" height="40" fill="#b2abd2" fill-opacity="0.6"/>
+  <text x="50" y="110" font-size="10" text-anchor="middle" fill="#333333">ROI 1</text>
+  <text x="100" y="110" font-size="10" text-anchor="middle" fill="#333333">ROI 2</text>
+  <text x="150" y="110" font-size="10" text-anchor="middle" fill="#333333">ROI 3</text>
+</svg>

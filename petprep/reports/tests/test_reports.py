@@ -132,6 +132,7 @@ def test_pet_report(tmp_path, monkeypatch):
         'sub-01_desc-carpetplot_pet.svg',
         'sub-01_desc-confoundcorr_pet.svg',
         'sub-01_desc-coreg_pet.svg',
+        'sub-01_desc-atlasrois_seg-HOCPA_pet.svg',
     ]:
         shutil.copy2(pet_source / fl, sub_dir / fl)
 

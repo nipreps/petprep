@@ -1,7 +1,10 @@
+import nibabel as nb
+import numpy as np
 import pandas as pd
 
 from ..segmentation import (
     _read_stats_table,
+    atlas_segmentation_to_morph,
     ctab_to_dsegtsv,
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
@@ -51,3 +54,23 @@ def test_ctab_to_dsegtsv(tmp_path):
     out = ctab_to_dsegtsv(ctab)
     df = pd.read_csv(out, sep='\t')
     assert list(df.columns) == ['index', 'name']
+
+
+def test_atlas_segmentation_to_morph(tmp_path):
+    seg_file = tmp_path / 'atlas_seg.nii.gz'
+    data = np.array([[[1, 1], [0, 2]]], dtype=np.int16)
+    img = nb.Nifti1Image(data, np.eye(4))
+    img.header.set_zooms((1.0, 1.0, 1.0))
+    img.to_filename(seg_file)
+
+    label_file = tmp_path / 'labels.tsv'
+    pd.DataFrame({'index': [1, 2], 'name': ['one', 'two']}).to_csv(
+        label_file, sep='\t', index=False
+    )
+
+    out, meta = atlas_segmentation_to_morph(seg_file, label_file)
+    df = pd.read_csv(out, sep='\t')
+
+    assert list(df.columns) == ['index', 'name', 'volume-mm3']
+    assert df['volume-mm3'].tolist() == [2.0, 1.0]
+    assert 'Columns' in meta and 'volume-mm3' in meta['Columns']
