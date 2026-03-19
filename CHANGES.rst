@@ -1,3 +1,17 @@
+0.0.5 (March 19, 2026)
+======================
+
+  * FIX: fixed references to images in atlas segmentation docs (#252)
+  * ENH: Add atlas segmentation support from templateflow and visualisation in report (#232)
+  * ENH: Set auto PET reference and PET-to-anat method as defaults (#251)
+  * ENH: Bump templateflow to 25.1.2 (#248)
+  * MNT: PEP 639 compliance (#148)
+  * MNT: do not rerun `ruff check` after `ruff format` (#149)
+  * FIX: Bump nipype requirement to 1.11.0 (#245)
+  * FIX: Update according to main (#216)
+  * ENH: Add template atlas segmentation support (#187)
+
+
 0.0.4 (February 19, 2026)
 =========================
 Bug-fix release in the 0.0.x series.
