@@ -22,12 +22,18 @@
 #
 """Interfaces to generate reportlets."""
 
+import io
 import logging
 import os
 import re
 import time
 from collections import Counter
+from uuid import uuid4
 
+import nibabel as nb
+import numpy as np
+from nilearn import image as nlimage
+from nilearn.plotting import plot_anat
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
     Directory,
@@ -39,6 +45,13 @@ from nipype.interfaces.base import (
     isdefined,
     traits,
 )
+
+try:
+    from nireports._vendored.svgutils import transform as svgt
+except ModuleNotFoundError:  # nireports versions before vendoring svgutils
+    from svgutils import transform as svgt
+from nireports.reportlets.utils import compose_view, cuts_from_bbox, extract_svg, robust_set_limits
+from nireports.tools.ndimage import rotate_affine, rotation2canonical
 from smriprep.interfaces.freesurfer import ReconAll
 
 LOGGER = logging.getLogger('nipype.interface')
@@ -60,6 +73,91 @@ _OPPOSITE = {
     'S': 'I',
     'I': 'S',
 }
+
+
+def _plot_registration_with_overlays(
+    anat_nii,
+    div_id,
+    plot_params=None,
+    order=('z', 'x', 'y'),
+    cuts=None,
+    estimate_brightness=False,
+    label=None,
+    contour=None,
+    compress='auto',
+    dismiss_affine=False,
+    overlays=None,
+):
+    """Local copy of NiReports plot_registration that handles the atlas mask overlay."""
+
+    plot_params = {} if plot_params is None else dict(plot_params)
+    if cuts is None:
+        raise ValueError('Slice locations are required to plot the registration.')
+
+    anat_nii = nb.Nifti1Image.from_image(anat_nii)
+
+    overlay_images = []
+    if overlays:
+        overlay = overlays[0]
+        params = dict(overlay.get('params', {}))
+        overlay_img = nb.Nifti1Image.from_image(overlay['image'])
+        overlay_images.append((overlay_img, params))
+
+    if estimate_brightness:
+        plot_params = robust_set_limits(np.asanyarray(anat_nii.dataobj).reshape(-1), plot_params)
+
+    ribbon = False
+    if contour is not None:
+        contour = nb.Nifti1Image.from_image(contour)
+        ribbon = np.array_equal(np.unique(contour.get_fdata()), [0, 2, 3, 41, 42])
+        if ribbon:
+            contour_data = contour.get_fdata() % 39
+            white = nlimage.new_img_like(contour, contour_data == 2)
+            pial = nlimage.new_img_like(contour, contour_data >= 2)
+
+    if dismiss_affine:
+        canonical_r = rotation2canonical(anat_nii)
+        anat_nii = rotate_affine(anat_nii, rot=canonical_r)
+        if contour is not None:
+            contour = rotate_affine(contour, rot=canonical_r)
+        if ribbon:
+            white = rotate_affine(white, rot=canonical_r)
+            pial = rotate_affine(pial, rot=canonical_r)
+        rotated_overlays = []
+        for overlay_img, params in overlay_images:
+            rotated_overlays.append((rotate_affine(overlay_img, rot=canonical_r), params))
+        overlay_images = rotated_overlays
+
+    out_svgs = []
+    for i, mode in enumerate(order):
+        plot_params['display_mode'] = mode
+        plot_params['cut_coords'] = cuts[mode]
+        plot_params['title'] = label if i == 0 else None
+        display = plot_anat(anat_nii, **plot_params)
+
+        if ribbon:
+            kwargs = {'levels': [0.5], 'linewidths': 0.5}
+            display.add_contours(white, colors='b', **kwargs)
+            display.add_contours(pial, colors='r', **kwargs)
+        elif contour is not None:
+            display.add_contours(contour, colors='r', levels=[0.5], linewidths=0.5)
+
+        for overlay_img, params in overlay_images:
+            display.add_overlay(overlay_img, **params)
+
+        svg = extract_svg(display, compress=compress)
+        display.close()
+        svg = svg.replace('figure_1', f'{div_id}-{mode}-{uuid4()}', 1)
+        out_svgs.append(svgt.fromstring(svg))
+
+    return out_svgs
+
+
+def _blend_with_white(rgba, blend=0.5):
+    """Return a muted variant of the RGBA color by mixing with white."""
+    rgb = np.array(rgba[:3])
+    muted_rgb = (1 - blend) * rgb + blend
+    return (*muted_rgb.tolist(), rgba[3])
 
 
 def get_world_pedir(orientation: str, pe_dir: str) -> str:
@@ -399,3 +497,185 @@ class AboutSummary(SummaryInterface):
             command=self.inputs.command,
             date=time.strftime('%Y-%m-%d %H:%M:%S %z'),
         )
+
+
+class _AtlasROIsReportInputSpec(BaseInterfaceInputSpec):
+    t1w_image = File(exists=True, mandatory=True, desc='Anatomical image resampled to PET space')
+    petref_image = File(exists=True, mandatory=True, desc='PET reference image')
+    segmentation = File(exists=True, mandatory=True, desc='Atlas segmentation in PET space')
+    dseg_tsv = File(exists=True, mandatory=True, desc='Atlas label lookup table')
+    atlas_name = Str(desc='Atlas name used for labeling')
+
+
+class _AtlasROIsReportOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='SVG plot showing atlas regions')
+
+
+class AtlasROIsReport(SimpleInterface):
+    """Generate a figure showing atlas regions overlaid on T1w and PET images."""
+
+    input_spec = _AtlasROIsReportInputSpec
+    output_spec = _AtlasROIsReportOutputSpec
+
+    def _run_interface(self, runtime):
+        import matplotlib
+        import pandas as pd
+
+        matplotlib.use('Agg', force=True)
+        from matplotlib import cm
+        from matplotlib import pyplot as plt
+        from matplotlib.colors import ListedColormap
+        from matplotlib.patches import Patch
+
+        atlas_labels = pd.read_csv(self.inputs.dseg_tsv, sep='\t')
+        label_ids = [int(idx) for idx in atlas_labels.iloc[:, 0].tolist()]
+        label_names = (
+            atlas_labels.iloc[:, 1].tolist() if len(atlas_labels.columns) > 1 else label_ids
+        )
+        label_lookup = dict(zip(label_ids, map(str, label_names), strict=False))
+
+        t1w_img = nb.load(self.inputs.t1w_image)
+        pet_img = nb.load(self.inputs.petref_image)
+        seg_img = nb.load(self.inputs.segmentation)
+
+        seg_data = np.rint(seg_img.get_fdata()).astype(int)
+        present_labels = [
+            label for label in sorted(np.unique(seg_data)) if label in label_lookup and label != 0
+        ]
+
+        overlay_data = np.zeros(seg_data.shape, dtype='int32')
+        for idx, label in enumerate(present_labels, start=1):
+            overlay_data[seg_data == label] = idx
+        overlay_img = nb.Nifti1Image(overlay_data, seg_img.affine, seg_img.header)
+
+        muting_cycle = 2
+        n_base_colors = max(1, int(np.ceil(len(present_labels) / muting_cycle)))
+        if hasattr(matplotlib, 'colormaps'):
+            color_map = matplotlib.colormaps.get_cmap('gist_rainbow').resampled(n_base_colors)
+        else:
+            color_map = cm.get_cmap('gist_rainbow', n_base_colors)
+        rgba_colors = [(0, 0, 0, 0)]
+        legend_handles = []
+        for idx, label in enumerate(present_labels):
+            base_idx = min(n_base_colors - 1, idx // muting_cycle)
+            rgba = color_map(base_idx)
+            if idx % muting_cycle:
+                rgba = _blend_with_white(rgba)
+            rgba_colors.append((*rgba[:3], 0.7))
+            legend_handles.append(
+                Patch(
+                    facecolor=rgba[:3],
+                    edgecolor='none',
+                    label=f'{label} - {label_lookup[label]}',
+                )
+            )
+        cmap = ListedColormap(rgba_colors)
+
+        if overlay_data.any():
+            mask_img = nlimage.new_img_like(seg_img, (overlay_data > 0).astype(np.uint8))
+        else:
+            mask_img = nlimage.threshold_img(t1w_img, 1e-3)
+        cuts = cuts_from_bbox(mask_img, cuts=7)
+
+        overlay_params = {
+            'image': overlay_img,
+            'params': {
+                'cmap': cmap,
+                'alpha': 1.0,
+                'vmin': 0,
+                'vmax': len(rgba_colors) - 1,
+            },
+        }
+
+        t1_svgs = _plot_registration_with_overlays(
+            t1w_img,
+            'atlas-t1',
+            cuts=cuts,
+            estimate_brightness=True,
+            label='T1w',
+            dismiss_affine=True,
+            overlays=[overlay_params],
+        )
+
+        pet_svgs = _plot_registration_with_overlays(
+            pet_img,
+            'atlas-pet',
+            cuts=cuts,
+            estimate_brightness=True,
+            label='PET',
+            dismiss_affine=True,
+            overlays=[overlay_params],
+        )
+
+        legend_svg = None
+        if legend_handles:
+            legend_cols = min(5, len(legend_handles))
+            rows = int(np.ceil(len(legend_handles) / legend_cols))
+            fig, ax = plt.subplots(figsize=(12, max(1.0, rows * 0.4)))
+            ax.axis('off')
+            ax.legend(
+                handles=legend_handles,
+                ncol=legend_cols,
+                loc='center',
+                frameon=False,
+                fontsize=10,
+            )
+            buf = io.StringIO()
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+            plt.close(fig)
+            buf.seek(0)
+            legend_svg = svgt.fromstring(buf.getvalue())
+
+        overlay_file = os.path.join(runtime.cwd, 'atlas_rois_overlay.svg')
+        compose_view(pet_svgs, t1_svgs, out_file=overlay_file)
+
+        with open(overlay_file) as fobj:
+            overlay_text = fobj.read()
+
+        def _extract_dims_from_text(svg_text):
+            viewbox_match = re.search(r'viewBox="([^"]+)"', svg_text)
+            if viewbox_match:
+                _, _, width_box, height_box = viewbox_match.group(1).split()
+                return float(width_box), float(height_box)
+            height_match = re.search(r'height="([^"]+)"', svg_text)
+            width_match = re.search(r'width="([^"]+)"', svg_text)
+            width_val = float(width_match.group(1).replace('px', '')) if width_match else 0.0
+            height_val = float(height_match.group(1).replace('px', '')) if height_match else 0.0
+            return width_val, height_val
+
+        width, height = _extract_dims_from_text(overlay_text)
+        total_height = height
+
+        if legend_svg:
+            legend_text = legend_svg.to_str()
+            if isinstance(legend_text, (bytes, bytearray)):
+                legend_text = legend_text.decode('utf-8')
+            legend_text = legend_text.split('\n', 1)[-1]
+            inner_match = re.search(r'<svg[^>]*>(.*)</svg>', legend_text, re.S)
+            legend_body = inner_match.group(1) if inner_match else legend_text
+            legend_width, legend_height = _extract_dims_from_text(legend_text)
+            scale = width / legend_width if legend_width else 1.0
+            legend_group = f'<g transform="translate(0,{height}) scale({scale})">{legend_body}</g>'
+            total_height += legend_height * scale
+            overlay_text = overlay_text.replace('</svg>', f'{legend_group}</svg>')
+
+        overlay_text = re.sub(
+            r'(viewBox="0 0 [^"]+ )([0-9.]+)(")',
+            lambda m: f'{m.group(1)}{total_height}{m.group(3)}',
+            overlay_text,
+            count=1,
+        )
+        overlay_text = re.sub(
+            r'(height=")([^"]+)(")',
+            lambda m: f'{m.group(1)}{total_height}{m.group(3)}',
+            overlay_text,
+            count=1,
+        )
+
+        out_file = os.path.join(runtime.cwd, 'atlas_rois.svg')
+        with open(out_file, 'w') as fobj:
+            fobj.write(overlay_text)
+        os.unlink(overlay_file)
+
+        self._results['out_file'] = out_file
+        return runtime
