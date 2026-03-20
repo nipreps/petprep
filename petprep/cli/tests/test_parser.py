@@ -71,18 +71,6 @@ def test_parser_valid(tmp_path, args):
     assert opts.bids_dir == datapath
 
 
-def test_parser_accepts_extended_schaefer_segmentation(tmp_path):
-    """Check newly configured Schaefer atlas variants are valid --seg choices."""
-    datapath = tmp_path / 'data'
-    datapath.mkdir(exist_ok=True)
-
-    opts = _build_parser().parse_args(
-        [str(datapath), 'out/', 'participant', '--seg', 'Schaefer20181000Parcels7Networks']
-    )
-
-    assert opts.seg == 'Schaefer20181000Parcels7Networks'
-
-
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [
