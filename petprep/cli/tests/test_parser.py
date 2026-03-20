@@ -36,6 +36,7 @@ from ..parser import _build_parser, parse_args
 
 MIN_ARGS = ['data/', 'out/', 'participant']
 
+
 @pytest.mark.parametrize(
     ('args', 'code'),
     [
@@ -51,6 +52,7 @@ def test_parser_errors(args, code):
         _build_parser().parse_args(args)
 
     assert error.value.code == code
+
 
 @pytest.mark.parametrize('args', [MIN_ARGS, MIN_ARGS + ['--fs-license-file']])
 def test_parser_valid(tmp_path, args):
@@ -68,6 +70,7 @@ def test_parser_valid(tmp_path, args):
 
     assert opts.bids_dir == datapath
 
+
 def test_parser_accepts_extended_schaefer_segmentation(tmp_path):
     """Check newly configured Schaefer atlas variants are valid --seg choices."""
     datapath = tmp_path / 'data'
@@ -78,6 +81,7 @@ def test_parser_accepts_extended_schaefer_segmentation(tmp_path):
     )
 
     assert opts.seg == 'Schaefer20181000Parcels7Networks'
+
 
 @pytest.mark.parametrize(
     ('argval', 'gb'),
@@ -108,6 +112,7 @@ def test_memory_arg(tmp_path, argval, gb):
 
     assert opts.memory_gb == gb
 
+
 @pytest.mark.parametrize(('current', 'latest'), [('1.0.0', '1.3.2'), ('1.3.2', '1.3.2')])
 def test_get_parser_update(monkeypatch, capsys, current, latest):
     """Make sure the out-of-date banner is shown."""
@@ -129,6 +134,7 @@ https://petprep.readthedocs.io/en/latest/faq.html#upgrading"""
 
     assert (msg in captured) is expectation
 
+
 @pytest.mark.parametrize('flagged', [(True, None), (True, 'random reason'), (False, None)])
 def test_get_parser_blacklist(monkeypatch, capsys, flagged):
     """Make sure the blacklisting banner is shown."""
@@ -144,6 +150,7 @@ def test_get_parser_blacklist(monkeypatch, capsys, flagged):
     assert ('FLAGGED' in captured) is flagged[0]
     if flagged[0]:
         assert (flagged[1] or 'reason: unknown') in captured
+
 
 def test_parse_args(tmp_path, minimal_bids):
     """Basic smoke test showing that our parse_args() function
@@ -163,6 +170,7 @@ def test_parse_args(tmp_path, minimal_bids):
     )
     assert config.execution.layout.root == str(minimal_bids)
     _reset_config()
+
 
 def test_bids_filter_file(tmp_path, capsys):
     bids_path = tmp_path / 'data'
@@ -187,6 +195,7 @@ def test_bids_filter_file(tmp_path, capsys):
     err = capsys.readouterr().err
     assert 'JSON syntax error in:' in err
     _reset_config()
+
 
 def test_derivatives(tmp_path):
     """Check the correct parsing of the derivatives argument."""
@@ -229,6 +238,7 @@ def test_derivatives(tmp_path):
 
     _reset_config()
 
+
 def test_session_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
@@ -266,6 +276,7 @@ def test_session_label_only_filters_pet(tmp_path):
         assert 'session' not in filters.get('anat', {})
     finally:
         _reset_config()
+
 
 def test_tracer_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
@@ -305,6 +316,7 @@ def test_tracer_label_only_filters_pet(tmp_path):
     finally:
         _reset_config()
 
+
 def test_tracer_label_validation(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
@@ -334,6 +346,7 @@ def test_tracer_label_validation(tmp_path):
         )
 
     _reset_config()
+
 
 def test_run_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
@@ -373,6 +386,7 @@ def test_run_label_only_filters_pet(tmp_path):
     finally:
         _reset_config()
 
+
 def test_run_label_validation(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
@@ -402,6 +416,7 @@ def test_run_label_validation(tmp_path):
         )
 
     _reset_config()
+
 
 def test_pvc_argument_handling(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
@@ -439,6 +454,7 @@ def test_pvc_argument_handling(tmp_path, minimal_bids):
     assert config.workflow.pvc_psf == (2.0, 2.0, 2.0)
     _reset_config()
 
+
 def test_pvc_invalid_method(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
@@ -461,6 +477,7 @@ def test_pvc_invalid_method(tmp_path, minimal_bids):
         parse_args(args=args)
     _reset_config()
 
+
 def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
     work_dir = tmp_path / 'work'
     base_args = [
@@ -482,6 +499,7 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
     assert config.workflow.ref_mask_index == (3, 4)
     _reset_config()
 
+
 def test_hmc_init_frame_parsing(tmp_path):
     """Ensure --hmc-init-frame accepts optional integers and defaults to auto."""
     datapath = tmp_path / 'data'
@@ -500,6 +518,7 @@ def test_hmc_init_frame_parsing(tmp_path):
     opts = parser.parse_args(base_args + ['--hmc-init-frame', '3', '--hmc-init-frame-fix'])
     assert opts.hmc_init_frame == 3
     assert opts.hmc_fix_frame is True
+
 
 def test_hmc_off_flag(tmp_path):
     """Ensure disabling motion correction is parsed correctly."""
