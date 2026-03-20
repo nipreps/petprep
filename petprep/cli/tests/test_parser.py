@@ -36,6 +36,20 @@ from ..parser import _build_parser, parse_args
 
 MIN_ARGS = ['data/', 'out/', 'participant']
 
+def _write_petprep_test_subject(bids_dir, subject_id, *, with_t1w=True):
+    subject_dir = bids_dir / f'sub-{subject_id}'
+
+    if with_t1w:
+        anat_path = subject_dir / 'anat' / f'sub-{subject_id}_T1w.nii.gz'
+        anat_path.parent.mkdir(parents=True, exist_ok=True)
+        nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = subject_dir / 'pet' / f'sub-{subject_id}_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
 
 @pytest.mark.parametrize(
     ('args', 'code'),
@@ -403,6 +417,90 @@ def test_run_label_validation(tmp_path):
             ]
         )
 
+    _reset_config()
+
+
+def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    _write_petprep_test_subject(bids, '01', with_t1w=True)
+    _write_petprep_test_subject(bids, '02', with_t1w=False)
+
+    with caplog.at_level('WARNING', logger='cli'):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--participant-label',
+                '01',
+                '02',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+    assert config.execution.participant_label == ['01']
+    assert 'Skipping participants without T1w structural MRI images: 02.' in caplog.text
+    _reset_config()
+
+def test_parse_args_errors_when_all_selected_participants_lack_t1w(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    _write_petprep_test_subject(bids, '01', with_t1w=False)
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--participant-label',
+                '01',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+    _reset_config()
+
+def test_parse_args_keeps_participants_without_t1w_when_derivatives_provided(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    derivatives_dir = tmp_path / 'derivatives' / 'smriprep'
+    bids.mkdir()
+    derivatives_dir.mkdir(parents=True)
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    _write_petprep_test_subject(bids, '01', with_t1w=False)
+
+    parse_args(
+        args=[
+            str(bids),
+            str(out_dir),
+            'participant',
+            '--participant-label',
+            '01',
+            '--derivatives',
+            f'anat={derivatives_dir}',
+            '--skip-bids-validation',
+            '-w',
+            str(work_dir),
+        ]
+    )
+
+    assert config.execution.participant_label == ['01']
     _reset_config()
 
 
