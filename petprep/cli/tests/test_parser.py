@@ -22,6 +22,7 @@
 #
 """Test parser."""
 
+import json
 from argparse import ArgumentError
 
 import nibabel as nb
@@ -37,20 +38,36 @@ from ..parser import _build_parser, parse_args
 MIN_ARGS = ['data/', 'out/', 'participant']
 
 
-def _write_petprep_test_subject(bids_dir, subject_id, *, with_t1w=True):
-    subject_dir = bids_dir / f'sub-{subject_id}'
+def _make_subject_with_pet(bids_dir, subject, *, with_t1w):
+    subject_dir = bids_dir / f'sub-{subject}'
+
+    pet_path = subject_dir / 'pet' / f'sub-{subject}_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    pet_path.with_suffix('').with_suffix('.json').write_text(
+        json.dumps({'FrameTimesStart': [0], 'FrameDuration': [1]})
+    )
 
     if with_t1w:
-        anat_path = subject_dir / 'anat' / f'sub-{subject_id}_T1w.nii.gz'
+        anat_path = subject_dir / 'anat' / f'sub-{subject}_T1w.nii.gz'
         anat_path.parent.mkdir(parents=True, exist_ok=True)
         nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
 
-    pet_path = subject_dir / 'pet' / f'sub-{subject_id}_pet.nii.gz'
-    pet_path.parent.mkdir(parents=True, exist_ok=True)
-    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
-    (pet_path.with_suffix('').with_suffix('.json')).write_text(
-        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+
+def _make_pet_bids_dataset(tmp_path, subjects_with_t1w=(), subjects_without_t1w=()):
+    bids = tmp_path / 'bids'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text(
+        json.dumps({'Name': 'Test', 'BIDSVersion': '1.8.0'})
     )
+
+    for subject in subjects_with_t1w:
+        _make_subject_with_pet(bids, subject, with_t1w=True)
+
+    for subject in subjects_without_t1w:
+        _make_subject_with_pet(bids, subject, with_t1w=False)
+
+    return bids
 
 
 @pytest.mark.parametrize(
@@ -422,17 +439,14 @@ def test_run_label_validation(tmp_path):
     _reset_config()
 
 
-def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
-    bids = tmp_path / 'bids'
+def test_parse_args_skips_participants_missing_t1w(tmp_path, caplog):
+    bids = _make_pet_bids_dataset(tmp_path, subjects_with_t1w=('01',), subjects_without_t1w=('02',))
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
-    bids.mkdir()
-    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
 
-    _write_petprep_test_subject(bids, '01', with_t1w=True)
-    _write_petprep_test_subject(bids, '02', with_t1w=False)
+    caplog.set_level('WARNING', logger='cli')
 
-    with caplog.at_level('WARNING', logger='cli'):
+    try:
         parse_args(
             args=[
                 str(bids),
@@ -447,19 +461,17 @@ def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
             ]
         )
 
-    assert config.execution.participant_label == ['01']
-    assert 'Skipping participants without T1w structural MRI images: 02.' in caplog.text
-    _reset_config()
+        assert config.execution.participant_label == ['01']
+        assert 'Skipping participants without T1w structural MRI images: 02.' in caplog.text
+    finally:
+        _reset_config()
 
 
-def test_parse_args_errors_when_all_selected_participants_lack_t1w(tmp_path):
-    bids = tmp_path / 'bids'
+
+def test_parse_args_errors_when_all_selected_participants_missing_t1w(tmp_path, capsys):
+    bids = _make_pet_bids_dataset(tmp_path, subjects_without_t1w=('01',))
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
-    bids.mkdir()
-    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
-
-    _write_petprep_test_subject(bids, '01', with_t1w=False)
 
     with pytest.raises(SystemExit):
         parse_args(
@@ -467,45 +479,45 @@ def test_parse_args_errors_when_all_selected_participants_lack_t1w(tmp_path):
                 str(bids),
                 str(out_dir),
                 'participant',
-                '--participant-label',
-                '01',
                 '--skip-bids-validation',
                 '-w',
                 str(work_dir),
             ]
         )
 
+    err = capsys.readouterr().err
+    assert 'No participants have the required inputs for PETPrep.' in err
+    assert 'Each selected participant must have a T1w image' in err
     _reset_config()
 
 
-def test_parse_args_keeps_participants_without_t1w_when_derivatives_provided(tmp_path):
-    bids = tmp_path / 'bids'
+def test_parse_args_allows_missing_t1w_with_derivatives(tmp_path, caplog):
+    bids = _make_pet_bids_dataset(tmp_path, subjects_without_t1w=('01',))
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
-    derivatives_dir = tmp_path / 'derivatives' / 'smriprep'
-    bids.mkdir()
-    derivatives_dir.mkdir(parents=True)
-    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+    deriv_dir = tmp_path / 'derivatives' / 'smriprep'
+    deriv_dir.mkdir(parents=True)
 
-    _write_petprep_test_subject(bids, '01', with_t1w=False)
+    caplog.set_level('WARNING', logger='cli')
 
-    parse_args(
-        args=[
-            str(bids),
-            str(out_dir),
-            'participant',
-            '--participant-label',
-            '01',
-            '--derivatives',
-            f'anat={derivatives_dir}',
-            '--skip-bids-validation',
-            '-w',
-            str(work_dir),
-        ]
-    )
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--derivatives',
+                str(deriv_dir),
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
 
-    assert config.execution.participant_label == ['01']
-    _reset_config()
+        assert config.execution.participant_label == ['01']
+        assert 'Skipping participants without T1w structural MRI images' not in caplog.text
+    finally:
+        _reset_config()
 
 
 def test_pvc_argument_handling(tmp_path, minimal_bids):
