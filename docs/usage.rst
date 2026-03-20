@@ -291,30 +291,21 @@ To run the segmentation with the default ``gtm`` method, use: ::
 Atlas Segmentation
 --------------------
 
-PETPrep currently supports three atlas families:
+PETPrep currently supports three atlas variants for segmentation:
 
 ``HOCPA`` : the Harvard-Oxford cortical and subcortical atlas (HOCPA)
 
 .. figure:: _static/atlas_HOCPA.svg
 
-``Schaefer2018*`` : the Schaefer 2018 cortical parcellation. The following ``--seg`` values are available:
+``Schaefer2018*`` : the Schaefer 2018 cortical parcellation (`--seg` options). 
 
-- ``Schaefer2018100Parcels7Networks``
-- ``Schaefer2018100Parcels17Networks``
-- ``Schaefer2018200Parcels7Networks``
-- ``Schaefer2018200Parcels17Networks``
-- ``Schaefer2018300Parcels7Networks``
-- ``Schaefer2018300Parcels17Networks``
-- ``Schaefer2018400Parcels7Networks``
-- ``Schaefer2018400Parcels17Networks``
-- ``Schaefer2018500Parcels7Networks``
-- ``Schaefer2018500Parcels17Networks``
-- ``Schaefer2018600Parcels7Networks``
-- ``Schaefer2018600Parcels17Networks``
-- ``Schaefer2018800Parcels7Networks``
-- ``Schaefer2018800Parcels17Networks``
-- ``Schaefer20181000Parcels7Networks``
-- ``Schaefer20181000Parcels17Networks``
+Available in resolutions of **100–1000 parcels**, each with either **7 or 17 networks**.
+
+**Format:**
+- `Schaefer2018<N>Parcels7Networks`
+- `Schaefer2018<N>Parcels17Networks`
+
+Where `<N>` ∈ {100, 200, 300, 400, 500, 600, 800, 1000}
 
 .. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
