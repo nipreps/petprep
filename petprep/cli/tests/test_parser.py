@@ -36,6 +36,7 @@ from ..parser import _build_parser, parse_args
 
 MIN_ARGS = ['data/', 'out/', 'participant']
 
+
 def _write_petprep_test_subject(bids_dir, subject_id, *, with_t1w=True):
     subject_dir = bids_dir / f'sub-{subject_id}'
 
@@ -50,6 +51,7 @@ def _write_petprep_test_subject(bids_dir, subject_id, *, with_t1w=True):
     (pet_path.with_suffix('').with_suffix('.json')).write_text(
         '{"FrameTimesStart": [0], "FrameDuration": [1]}'
     )
+
 
 @pytest.mark.parametrize(
     ('args', 'code'),
