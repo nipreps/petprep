@@ -406,11 +406,11 @@ def test_run_label_validation(tmp_path):
     _reset_config()
 
 
-def _write_petprep_minimal_pet(path, frames=1):
+def _write_petprep_minimal_pet(path, frames=2):
     path.parent.mkdir(parents=True, exist_ok=True)
     nb.Nifti1Image(np.zeros((5, 5, 5, frames)), np.eye(4)).to_filename(path)
     path.with_suffix('').with_suffix('.json').write_text(
-        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        '{"FrameTimesStart": [0,1], "FrameDuration": [1,1]}'
     )
 
 
@@ -421,12 +421,12 @@ def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
     bids.mkdir()
     (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
 
-    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii'
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
     anat_path.parent.mkdir(parents=True, exist_ok=True)
     nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
 
-    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii')
-    _write_petprep_minimal_pet(bids / 'sub-02' / 'pet' / 'sub-02_pet.nii')
+    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz')
+    _write_petprep_minimal_pet(bids / 'sub-02' / 'pet' / 'sub-02_pet.nii.gz')
 
     caplog.set_level(config.loggers.cli.level, logger='cli')
 
@@ -458,7 +458,7 @@ def test_parse_args_errors_when_all_participants_missing_t1w(tmp_path, capsys):
     bids.mkdir()
     (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
 
-    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii')
+    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz')
 
     try:
         with pytest.raises(SystemExit):
