@@ -440,7 +440,9 @@ def test_run_label_validation(tmp_path):
 
 
 def test_parse_args_skips_participants_missing_t1w(tmp_path, caplog):
-    bids = _make_pet_bids_dataset(tmp_path, subjects_with_t1w=('01',), subjects_without_t1w=('02',))
+    bids = _make_pet_bids_dataset(
+        tmp_path, subjects_with_t1w=('01',), subjects_without_t1w=('02',)
+    )
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
 
