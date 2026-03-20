@@ -7,6 +7,7 @@ import pytest
 
 from petprep.utils import atlas
 
+
 def test_load_atlas_config_contains_known_atlas():
     atlas.load_atlas_config.cache_clear()
     config = atlas.load_atlas_config()
