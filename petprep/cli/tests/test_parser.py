@@ -449,6 +449,7 @@ def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
     assert 'Skipping participants without T1w structural MRI images: 02.' in caplog.text
     _reset_config()
 
+
 def test_parse_args_errors_when_all_selected_participants_lack_t1w(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
@@ -473,6 +474,7 @@ def test_parse_args_errors_when_all_selected_participants_lack_t1w(tmp_path):
         )
 
     _reset_config()
+
 
 def test_parse_args_keeps_participants_without_t1w_when_derivatives_provided(tmp_path):
     bids = tmp_path / 'bids'
