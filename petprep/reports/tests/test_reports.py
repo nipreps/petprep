@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from bids.layout import BIDSLayout
 
+import petprep.reports.core as core
 from petprep.reports.core import generate_reports
 
 from ... import config, data
@@ -147,3 +148,32 @@ def test_pet_report(tmp_path, monkeypatch):
     assert html_file.is_file()
     html_content = html_file.read_text()
     assert '<div id="PET"' in html_content
+
+
+def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
+    work_dir = tmp_path / 'work'
+    target = work_dir / 'reportlets' / 'petprep' / 'sub-02'
+    target.mkdir(parents=True)
+    # Add similarly-named subjects to verify exact matches
+    (work_dir / 'reportlets' / 'petprep' / 'sub-2').mkdir(parents=True)
+    (work_dir / 'reportlets' / 'petprep' / 'sub-002').mkdir(parents=True)
+    (work_dir / 'reportlets' / 'petprep' / 'sub-020').mkdir(parents=True)
+
+    recorded_reportlets = []
+
+    def _record_reportlets_dir(*args, reportlets_dir=None, **kwargs):
+        recorded_reportlets.append(reportlets_dir)
+        return None
+
+    monkeypatch.setattr(core, 'run_reports', _record_reportlets_dir)
+    monkeypatch.setattr(config.execution, 'aggr_ses_reports', 4)
+
+    class _Layout:
+        def get_sessions(self, subject=None):
+            return []
+
+    monkeypatch.setattr(config.execution, 'layout', _Layout())
+
+    generate_reports(['02'], tmp_path, 'fake', work_dir=work_dir)
+
+    assert recorded_reportlets == [target]
