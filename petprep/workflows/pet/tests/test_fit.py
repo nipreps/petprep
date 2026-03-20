@@ -368,20 +368,12 @@ def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method)
         assert 'ds_ref_tacs' not in wf.list_node_names()
 
 
-def _write_petprep_minimal_pet(path, frames=1):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    nb.Nifti1Image(np.zeros((5, 5, 5, frames)), np.eye(4)).to_filename(path)
-    path.with_suffix('').with_suffix('.json').write_text(
-        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
-    )
-
-
 def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     """Stage 1 should run only when HMC derivatives are missing."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
     for path in pet_series:
-        _write_petprep_minimal_pet(Path(path), frames=1)
+        img.to_filename(path)
 
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
@@ -390,14 +382,9 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
 
     dummy_affine = tmp_path / 'xfm.txt'
     np.savetxt(dummy_affine, np.eye(4))
-
     ref_file = tmp_path / 'ref.nii'
-    nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4)).to_filename(ref_file)
-
-    precomputed = {
-        'petref': str(ref_file),
-        'transforms': {'hmc': str(dummy_affine)},
-    }
+    img.to_filename(ref_file)
+    precomputed = {'petref': str(ref_file), 'transforms': {'hmc': str(dummy_affine)}}
 
     with mock_config(bids_dir=bids_root):
         wf2 = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
