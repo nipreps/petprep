@@ -406,6 +406,80 @@ def test_run_label_validation(tmp_path):
     _reset_config()
 
 
+def _write_petprep_minimal_pet(path, frames=1):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, frames)), np.eye(4)).to_filename(path)
+    path.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+
+def test_parse_args_skips_participants_without_t1w(tmp_path, caplog):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz')
+    _write_petprep_minimal_pet(bids / 'sub-02' / 'pet' / 'sub-02_pet.nii.gz')
+
+    caplog.set_level(config.loggers.cli.level, logger='cli')
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--participant-label',
+                '01',
+                '02',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.execution.participant_label == ['01']
+        assert 'Skipping participants without T1w structural MRI images: 02.' in caplog.text
+    finally:
+        _reset_config()
+
+
+def test_parse_args_errors_when_all_participants_missing_t1w(tmp_path, capsys):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    _write_petprep_minimal_pet(bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz')
+
+    try:
+        with pytest.raises(SystemExit):
+            parse_args(
+                args=[
+                    str(bids),
+                    str(out_dir),
+                    'participant',
+                    '--participant-label',
+                    '01',
+                    '--skip-bids-validation',
+                    '-w',
+                    str(work_dir),
+                ]
+            )
+
+        assert 'No participants have the required inputs for PETPrep.' in capsys.readouterr().err
+    finally:
+        _reset_config()
+
+
 def test_pvc_argument_handling(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
