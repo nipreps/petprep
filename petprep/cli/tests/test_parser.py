@@ -411,9 +411,7 @@ def test_participant_label_is_parsed(tmp_path):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
     bids.mkdir()
-    (bids / 'dataset_description.json').write_text(
-        '{"Name": "Test", "BIDSVersion": "1.8.0"}'
-    )
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
 
     # Minimal valid subject
     anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
@@ -451,9 +449,7 @@ def test_missing_t1w_raises_error(tmp_path):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
     bids.mkdir()
-    (bids / 'dataset_description.json').write_text(
-        '{"Name": "Test", "BIDSVersion": "1.8.0"}'
-    )
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
 
     # PET exists, but T1w is missing
     pet_path = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
