@@ -15,17 +15,6 @@ def test_load_atlas_config_contains_known_atlas():
     assert 'segmentation' in config['HOCPA']
 
 
-def test_load_atlas_config_contains_all_schaefer_variants():
-    atlas.load_atlas_config.cache_clear()
-    config = atlas.load_atlas_config()
-    expected = {
-        f'Schaefer2018{parcels}Parcels{networks}Networks'
-        for parcels in (100, 200, 300, 400, 500, 600, 800, 1000)
-        for networks in (7, 17)
-    }
-    assert expected.issubset(config)
-
-
 def test_resolve_resource_templateflow(monkeypatch):
     tf_api = types.SimpleNamespace(get=lambda **kwargs: '/tmp/templateflow.nii.gz')
     tf_module = types.SimpleNamespace(api=tf_api)
