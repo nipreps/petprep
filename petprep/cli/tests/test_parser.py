@@ -435,7 +435,7 @@ def test_missing_t1w_participant_is_skipped(tmp_path):
     ]
 
     with pytest.raises(SystemExit):
-            parse_args(args=args)
+        parse_args(args=args)
     _reset_config()
 
 
