@@ -74,6 +74,7 @@ def init_pet_refmask_wf(
             base_directory=config.execution.petprep_dir,
             label=ref_mask_name,
             desc='ref',
+            allowed_entities=('label',),
             suffix='morph',
             extension='.tsv',
             datatype='anat',

@@ -359,9 +359,8 @@ def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method)
         ds_tacs = wf.get_node('ds_ref_tacs')
         assert ds_tacs.inputs.label == 'cerebellum'
         assert 'label' in ds_tacs.interface._allowed_entities
-        assert 'seg' in ds_tacs.interface._config_entities
-        assert hasattr(ds_tacs.inputs, 'seg')
-        assert ds_tacs.inputs.seg is Undefined
+        assert 'seg' not in ds_tacs.interface._allowed_entities
+        assert not hasattr(ds_tacs.inputs, 'seg')
         assert ds_tacs.inputs.desc == 'preproc'
         edge_tacs = wf._graph.get_edge_data(wf.get_node('pet_ref_tacs_wf'), ds_tacs)
         assert ('outputnode.timeseries', 'in_file') in edge_tacs['connect']
