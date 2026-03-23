@@ -245,6 +245,14 @@ image and affine transform::
 
    Coregistration outputs are part of the *minimal* processing level.
 
+When atlas-based time-activity curve computation is requested, PETPrep additionally
+stores the atlas overlay report that is rendered in the ``Additional PET Visualizations``
+section of the HTML report::
+
+  sub-<subject_label>/
+    figures/
+      sub-<subject_label>_[specifiers]_desc-atlasrois_seg-<atlas_label>_pet.svg
+
 **Regularly gridded outputs (images)**.
 Volumetric output spaces labels (``<space_label>`` above, and in the following) include
 ``T1w`` and ``MNI152NLin2009cAsym`` (default).

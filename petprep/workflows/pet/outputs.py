@@ -31,7 +31,7 @@ from niworkflows.utils.images import dseg_label
 
 from petprep import config
 from petprep.config import DEFAULT_MEMORY_MIN_GB
-from petprep.interfaces import DerivativesDataSink
+from petprep.interfaces import AtlasROIsReport, DerivativesDataSink
 from petprep.interfaces.bids import BIDSURI
 from petprep.interfaces.maths import CropAroundMask
 
@@ -91,6 +91,7 @@ def init_func_fit_reports_wf(
     freesurfer: bool,
     output_dir: str,
     ref_name: str,
+    atlas_name: str | None = None,
     name='func_fit_reports_wf',
 ) -> pe.Workflow:
     """
@@ -104,6 +105,9 @@ def init_func_fit_reports_wf(
         Directory in which to save derivatives
     name : :obj:`str`
         Workflow name (default: anat_reports_wf)
+    atlas_name : :obj:`str`, optional
+        Atlas identifier used for TAC computation. When provided, an additional atlas
+        overlay reportlet is generated.
 
     Inputs
     ------
@@ -162,6 +166,8 @@ def init_func_fit_reports_wf(
         'summary_report',
         'validation_report',
     ]
+    if atlas_name:
+        inputfields.extend(['segmentation', 'dseg_tsv'])
     if ref_name:
         inputfields.append('refmask_report')
     inputnode = pe.Node(niu.IdentityInterface(fields=inputfields), name='inputnode')
@@ -236,6 +242,18 @@ def init_func_fit_reports_wf(
     crop_petref = pe.Node(CropAroundMask(), name='crop_petref', mem_gb=0.1)
     crop_t1w_petref = pe.Node(CropAroundMask(), name='crop_t1w_petref', mem_gb=0.1)
     crop_petref_wm = pe.Node(CropAroundMask(), name='crop_petref_wm', mem_gb=0.1)
+    if atlas_name:
+        petref_atlas_seg = pe.Node(
+            ApplyTransforms(
+                dimension=3,
+                default_value=0,
+                invert_transform_flags=[True],
+                interpolation='NearestNeighbor',
+            ),
+            name='petref_atlas_seg',
+            mem_gb=1,
+        )
+        crop_petref_atlas = pe.Node(CropAroundMask(), name='crop_petref_atlas', mem_gb=0.1)
 
     if ref_name:
         petref_refmask = pe.Node(
@@ -291,6 +309,16 @@ def init_func_fit_reports_wf(
             (petref_refmask, crop_petref_refmask, [('output_image', 'in_file')]),
             (inputnode, crop_petref_refmask, [('pet_mask', 'mask_file')]),
         ])
+    if atlas_name:
+        workflow.connect([
+            (inputnode, petref_atlas_seg, [
+                ('segmentation', 'input_image'),
+                ('petref', 'reference_image'),
+                ('petref2anat_xfm', 'transforms'),
+            ]),
+            (petref_atlas_seg, crop_petref_atlas, [('output_image', 'in_file')]),
+            (inputnode, crop_petref_atlas, [('pet_mask', 'mask_file')]),
+        ])
     # fmt:on
 
     # EPI-T1 registration
@@ -338,6 +366,25 @@ def init_func_fit_reports_wf(
             ),
             name='ds_pet_t1_refmask_report',
         )
+    if atlas_name:
+        atlas_overlay_report = pe.Node(
+            AtlasROIsReport(atlas_name=atlas_name),
+            name='atlas_overlay_report',
+            mem_gb=0.1,
+        )
+        ds_atlas_overlay = pe.Node(
+            DerivativesDataSink(
+                base_directory=output_dir,
+                desc='atlasrois',
+                seg=atlas_name,
+                suffix='pet',
+                datatype='figures',
+                allowed_entities=('seg',),
+            ),
+            name='ds_atlas_overlay',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
 
     # fmt:off
     workflow.connect([
@@ -354,6 +401,15 @@ def init_func_fit_reports_wf(
             (crop_petref_refmask, pet_t1_refmask_report, [('out_file', 'wm_seg')]),
             (inputnode, ds_pet_t1_refmask_report, [('source_file', 'source_file')]),
             (pet_t1_refmask_report, ds_pet_t1_refmask_report, [('out_report', 'in_file')]),
+        ])
+    if atlas_name:
+        workflow.connect([
+            (crop_t1w_petref, atlas_overlay_report, [('out_file', 't1w_image')]),
+            (crop_petref, atlas_overlay_report, [('out_file', 'petref_image')]),
+            (crop_petref_atlas, atlas_overlay_report, [('out_file', 'segmentation')]),
+            (inputnode, atlas_overlay_report, [('dseg_tsv', 'dseg_tsv')]),
+            (inputnode, ds_atlas_overlay, [('source_file', 'source_file')]),
+            (atlas_overlay_report, ds_atlas_overlay, [('out_file', 'in_file')]),
         ])
     # fmt:on
 
