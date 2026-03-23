@@ -564,7 +564,7 @@ class GTMPVC(FSCommand):
             )
         if name == 'mg':
             return spec.argstr % (val[0], ' '.join(val[1]))
-        return super(GTMPVC, self)._format_arg(name, spec, val)
+        return super()._format_arg(name, spec, val)
 
     def _list_outputs(self):
         outputs = self.output_spec().get()
