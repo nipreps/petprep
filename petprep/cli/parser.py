@@ -25,6 +25,7 @@
 import sys
 
 from .. import config
+from ..utils.atlas import load_atlas_config
 
 
 def _build_parser(**kwargs):
@@ -385,13 +386,13 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_conf.add_argument(
         '--pet2anat-method',
         action='store',
-        default='mri_coreg',
+        default='auto',
         choices=['mri_coreg', 'robust', 'ants', 'auto'],
         help='Method for PET-to-anatomical registration. '
-        '"mri_coreg" (default) uses FreeSurfer mri_coreg. '
+        '"auto" runs both FreeSurfer and ANTs and selects the best. '
+        '"mri_coreg" uses FreeSurfer mri_coreg. '
         '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
-        '"ants" uses ANTs rigid registration (6 DoF only). '
-        '"auto" runs both FreeSurfer and ANTs and selects the best.',
+        '"ants" uses ANTs rigid registration (6 DoF only).',
     )
     g_conf.add_argument(
         '--anatref',
@@ -622,32 +623,35 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     )
     g_hmc.add_argument(
         '--petref',
-        default='template',
+        default='auto',
         choices=['template', 'twa', 'sum', 'first5min', 'auto'],
         help=(
-            "Strategy for generating the PET reference. 'template' uses the "
+            "Strategy for generating the PET reference. 'auto' (default) evaluates multiple strategies to select the best reference. 'template' uses the "
             "motion correction template, while 'twa' computes a time-weighted "
             "average, 'sum' produces a summed image of the motion-corrected "
             "series, and 'first5min' averages the early (0-5 minute) portion "
-            "of the acquisition. 'auto' evaluates multiple strategies to "
-            'select the best reference.'
+            'of the acquisition.'
         ),
     )
+
+    atlas_config = load_atlas_config()
+    seg_choices = [
+        'gtm',
+        'brainstem',
+        'thalamicNuclei',
+        'hippocampusAmygdala',
+        'wm',
+        'raphe',
+        'limbic',
+        *sorted(atlas_config.keys()),
+    ]
 
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
         '--seg',
         action='store',
         default='gtm',
-        choices=[
-            'gtm',
-            'brainstem',
-            'thalamicNuclei',
-            'hippocampusAmygdala',
-            'wm',
-            'raphe',
-            'limbic',
-        ],
+        choices=seg_choices,
         help='Segmentation method to use.',
     )
 
@@ -892,6 +896,18 @@ def parse_args(args=None, namespace=None):
                 Reference('T1w'),
             ],
         )
+
+    atlas_config = load_atlas_config()
+    if config.workflow.seg in atlas_config:
+        atlas_spec = atlas_config[config.workflow.seg]
+        atlas_reference = atlas_spec.get('reference') or {'res': 'native'}
+        spaces = config.execution.output_spaces or SpatialReferences()
+        if not isinstance(spaces, SpatialReferences):
+            spaces = SpatialReferences(
+                [ref for s in spaces.split(' ') for ref in Reference.from_string(s)]
+            )
+        spaces.add(Reference(atlas_spec['template'], atlas_reference))
+        config.execution.output_spaces = spaces
 
     # Retrieve logging level
     build_log = config.loggers.cli
