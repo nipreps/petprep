@@ -29,7 +29,6 @@ dist/
 .idea/
 .env
 .envrc
-.devcontainer/devcontainer.json
 
 # Additional
 .ipynb_checkpoints/
