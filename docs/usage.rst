@@ -280,7 +280,7 @@ Segmentation
 ----------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), ``Schaefer2018100Parcels17Networks`` (schaefer atlas, 100 parcels, 17 networks), and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`.
+Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 
@@ -291,13 +291,21 @@ To run the segmentation with the default ``gtm`` method, use: ::
 Atlas Segmentation
 --------------------
 
-PETPrep currently supports three atlases: 
+PETPrep currently supports three atlas variants for segmentation:
 
 ``HOCPA`` : the Harvard-Oxford cortical and subcortical atlas (HOCPA)
 
 .. figure:: _static/atlas_HOCPA.svg
 
-``Schaefer2018100Parcels17Networks`` : the Schaefer 2018 parcellation with 100 parcels and 17 networks
+``Schaefer2018*`` : the Schaefer 2018 cortical parcellation (`--seg` options). 
+
+Available in resolutions of **100–1000 parcels**, each with either **7 or 17 networks**.
+
+**Format:**
+- `Schaefer2018<N>Parcels7Networks`
+- `Schaefer2018<N>Parcels17Networks`
+
+Where `<N>` ∈ {100, 200, 300, 400, 500, 600, 800, 1000}
 
 .. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
@@ -315,7 +323,7 @@ Forstmann B.U., Alkemade A. Automated parcellation and atlasing of the human
 subcortex with ultra-high resolution quantitative MRI. *Imaging Neuroscience*.
 2025;3:imag_a_00560. doi: `10.1162/imag_a_00560 <https://doi.org/10.1162/imag_a_00560>`_.
 
-**Schaefer2018100Parcels17Networks**
+**Schaefer2018 atlas variants**
 
 Schaefer 2018 parcellation repository:
 `https://github.com/ThomasYeoLab/CBIG/tree/v0.14.3-Update_Yeo2011_Schaefer2018_labelname/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations <https://github.com/ThomasYeoLab/CBIG/tree/v0.14.3-Update_Yeo2011_Schaefer2018_labelname/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations>`_.
