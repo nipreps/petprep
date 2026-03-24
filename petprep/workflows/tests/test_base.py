@@ -253,3 +253,21 @@ def test_init_petprep_wf(
                 wf = init_petprep_wf()
 
     generate_expanded_graph(wf._create_flat_graph())
+
+
+def test_init_single_subject_wf_derivatives_include_fsaverage(bids_root: Path, tmp_path: Path):
+    captured_std_spaces = []
+
+    def _capture_std_spaces(**kwargs):
+        captured_std_spaces.extend(kwargs['std_spaces'])
+        raise RuntimeError('stop-after-derivative-check')
+
+    with mock_config(bids_dir=bids_root):
+        config.execution.derivatives = {'smriprep': tmp_path}
+
+        with patch('smriprep.utils.bids.collect_derivatives', side_effect=_capture_std_spaces):
+            with pytest.raises(RuntimeError, match='stop-after-derivative-check'):
+                init_single_subject_wf('01')
+
+    assert 'fsnative' in captured_std_spaces
+    assert 'fsaverage' in captured_std_spaces
