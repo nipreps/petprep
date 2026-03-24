@@ -242,7 +242,7 @@ It is released under the [CC0]\
         from smriprep.utils.bids import collect_derivatives as collect_anat_derivatives
 
         std_spaces = spaces.get_spaces(nonstandard=False, dim=(3,))
-        std_spaces.append('fsnative')
+        std_spaces.extend(['fsnative', 'fsaverage'])
         for deriv_dir in config.execution.derivatives.values():
             anatomical_cache.update(
                 collect_anat_derivatives(
