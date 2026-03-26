@@ -242,10 +242,10 @@ describes a custom BIDS filter for selecting files with PyBIDS, with the syntax
           "acquisition": null,
           "suffix": "T1w"
       },
-      "bold": {
+      "pet": {
           "datatype": "func",
           "session": "02",
-          "suffix": "bold"
+          "suffix": "pet"
       }
   }
 
@@ -253,7 +253,7 @@ PETPrep uses the following queries, by default::
 
   {
     "fmap": {"datatype": "fmap"},
-    "bold": {"datatype": "func", "suffix": "bold"},
+    "pet": {"datatype": "func", "suffix": "pet"},
     "sbref": {"datatype": "func", "suffix": "sbref"},
     "flair": {"datatype": "anat", "suffix": "FLAIR"},
     "t2w": {"datatype": "anat", "suffix": "T2w"},
