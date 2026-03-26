@@ -546,18 +546,18 @@ def _find_nearest_path(path_dict, input_path):
     ...     'bids:raw:': Path('/data'),
     ...     'bids:deriv-0:': Path('/data/derivatives/source-1'),
     ... }
-    >>> input_path = Path('/data/derivatives/source-1/sub-01/func/sub-01_task-rest_bold.nii.gz')
+    >>> input_path = Path('/data/derivatives/source-1/sub-01/pet/sub-01_task-pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # match to 'bids:deriv-0:'
-    'bids:deriv-0:sub-01/func/sub-01_task-rest_bold.nii.gz'
-    >>> input_path = Path('/out/sub-01/func/sub-01_task-rest_bold.nii.gz')
+    'bids:deriv-0:sub-01/pet/sub-01_task-pet.nii.gz'
+    >>> input_path = Path('/out/sub-01/pet/sub-01_task-pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # no match- absolute path
-    '/out/sub-01/func/sub-01_task-rest_bold.nii.gz'
-    >>> input_path = Path('/data/sub-01/func/sub-01_task-rest_bold.nii.gz')
+    '/out/sub-01/pet/sub-01_task-pet.nii.gz'
+    >>> input_path = Path('/data/sub-01/pet/sub-01_task-pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # match to 'bids:raw:'
-    'bids:raw:sub-01/func/sub-01_task-rest_bold.nii.gz'
-    >>> input_path = 'bids::sub-01/func/sub-01_task-rest_bold.nii.gz'
+    'bids:raw:sub-01/pet/sub-01_task-pet.nii.gz'
+    >>> input_path = 'bids::sub-01/pet/sub-01_task-pet.nii.gz'
     >>> _find_nearest_path(path_dict, input_path)  # already a BIDS-URI
-    'bids::sub-01/func/sub-01_task-rest_bold.nii.gz'
+    'bids::sub-01/pet/sub-01_task-pet.nii.gz'
     """
     # Don't modify BIDS-URIs
     if isinstance(input_path, str) and input_path.startswith('bids:'):
