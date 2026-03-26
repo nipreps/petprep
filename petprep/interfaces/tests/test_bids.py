@@ -17,9 +17,9 @@ def test_BIDSURI():
         dataset_links=dataset_links,
         out_dir=out_dir,
     )
-    interface.inputs.in1 = '/data/sub-01/func/sub-01_task-rest_bold.nii.gz'
+    interface.inputs.in1 = '/data/sub-01/pet/sub-01_task-pet.nii.gz'
     results = interface.run()
-    assert results.outputs.out == ['bids:raw:sub-01/func/sub-01_task-rest_bold.nii.gz']
+    assert results.outputs.out == ['bids:raw:sub-01/pet/sub-01_task-pet.nii.gz']
 
     # A single element as a list
     interface = BIDSURI(
@@ -27,9 +27,9 @@ def test_BIDSURI():
         dataset_links=dataset_links,
         out_dir=out_dir,
     )
-    interface.inputs.in1 = ['/data/sub-01/func/sub-01_task-rest_bold.nii.gz']
+    interface.inputs.in1 = ['/data/sub-01/pet/sub-01_task-pet.nii.gz']
     results = interface.run()
-    assert results.outputs.out == ['bids:raw:sub-01/func/sub-01_task-rest_bold.nii.gz']
+    assert results.outputs.out == ['bids:raw:sub-01/pet/sub-01_task-pet.nii.gz']
 
     # Two inputs: a string and a list
     interface = BIDSURI(
@@ -37,16 +37,16 @@ def test_BIDSURI():
         dataset_links=dataset_links,
         out_dir=out_dir,
     )
-    interface.inputs.in1 = '/data/sub-01/func/sub-01_task-rest_bold.nii.gz'
+    interface.inputs.in1 = '/data/sub-01/pet/sub-01_task-pet.nii.gz'
     interface.inputs.in2 = [
-        '/data/derivatives/source-1/sub-01/func/sub-01_task-rest_bold.nii.gz',
-        '/out/sub-01/func/sub-01_task-rest_bold.nii.gz',
+        '/data/derivatives/source-1/sub-01/pet/sub-01_task-pet.nii.gz',
+        '/out/sub-01/pet/sub-01_task-pet.nii.gz',
     ]
     results = interface.run()
     assert results.outputs.out == [
-        'bids:raw:sub-01/func/sub-01_task-rest_bold.nii.gz',
-        'bids:deriv-0:sub-01/func/sub-01_task-rest_bold.nii.gz',
-        '/out/sub-01/func/sub-01_task-rest_bold.nii.gz',  # No change
+        'bids:raw:sub-01/pet/sub-01_task-pet.nii.gz',
+        'bids:deriv-0:sub-01/pet/sub-01_task-pet.nii.gz',
+        '/out/sub-01/pet/sub-01_task-pet.nii.gz',  # No change
     ]
 
     # Two inputs as lists
@@ -56,17 +56,17 @@ def test_BIDSURI():
         out_dir=out_dir,
     )
     interface.inputs.in1 = [
-        '/data/sub-01/func/sub-01_task-rest_bold.nii.gz',
-        'bids:raw:sub-01/func/sub-01_task-rest_boldref.nii.gz',
+        '/data/sub-01/pet/sub-01_task-pet.nii.gz',
+        'bids:raw:sub-01/pet/sub-01_task-petref.nii.gz',
     ]
     interface.inputs.in2 = [
-        '/data/derivatives/source-1/sub-01/func/sub-01_task-rest_bold.nii.gz',
-        '/out/sub-01/func/sub-01_task-rest_bold.nii.gz',
+        '/data/derivatives/source-1/sub-01/pet/sub-01_task-pet.nii.gz',
+        '/out/sub-01/pet/sub-01_task-pet.nii.gz',
     ]
     results = interface.run()
     assert results.outputs.out == [
-        'bids:raw:sub-01/func/sub-01_task-rest_bold.nii.gz',
-        'bids:raw:sub-01/func/sub-01_task-rest_boldref.nii.gz',  # No change
-        'bids:deriv-0:sub-01/func/sub-01_task-rest_bold.nii.gz',
-        '/out/sub-01/func/sub-01_task-rest_bold.nii.gz',  # No change
+        'bids:raw:sub-01/pet/sub-01_task-pet.nii.gz',
+        'bids:raw:sub-01/pet/sub-01_task-petref.nii.gz',  # No change
+        'bids:deriv-0:sub-01/pet/sub-01_task-pet.nii.gz',
+        '/out/sub-01/pet/sub-01_task-pet.nii.gz',  # No change
     ]
