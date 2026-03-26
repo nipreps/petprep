@@ -162,19 +162,19 @@ class FSLMotionParams(SimpleInterface):
             self.inputs.petref_file, suffix='_motion.tsv', newpath=runtime.cwd
         )
 
-        boldref = nb.load(self.inputs.petref_file)
+        petref = nb.load(self.inputs.petref_file)
         hmc = nt.linear.load(self.inputs.xfm_file)
 
         # FSL's "center of gravity" is the center of mass scaled by zooms
         # No rotation is applied.
         center_of_gravity = np.matmul(
-            np.diag(boldref.header.get_zooms()),
-            ndi.center_of_mass(np.asanyarray(boldref.dataobj)),
+            np.diag(petref.header.get_zooms()),
+            ndi.center_of_mass(np.asanyarray(petref.dataobj)),
         )
 
         # Revert to vox2vox transforms
         fsl_hmc = nt.io.fsl.FSLLinearTransformArray.from_ras(
-            hmc.matrix, reference=boldref, moving=boldref
+            hmc.matrix, reference=petref, moving=petref
         )
         fsl_matrix = np.stack([xfm['parameters'] for xfm in fsl_hmc.xforms])
 
