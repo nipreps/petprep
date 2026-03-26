@@ -1,5 +1,5 @@
-Node: fmriprep_wf.single_subject_100185_wf.func_preproc_task_machinegame_run_01_wf.bold_confounds_wf.dvars
-Working directory: /scratch/fmriprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_confounds_wf/dvars
+Node: petprep_wf.single_subject_100185_wf.func_preproc_task_machinegame_run_01_wf.bold_confounds_wf.dvars
+Working directory: /scratch/petprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_confounds_wf/dvars
 
 Node inputs:
 
@@ -7,8 +7,8 @@ figdpi = 100
 figformat = png
 figsize = (11.7, 2.3)
 ignore_exception = False
-in_file = /scratch/fmriprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_reg_wf/merge/vol0000_trans_merged.nii.gz
-in_mask = /scratch/fmriprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_reg_wf/mask_t1w_tfm/ref_image_corrected_brain_mask_maths_trans.nii.gz
+in_file = /scratch/petprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_reg_wf/merge/vol0000_trans_merged.nii.gz
+in_mask = /scratch/petprep_wf/single_subject_100185_wf/func_preproc_task_machinegame_run_01_wf/bold_reg_wf/mask_t1w_tfm/ref_image_corrected_brain_mask_maths_trans.nii.gz
 intensity_normalization = 1000.0
 remove_zerovariance = True
 save_all = True
