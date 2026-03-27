@@ -430,7 +430,7 @@ def check_pipeline_version(pipeline_name, cvers, data_desc):
     .. testsetup::
 
         >>> import json
-        >>> data = {"GeneratedBy": [{"Name": "PETPrep", "Version": "23.2.0.dev0"}]}
+        >>> data = {"GeneratedBy": [{"Name": "PETPrep", "Version": "0.0.5"}]}
         >>> desc_file = Path('sample_dataset_description.json')
         >>> _ = desc_file.write_text(json.dumps(data))
 
