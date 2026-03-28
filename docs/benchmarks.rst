@@ -4,49 +4,90 @@
 Performance benchmarks
 ----------------------
 
+This page defines a reproducible benchmark experiment for PETPrep using PET-BIDS datasets.
+The structure mirrors the historical fMRIPrep-style benchmark layout (datasets, command matrix,
+machine details, and runtime/storage outcomes), but all inputs and options are PET-focused.
+
 Datasets and commands
 ---------------------
 
 Datasets
 ~~~~~~~~
-+------------+----------------------------------------------------------------------------------------+
-| Dataset    | Description                                                                            |
-+============+========================================================================================+
-| A          | 6 T1w, 3 T2w, 2 PhaseDiff, 4 SE-BOLD (195 volumes / series; total 784), 4 sbref        |
-+------------+----------------------------------------------------------------------------------------+
-| B          | 2 T1w, 6 PEPolar fieldmaps, 8 SE-BOLD (4274 volumes total)                             |
-+------------+----------------------------------------------------------------------------------------+
+
++------------+---------------------------------------------------------------------------------------------------------------+
+| Dataset    | Description                                                                                                   |
++============+===============================================================================================================+
+| A          | 6 participants, static FDG PET (1 PET run/participant), 1 T1w (all participants), 2 T2w (subset of 2).      |
++------------+---------------------------------------------------------------------------------------------------------------+
+| B          | 8 participants, dynamic PET (180-240 frames/run), 2 PET runs/participant, 1 T1w, with tracer metadata.      |
++------------+---------------------------------------------------------------------------------------------------------------+
 
 PETPrep versions and modes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All commands took the form ``petprep sourcedata/raw . participant $OPTIONS``.
-The specific options for each version or mode are presented in the following table.
+All commands take the form ``petprep sourcedata/raw . participant $OPTIONS``.
+The option matrix below benchmarks the same processing-level split used by PETPrep
+(``minimal`` vs ``full``), plus an intermediate ``resampling`` level.
 
-+------------+----------------------------------------------------------------------------------------+
-| Version /  | Options                                                                                |
-| Mode       |                                                                                        |
-+============+========================================================================================+
-| 23.1.4     | ``--cifti-output --output-spaces MNI152NLin2009cAsym``                                 |
-+------------+----------------------------------------------------------------------------------------+
-| 23.2.0a2 / | ``--level minimal --cifti-output --output-spaces MNI152NLin2009cAsym``                 |
-| fit        |                                                                                        |
-+------------+----------------------------------------------------------------------------------------+
-| 23.2.0a2 / | ``--level full --cifti-output --output-spaces MNI152NLin2009cAsym``                    |
-| fit +      |                                                                                        |
-| transform  |                                                                                        |
-+------------+----------------------------------------------------------------------------------------+
++----------------------+------------------------------------------------------------------------------------------------+
+| Version / Mode       | Options                                                                                        |
++======================+================================================================================================+
+| 0.0.4 (full)         | ``--level full --output-spaces MNI152NLin2009cAsym``                                          |
++----------------------+------------------------------------------------------------------------------------------------+
+| 0.0.5 (minimal)      | ``--level minimal --output-spaces MNI152NLin2009cAsym``                                       |
++----------------------+------------------------------------------------------------------------------------------------+
+| 0.0.5 (resampling)   | ``--level resampling --output-spaces MNI152NLin2009cAsym``                                    |
++----------------------+------------------------------------------------------------------------------------------------+
+| 0.0.5 (full + PVC)   | ``--level full --output-spaces MNI152NLin2009cAsym --pvc-tool petsurfer --pvc-method gtm``   |
+|                      | ``--pvc-psf 6 6 6``                                                                            |
++----------------------+------------------------------------------------------------------------------------------------+
 
 Machine details
 ~~~~~~~~~~~~~~~
 
-Tests were run on a desktop machine running no other significant tests.
+Run each benchmark on an otherwise idle system and report:
 
-* Processor: Intel i9-10900 CPU @ 2.80GHz, 20-core
-* Memory: 64GiB
-* Storage: PC801 NVMe SK hynix 2TB
-* OS: Ubuntu 22.04
-* Environment: Docker images published to https://hub.docker.com/r/nipreps/petprep/
+* Processor model and logical core count
+* RAM (GiB)
+* Storage type/capacity (NVMe/SATA, etc.)
+* Operating system (distribution + version)
+* Container/runtime used (for example Docker image tag)
+
+Recommended environment for reproducibility:
+
+* PETPrep container image from Docker Hub: ``nipreps/petprep:<tag>``
+* Inputs mounted read-only, outputs/work mounted read-write
+* No concurrent heavy jobs
+
+Reproducible execution template
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Example command pattern (replace paths and ``$OPTIONS``):
+
+.. code-block:: bash
+
+   docker run --rm \
+     -v $PWD/sourcedata:/data:ro \
+     -v $PWD/derivatives:/out \
+     -v $PWD/work:/work \
+     nipreps/petprep:<tag> \
+     /data/raw /out participant \
+     -w /work $OPTIONS
+
+For each run, collect:
+
+* Wall-clock runtime (start/end timestamps)
+* Peak scratch size and file count (``work`` directory)
+* Final derivatives size and file count (output directory)
+
+Suggested collection commands:
+
+.. code-block:: bash
+
+   /usr/bin/time -v <petprep-command>
+   du -sh work out
+   find work -type f | wc -l
+   find out -type f | wc -l
 
 Benchmarks
 ----------
@@ -54,33 +95,29 @@ Benchmarks
 Dataset A
 ~~~~~~~~~
 
-+------------+---------+---------+---------+---------+---------+
-| Version /  | Runtime | Scratch | Scratch | Output  | Output  |
-| Mode       |         | Size    | Files   | Size    | files   |
-+============+=========+=========+=========+=========+=========+
-| 23.1.4     | 2h24m   | 54.8GB  | 36.8K   | 2.30GB  | 176     |
-+------------+---------+---------+---------+---------+---------+
-| 23.2.0a2   | 1h35m   | 2.91GB  | 5.89K   | 602MB   | 128     |
-| / fit      |         |         |         |         |         |
-+------------+---------+---------+---------+---------+---------+
-| 23.2.0a2   | 1h47m   | 19.8GB  | 10.0K   | 6.37GB  | 206     |
-| / fit +    |         |         |         |         |         |
-| transform  |         |         |         |         |         |
-+------------+---------+---------+---------+---------+---------+
++----------------------+----------+--------------+---------------+-------------+--------------+
+| Version / Mode       | Runtime  | Scratch Size | Scratch Files | Output Size | Output Files |
++======================+==========+==============+===============+=============+==============+
+| 0.0.4 (full)         | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (minimal)      | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (resampling)   | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (full + PVC)   | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
 
 Dataset B
 ~~~~~~~~~
 
-+------------+---------+---------+---------+---------+---------+
-| Version /  | Runtime | Scratch | Scratch | Output  | Output  |
-| Mode       |         | Size    | Files   | Size    | files   |
-+============+=========+=========+=========+=========+=========+
-| 23.1.4     | 4h25m   | 121GB   | 157K    | 5.10GB  | 286     |
-+------------+---------+---------+---------+---------+---------+
-| 23.2.0a2   | 1h29m   | 1.88GB  | 12.0K   | 543MB   | 206     |
-| / fit      |         |         |         |         |         |
-+------------+---------+---------+---------+---------+---------+
-| 23.2.0a2   | 2h7m    | 56.5GB  | 19.8K   | 14.7GB  | 348     |
-| / fit +    |         |         |         |         |         |
-| transform  |         |         |         |         |         |
-+------------+---------+---------+---------+---------+---------+
++----------------------+----------+--------------+---------------+-------------+--------------+
+| Version / Mode       | Runtime  | Scratch Size | Scratch Files | Output Size | Output Files |
++======================+==========+==============+===============+=============+==============+
+| 0.0.4 (full)         | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (minimal)      | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (resampling)   | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
+| 0.0.5 (full + PVC)   | TBD      | TBD          | TBD           | TBD         | TBD          |
++----------------------+----------+--------------+---------------+-------------+--------------+
