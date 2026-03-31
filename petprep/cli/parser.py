@@ -430,16 +430,6 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
 
     g_outputs = parser.add_argument_group('Options for modulating outputs')
     g_outputs.add_argument(
-        '--output-layout',
-        action='store',
-        default='bids',
-        choices=('bids', 'legacy'),
-        help='Organization of outputs. "bids" (default) places PETPrep derivatives '
-        'directly in the output directory, and defaults to placing FreeSurfer '
-        'derivatives in <output-dir>/sourcedata/freesurfer. "legacy" creates '
-        'derivative datasets as subdirectories of outputs.',
-    )
-    g_outputs.add_argument(
         '--aggregate-session-reports',
         dest='aggr_ses_reports',
         action='store',
@@ -954,18 +944,10 @@ applied."""
     output_dir = config.execution.output_dir
     work_dir = config.execution.work_dir
     version = config.environment.version
-    output_layout = config.execution.output_layout
-
     if config.execution.fs_subjects_dir is None:
-        if output_layout == 'bids':
-            config.execution.fs_subjects_dir = output_dir / 'sourcedata' / 'freesurfer'
-        elif output_layout == 'legacy':
-            config.execution.fs_subjects_dir = output_dir / 'freesurfer'
+        config.execution.fs_subjects_dir = output_dir / 'sourcedata' / 'freesurfer'
     if config.execution.petprep_dir is None:
-        if output_layout == 'bids':
-            config.execution.petprep_dir = output_dir
-        elif output_layout == 'legacy':
-            config.execution.petprep_dir = output_dir / 'petprep'
+        config.execution.petprep_dir = output_dir
 
     # Wipe out existing work_dir
     if opts.clean_workdir and work_dir.exists():
