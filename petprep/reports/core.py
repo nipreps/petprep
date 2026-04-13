@@ -182,7 +182,7 @@ def generate_reports(
 
 
 def generate_group_morph_report(output_dir, participant_label=None):
-    """Generate a group-level summary report from participant morphometry files."""
+    """Generate group-level summaries from participant morphometry and timeseries files."""
     output_dir = Path(output_dir)
     group_dir = output_dir / 'group'
     group_dir.mkdir(parents=True, exist_ok=True)
@@ -207,9 +207,7 @@ def generate_group_morph_report(output_dir, participant_label=None):
             morph_dfs.append(sub_df)
 
     if not morph_dfs:
-        raise RuntimeError(
-            f'No participant morphometry files (*_morph.tsv) were found under {output_dir}.'
-        )
+        raise RuntimeError(f'No participant files (*_morph.tsv) were found under {output_dir}.')
 
     group_df = pd.concat(morph_dfs, ignore_index=True)
     numeric_cols = [
@@ -236,9 +234,33 @@ def generate_group_morph_report(output_dir, participant_label=None):
     ]
 
     summary_tsv = group_dir / 'desc-morph_group.tsv'
+    confounds_tsv = group_dir / 'desc-timeseries_group.tsv'
     summary_html = group_dir / 'report.html'
 
     summary_df.to_csv(summary_tsv, sep='\t', index=False)
+
+    timeseries_dfs = []
+    for subject_id in participants:
+        sub_dir = output_dir / f'sub-{subject_id}'
+        if not sub_dir.exists():
+            continue
+
+        for timeseries_file in sub_dir.rglob('*_timeseries.tsv'):
+            sub_df = pd.read_csv(timeseries_file, sep='\t')
+            numeric_cols = list(sub_df.select_dtypes(include='number').columns)
+            if not numeric_cols:
+                continue
+            timeseries_dfs.append(sub_df[numeric_cols])
+
+    confounds_summary_df = pd.DataFrame()
+    if timeseries_dfs:
+        confounds_df = pd.concat(timeseries_dfs, ignore_index=True)
+        confounds_summary_df = (
+            confounds_df.agg(['count', 'mean', 'std', 'min', 'max']).transpose().reset_index()
+        )
+        confounds_summary_df = confounds_summary_df.rename(columns={'index': 'name'})
+        confounds_summary_df.to_csv(confounds_tsv, sep='\t', index=False)
+
     summary_html.write_text(
         '\n'.join(
             [
@@ -246,6 +268,16 @@ def generate_group_morph_report(output_dir, participant_label=None):
                 '<h1>PETPrep group morphometry summary</h1>',
                 '<p>Summary statistics across participant-level <code>*_morph.tsv</code> outputs.</p>',
                 summary_df.to_html(index=False, border=0),
+                '<h2>PETPrep group timeseries summary</h2>',
+                (
+                    '<p>Summary statistics across numeric columns from participant-level '
+                    '<code>*_timeseries.tsv</code> outputs.</p>'
+                ),
+                (
+                    confounds_summary_df.to_html(index=False, border=0)
+                    if not confounds_summary_df.empty
+                    else '<p>No numeric <code>*_timeseries.tsv</code> files were found.</p>'
+                ),
                 '</body></html>',
             ]
         )
