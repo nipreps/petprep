@@ -22,6 +22,7 @@
 #
 from pathlib import Path
 
+import pandas as pd
 from nireports.assembler.report import Report
 
 from .. import config, data
@@ -178,3 +179,76 @@ def generate_reports(
                     errors.append(report_error)
 
     return errors
+
+
+def generate_group_morph_report(output_dir, participant_label=None):
+    """Generate a group-level summary report from participant morphometry files."""
+    output_dir = Path(output_dir)
+    group_dir = output_dir / 'group'
+    group_dir.mkdir(parents=True, exist_ok=True)
+
+    if participant_label:
+        participants = [label.removeprefix('sub-') for label in participant_label]
+    else:
+        participants = sorted(path.name.removeprefix('sub-') for path in output_dir.glob('sub-*'))
+
+    morph_dfs = []
+    for subject_id in participants:
+        sub_dir = output_dir / f'sub-{subject_id}'
+        if not sub_dir.exists():
+            continue
+
+        for morph_file in sub_dir.rglob('*_morph.tsv'):
+            if 'anat' not in morph_file.parts:
+                continue
+            sub_df = pd.read_csv(morph_file, sep='\t')
+            sub_df['participant_id'] = f'sub-{subject_id}'
+            sub_df['source_file'] = str(morph_file.relative_to(output_dir))
+            morph_dfs.append(sub_df)
+
+    if not morph_dfs:
+        raise RuntimeError(
+            f'No participant morphometry files (*_morph.tsv) were found under {output_dir}.'
+        )
+
+    group_df = pd.concat(morph_dfs, ignore_index=True)
+    numeric_cols = [
+        col
+        for col in group_df.select_dtypes(include='number').columns
+        if col not in {'index', 'id'}
+    ]
+    if not numeric_cols:
+        raise RuntimeError('No numeric columns were found in participant morphometry tables.')
+
+    groupby_cols = [
+        col
+        for col in group_df.columns
+        if col not in set(numeric_cols) | {'participant_id', 'source_file'}
+    ]
+
+    summary_df = (
+        group_df.groupby(groupby_cols, dropna=False)[numeric_cols]
+        .agg(['count', 'mean', 'std', 'min', 'max'])
+        .reset_index()
+    )
+    summary_df.columns = [
+        '_'.join(filter(None, map(str, col))).rstrip('_') for col in summary_df.columns.to_flat_index()
+    ]
+
+    summary_tsv = group_dir / 'desc-morph_group.tsv'
+    summary_html = group_dir / 'report.html'
+
+    summary_df.to_csv(summary_tsv, sep='\t', index=False)
+    summary_html.write_text(
+        '\n'.join(
+            [
+                '<html><head><meta charset="utf-8"><title>PETPrep Group Morphometry Report</title></head><body>',
+                '<h1>PETPrep group morphometry summary</h1>',
+                '<p>Summary statistics across participant-level <code>*_morph.tsv</code> outputs.</p>',
+                summary_df.to_html(index=False, border=0),
+                '</body></html>',
+            ]
+        )
+    )
+
+    return summary_tsv, summary_html

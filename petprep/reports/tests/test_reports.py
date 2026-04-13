@@ -1,6 +1,7 @@
 import shutil
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from bids.layout import BIDSLayout
 
@@ -177,3 +178,26 @@ def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
     generate_reports(['02'], tmp_path, 'fake', work_dir=work_dir)
 
     assert recorded_reportlets == [target]
+
+
+def test_generate_group_morph_report(tmp_path):
+    anat_dir_1 = tmp_path / 'sub-01' / 'anat'
+    anat_dir_1.mkdir(parents=True)
+    anat_dir_2 = tmp_path / 'sub-02' / 'anat'
+    anat_dir_2.mkdir(parents=True)
+
+    (anat_dir_1 / 'sub-01_desc-test_morph.tsv').write_text(
+        'index\tname\tvolume-mm3\n1\tregionA\t100.0\n2\tregionB\t200.0\n'
+    )
+    (anat_dir_2 / 'sub-02_desc-test_morph.tsv').write_text(
+        'index\tname\tvolume-mm3\n1\tregionA\t120.0\n2\tregionB\t220.0\n'
+    )
+
+    summary_tsv, summary_html = core.generate_group_morph_report(tmp_path)
+
+    assert summary_tsv.is_file()
+    assert summary_html.is_file()
+
+    summary_df = pd.read_csv(summary_tsv, sep='\t')
+    assert set(summary_df['name']) == {'regionA', 'regionB'}
+    assert 'volume-mm3_mean' in summary_df.columns

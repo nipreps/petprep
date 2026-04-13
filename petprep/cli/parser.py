@@ -171,9 +171,9 @@ def _build_parser(**kwargs):
     )
     parser.add_argument(
         'analysis_level',
-        choices=['participant'],
-        help='Processing stage to be run, only "participant" in the case of '
-        'PETPrep (see BIDS-Apps specification).',
+        choices=['participant', 'group'],
+        help='Processing stage to be run. "participant" runs subject-level preprocessing, '
+        'and "group" summarizes participant-level derivatives.',
     )
 
     g_bids = parser.add_argument_group('Options for filtering BIDS queries')

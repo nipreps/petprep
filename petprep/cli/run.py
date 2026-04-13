@@ -39,6 +39,24 @@ def main():
 
     parse_args()
 
+    if config.execution.analysis_level == 'group':
+        from petprep.reports.core import generate_group_morph_report
+
+        try:
+            summary_tsv, summary_html = generate_group_morph_report(
+                config.execution.petprep_dir,
+                participant_label=config.execution.participant_label,
+            )
+        except RuntimeError as err:
+            config.loggers.cli.error(str(err))
+            sys.exit(1)
+
+        config.loggers.workflow.log(
+            25,
+            f'Generated group-level morphometry summary: {summary_tsv} and {summary_html}',
+        )
+        sys.exit(0)
+
     # Code Carbon
     if config.execution.track_carbon:
         from codecarbon import OfflineEmissionsTracker

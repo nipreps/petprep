@@ -71,6 +71,15 @@ def test_parser_valid(tmp_path, args):
     assert opts.bids_dir == datapath
 
 
+def test_parser_accepts_group_analysis_level(tmp_path):
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+
+    opts = _build_parser().parse_args([str(datapath), 'out/', 'group'])
+
+    assert opts.analysis_level == 'group'
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [
