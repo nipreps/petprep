@@ -192,6 +192,20 @@ def test_generate_group_morph_report(tmp_path):
     (anat_dir_2 / 'sub-02_desc-test_morph.tsv').write_text(
         'index\tname\tvolume-mm3\n1\tregionA\t120.0\n2\tregionB\t220.0\n'
     )
+    pet_dir_1 = tmp_path / 'sub-01' / 'pet'
+    pet_dir_1.mkdir(parents=True)
+    pet_dir_2 = tmp_path / 'sub-02' / 'pet'
+    pet_dir_2.mkdir(parents=True)
+    (pet_dir_1 / 'sub-01_desc-confounds_timeseries.tsv').write_text(
+        'std_dvars\tdvars\tframewise_displacement\trmsd\ttrans_x\n'
+        '1.0\t0.8\t0.20\t0.05\t0.1\n'
+        '1.2\t1.0\t0.40\t0.07\t0.2\n'
+    )
+    (pet_dir_2 / 'sub-02_desc-confounds_timeseries.tsv').write_text(
+        'std_dvars\tdvars\tframewise_displacement\trmsd\ttrans_x\n'
+        '0.9\t0.7\t0.30\t0.06\t0.0\n'
+        '1.1\t0.9\t0.50\t0.08\t0.3\n'
+    )
 
     summary_tsv, summary_html = core.generate_group_morph_report(tmp_path)
 
@@ -201,3 +215,9 @@ def test_generate_group_morph_report(tmp_path):
     summary_df = pd.read_csv(summary_tsv, sep='\t')
     assert set(summary_df['name']) == {'regionA', 'regionB'}
     assert 'volume-mm3_mean' in summary_df.columns
+
+    confounds_summary_tsv = tmp_path / 'group' / 'desc-timeseries_group.tsv'
+    assert confounds_summary_tsv.is_file()
+
+    confounds_df = pd.read_csv(confounds_summary_tsv, sep='\t')
+    assert set(confounds_df['name']) >= {'std_dvars', 'dvars', 'framewise_displacement', 'rmsd'}
