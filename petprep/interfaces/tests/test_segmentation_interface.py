@@ -5,6 +5,7 @@ from ... import config
 from ..segmentation import (
     MRISclimbicSeg,
     SegmentBS,
+    SegmentHA_T1,
     SegmentGTM,
     SegmentThalamicNuclei,
     SegmentWM,
@@ -149,3 +150,140 @@ def test_mcr_lookup_uses_freesurfer_home_not_mcrroot(monkeypatch, tmp_path):
     result = _ensure_mcr2019b_installed(runtime)
 
     assert result is runtime
+
+
+def test_mcr_install_raises_when_installer_missing(tmp_path):
+    fs_home = tmp_path / 'freesurfer'
+    fs_home.mkdir()
+
+    runtime = SimpleNamespace(environ={'FREESURFER_HOME': str(fs_home)})
+
+    try:
+        _ensure_mcr2019b_installed(runtime)
+    except RuntimeError as err:
+        assert 'fs_install_mcr' in str(err)
+    else:
+        raise AssertionError('Expected RuntimeError when fs_install_mcr is missing.')
+
+
+def test_mcr_install_raises_when_unzip_and_apt_get_missing(monkeypatch, tmp_path):
+    fs_home = tmp_path / 'freesurfer'
+    installer = fs_home / 'bin' / 'fs_install_mcr'
+    installer.parent.mkdir(parents=True)
+    installer.write_text('#!/bin/sh\n')
+
+    runtime = SimpleNamespace(environ={'FREESURFER_HOME': str(fs_home)})
+
+    monkeypatch.setattr('shutil.which', lambda _name: None)
+
+    try:
+        _ensure_mcr2019b_installed(runtime)
+    except RuntimeError as err:
+        assert 'apt-get is missing' in str(err)
+    else:
+        raise AssertionError('Expected RuntimeError when unzip and apt-get are unavailable.')
+
+
+def test_mcr_install_raises_without_root_when_unzip_missing(monkeypatch, tmp_path):
+    fs_home = tmp_path / 'freesurfer'
+    installer = fs_home / 'bin' / 'fs_install_mcr'
+    installer.parent.mkdir(parents=True)
+    installer.write_text('#!/bin/sh\n')
+
+    runtime = SimpleNamespace(environ={'FREESURFER_HOME': str(fs_home)})
+
+    def _which(name):
+        if name == 'unzip':
+            return None
+        if name == 'apt-get':
+            return '/usr/bin/apt-get'
+        return None
+
+    monkeypatch.setattr('shutil.which', _which)
+    monkeypatch.setattr('os.geteuid', lambda: 1000)
+
+    try:
+        _ensure_mcr2019b_installed(runtime)
+    except RuntimeError as err:
+        assert 'Re-run with root privileges' in str(err)
+    else:
+        raise AssertionError('Expected RuntimeError when unzip is missing and user is not root.')
+
+
+def test_mcr_install_runs_apt_get_and_installer(monkeypatch, tmp_path):
+    fs_home = tmp_path / 'freesurfer'
+    installer = fs_home / 'bin' / 'fs_install_mcr'
+    installer.parent.mkdir(parents=True)
+    installer.write_text('#!/bin/sh\n')
+
+    runtime = SimpleNamespace(environ={'FREESURFER_HOME': str(fs_home), 'EXTRA_FLAG': '1'})
+    calls = []
+
+    def _which(name):
+        if name == 'unzip':
+            return None
+        if name == 'apt-get':
+            return '/usr/bin/apt-get'
+        return None
+
+    def _fake_run(cmd, check, capture_output, text, env):
+        calls.append((cmd, env['EXTRA_FLAG']))
+        return SimpleNamespace(stdout=f"{cmd[0]} out\n", stderr=f"{cmd[0]} err\n")
+
+    monkeypatch.setattr('shutil.which', _which)
+    monkeypatch.setattr('os.geteuid', lambda: 0)
+    monkeypatch.setattr('subprocess.run', _fake_run)
+
+    result = _ensure_mcr2019b_installed(runtime)
+
+    assert result is runtime
+    assert [call[0][1:] for call in calls] == [
+        ['update'],
+        ['install', '-y', '--no-install-recommends', 'unzip'],
+        ['R2019b'],
+    ]
+    assert runtime.stdout.endswith(f'{installer} out\n')
+    assert runtime.stderr.endswith(f'{installer} err\n')
+
+
+def test_segment_thalamic_skips_when_outputs_exist(monkeypatch, tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    (subj_dir / 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz').write_text('')
+    (subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt').write_text('')
+
+    def _raise_if_called(*_args, **_kwargs):
+        raise AssertionError('Segmentation command should not run when outputs already exist.')
+
+    monkeypatch.setattr(SegmentThalamicNuclei, '_run_command', _raise_if_called)
+
+    seg = SegmentThalamicNuclei(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert res.runtime.returncode == 0
+    assert Path(res.outputs.out_file) == subj_dir / 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz'
+    assert Path(res.outputs.volumes_file) == subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt'
+
+
+def test_segmentha_t1_skip_and_filename(tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    expected_files = [
+        'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+        'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+        'lh.hippoSfVolumes-T1.v22.txt',
+        'lh.amygNucVolumes-T1.v22.txt',
+        'rh.hippoSfVolumes-T1.v22.txt',
+        'rh.amygNucVolumes-T1.v22.txt',
+    ]
+    for fname in expected_files:
+        (subj_dir / fname).write_text('')
+
+    seg = SegmentHA_T1(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert res.runtime.returncode == 0
+    assert Path(res.outputs.lh_hippoAmygLabels) == subj_dir / expected_files[0]
+    assert Path(res.outputs.rh_amygNucVolumes) == subj_dir / expected_files[-1]
+    assert seg._gen_filename('subjects_dir') == str((Path.cwd() / 'sub-01').resolve())
+    assert seg._gen_filename('not-a-real-field') is None
