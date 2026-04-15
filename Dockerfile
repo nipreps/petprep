@@ -105,6 +105,11 @@ ENV LANG="C.UTF-8" \
     FSLREMOTECALL="" \
     FSLGECUDAQ="cuda.q"
 
+# fs_install_mcr requires unzip to extract the downloaded MCR archive
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends unzip && \
+    rm -rf /var/lib/apt/lists/*
+
 # INSTALL MCR 2019b
 RUN /opt/freesurfer/bin/fs_install_mcr R2019b 
 
