@@ -2,7 +2,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from ... import config
-from ..segmentation import MRISclimbicSeg, SegmentBS, SegmentGTM, SegmentWM, _set_freesurfer_seed
+from ..segmentation import (
+    MRISclimbicSeg,
+    SegmentBS,
+    SegmentGTM,
+    SegmentThalamicNuclei,
+    SegmentWM,
+    _set_freesurfer_seed,
+)
 
 
 def test_segmentgtm_skip(tmp_path):
@@ -56,6 +63,10 @@ def _fake_wm_run(self, cmd):
 def test_segmentbs_stdout_stderr(monkeypatch, tmp_path):
     seg = SegmentBS(subjects_dir=str(tmp_path), subject_id='sub-01')
     monkeypatch.setattr(SegmentBS, '_run_command', _fake_bs_run)
+    monkeypatch.setattr(
+        'petprep.interfaces.segmentation._ensure_mcr2019b_installed',
+        lambda runtime: runtime,
+    )
     res = seg.run()
     assert res.outputs.stdout == 'bs out'
     assert res.outputs.stderr == 'bs err'
@@ -75,3 +86,43 @@ def test_set_freesurfer_seed_runtime():
     runtime = _set_freesurfer_seed(runtime)
 
     assert runtime.environ['FREESURFER_RANDOM_SEED'] == str(config.seeds.freesurfer)
+
+
+def test_segmentbs_skips_mcr_when_outputs_exist(monkeypatch, tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    (subj_dir / 'brainstemSsLabels.v13.mgz').write_text('')
+    (subj_dir / 'brainstemSsLabels.v13.FSvoxelSpace.mgz').write_text('')
+    (subj_dir / 'brainstemSsVolumes.v13.txt').write_text('')
+
+    seg = SegmentBS(subjects_dir=str(tmp_path), subject_id='sub-01')
+
+    def _raise_if_called(*_args, **_kwargs):
+        raise AssertionError('MCR install should not run when outputs already exist.')
+
+    monkeypatch.setattr('petprep.interfaces.segmentation._ensure_mcr2019b_installed', _raise_if_called)
+    res = seg.run()
+    assert res.runtime.returncode == 0
+
+
+def test_segment_thalamic_installs_mcr_before_running(monkeypatch, tmp_path):
+    seg = SegmentThalamicNuclei(subjects_dir=str(tmp_path), subject_id='sub-01')
+    calls = {'mcr': 0, 'run': 0}
+
+    def _fake_mcr(runtime):
+        calls['mcr'] += 1
+        return runtime
+
+    def _fake_run(self, _cmd):
+        calls['run'] += 1
+        subj_dir = Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri'
+        subj_dir.mkdir(parents=True, exist_ok=True)
+        (subj_dir / 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz').write_text('')
+        (subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt').write_text('')
+
+    monkeypatch.setattr('petprep.interfaces.segmentation._ensure_mcr2019b_installed', _fake_mcr)
+    monkeypatch.setattr(SegmentThalamicNuclei, '_run_command', _fake_run)
+    seg.run()
+
+    assert calls['mcr'] == 1
+    assert calls['run'] == 1

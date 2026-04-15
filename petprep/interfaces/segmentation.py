@@ -8,6 +8,7 @@ function used by the segmentation workflow.
 """
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -32,6 +33,40 @@ from .. import config
 
 def _set_freesurfer_seed(runtime):
     runtime.environ['FREESURFER_RANDOM_SEED'] = str(config.seeds.freesurfer)
+    return runtime
+
+
+def _ensure_mcr2019b_installed(runtime):
+    """Install MCR R2019b on demand for FreeSurfer segmentation tools."""
+    mcr_root = Path(os.getenv('MCRROOT', '/opt/freesurfer/MCRv97'))
+    if mcr_root.exists():
+        return runtime
+
+    if shutil.which('unzip') is None:
+        raise RuntimeError(
+            'MCR R2019b is required but "unzip" is not available. '
+            'Install unzip in the container image before running this segmentation.'
+        )
+
+    fs_home = Path(os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
+    installer = fs_home / 'bin' / 'fs_install_mcr'
+    if not installer.exists():
+        raise RuntimeError(
+            f'MCR R2019b is required but installer was not found at "{installer}".'
+        )
+
+    run_env = os.environ.copy()
+    run_env.update(getattr(runtime, 'environ', {}) or {})
+
+    proc = subprocess.run(
+        [str(installer), 'R2019b'],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=run_env,
+    )
+    runtime.stdout = f'{getattr(runtime, "stdout", "")}{proc.stdout}'
+    runtime.stderr = f'{getattr(runtime, "stderr", "")}{proc.stderr}'
     return runtime
 
 
@@ -61,6 +96,7 @@ class SegmentBS(SimpleInterface):
         volumes = subj_dir / 'brainstemSsVolumes.v13.txt'
 
         if not (out_file.exists() and out_fsvox.exists() and volumes.exists()):
+            runtime = _ensure_mcr2019b_installed(runtime)
             cmd = [
                 'segmentBS.sh',
                 self.inputs.subject_id,
@@ -209,6 +245,7 @@ class SegmentHA_T1(FSCommand):
             runtime.returncode = 0
             return runtime
 
+        runtime = _ensure_mcr2019b_installed(runtime)
         cmd = CommandLine(
             command='segmentHA_T1.sh',
             args=self.inputs.subject_id,
@@ -265,6 +302,7 @@ class SegmentThalamicNuclei(SimpleInterface):
         volumes_file = subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt'
 
         if not (out_file.exists() and volumes_file.exists()):
+            runtime = _ensure_mcr2019b_installed(runtime)
             cmd = [
                 'segmentThalamicNuclei.sh',
                 self.inputs.subject_id,
