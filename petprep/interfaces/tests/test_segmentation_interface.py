@@ -135,10 +135,14 @@ def test_mcr_lookup_uses_freesurfer_home_not_mcrroot(monkeypatch, tmp_path):
     fs_home = tmp_path / 'freesurfer'
     (fs_home / 'MCRv97').mkdir(parents=True)
 
-    runtime = SimpleNamespace(environ={'FREESURFER_HOME': str(fs_home), 'MCRROOT': '/tmp/does-not-exist'})
+    runtime = SimpleNamespace(
+        environ={'FREESURFER_HOME': str(fs_home), 'MCRROOT': '/tmp/does-not-exist'}
+    )
 
     def _raise_if_called(*_args, **_kwargs):
-        raise AssertionError('MCR installer should not run when MCRv97 exists under FREESURFER_HOME.')
+        raise AssertionError(
+            'MCR installer should not run when MCRv97 exists under FREESURFER_HOME.'
+        )
 
     monkeypatch.setattr('subprocess.run', _raise_if_called)
 
