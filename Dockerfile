@@ -105,6 +105,9 @@ ENV LANG="C.UTF-8" \
     FSLREMOTECALL="" \
     FSLGECUDAQ="cuda.q"
 
+# INSTALL MCR 2019b
+RUN /opt/freesurfer/bin/fs_install_mcr R2019b 
+
 # Unless otherwise specified each process should only use one thread - nipype
 # will handle parallelization
 ENV MKL_NUM_THREADS=1 \
