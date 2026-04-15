@@ -5,8 +5,8 @@ from ... import config
 from ..segmentation import (
     MRISclimbicSeg,
     SegmentBS,
-    SegmentHA_T1,
     SegmentGTM,
+    SegmentHA_T1,
     SegmentThalamicNuclei,
     SegmentWM,
     _ensure_mcr2019b_installed,
@@ -228,7 +228,7 @@ def test_mcr_install_runs_apt_get_and_installer(monkeypatch, tmp_path):
 
     def _fake_run(cmd, check, capture_output, text, env):
         calls.append((cmd, env['EXTRA_FLAG']))
-        return SimpleNamespace(stdout=f"{cmd[0]} out\n", stderr=f"{cmd[0]} err\n")
+        return SimpleNamespace(stdout=f'{cmd[0]} out\n', stderr=f'{cmd[0]} err\n')
 
     monkeypatch.setattr('shutil.which', _which)
     monkeypatch.setattr('os.geteuid', lambda: 0)
