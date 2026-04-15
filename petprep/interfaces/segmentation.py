@@ -42,12 +42,6 @@ def _ensure_mcr2019b_installed(runtime):
     if mcr_root.exists():
         return runtime
 
-    if shutil.which('unzip') is None:
-        raise RuntimeError(
-            'MCR R2019b is required but "unzip" is not available. '
-            'Install unzip in the container image before running this segmentation.'
-        )
-
     fs_home = Path(os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
     installer = fs_home / 'bin' / 'fs_install_mcr'
     if not installer.exists():
@@ -55,6 +49,35 @@ def _ensure_mcr2019b_installed(runtime):
 
     run_env = os.environ.copy()
     run_env.update(getattr(runtime, 'environ', {}) or {})
+
+    if shutil.which('unzip') is None:
+        apt_get = shutil.which('apt-get')
+        if apt_get is None:
+            raise RuntimeError(
+                'MCR R2019b is required but "unzip" is not available and apt-get is missing. '
+                'Install unzip before running this segmentation.'
+            )
+        if os.geteuid() != 0:
+            raise RuntimeError(
+                'MCR R2019b is required but "unzip" is not available. '
+                'Re-run with root privileges so petprep can install unzip automatically.'
+            )
+        update_proc = subprocess.run(
+            [apt_get, 'update'],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=run_env,
+        )
+        install_proc = subprocess.run(
+            [apt_get, 'install', '-y', '--no-install-recommends', 'unzip'],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=run_env,
+        )
+        runtime.stdout = f'{getattr(runtime, "stdout", "")}{update_proc.stdout}{install_proc.stdout}'
+        runtime.stderr = f'{getattr(runtime, "stderr", "")}{update_proc.stderr}{install_proc.stderr}'
 
     proc = subprocess.run(
         [str(installer), 'R2019b'],
