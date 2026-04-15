@@ -51,9 +51,7 @@ def _ensure_mcr2019b_installed(runtime):
     fs_home = Path(os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
     installer = fs_home / 'bin' / 'fs_install_mcr'
     if not installer.exists():
-        raise RuntimeError(
-            f'MCR R2019b is required but installer was not found at "{installer}".'
-        )
+        raise RuntimeError(f'MCR R2019b is required but installer was not found at "{installer}".')
 
     run_env = os.environ.copy()
     run_env.update(getattr(runtime, 'environ', {}) or {})
