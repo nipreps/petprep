@@ -36,22 +36,24 @@ def _set_freesurfer_seed(runtime):
     return runtime
 
 
-def _ensure_mcr2019b_installed(runtime):
-    """Install MCR R2019b on demand for FreeSurfer segmentation tools."""
-    runtime_env = getattr(runtime, 'environ', {}) or {}
+def _ensure_mcr2019b(runtime_env: dict[str, str] | None = None) -> tuple[str, str]:
+    """Ensure MCR R2019b is available and return collected stdout/stderr."""
+    runtime_env = runtime_env or {}
     fs_home = Path(
         runtime_env.get('FREESURFER_HOME', os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
     )
     mcr_root = fs_home / 'MCRv97'
     if mcr_root.exists():
-        return runtime
+        return '', ''
 
     installer = fs_home / 'bin' / 'fs_install_mcr'
     if not installer.exists():
         raise RuntimeError(f'MCR R2019b is required but installer was not found at "{installer}".')
 
     run_env = os.environ.copy()
-    run_env.update(getattr(runtime, 'environ', {}) or {})
+    run_env.update(runtime_env)
+    stdout = ''
+    stderr = ''
 
     if shutil.which('unzip') is None:
         apt_get = shutil.which('apt-get')
@@ -79,12 +81,8 @@ def _ensure_mcr2019b_installed(runtime):
             text=True,
             env=run_env,
         )
-        runtime.stdout = (
-            f'{getattr(runtime, "stdout", "")}{update_proc.stdout}{install_proc.stdout}'
-        )
-        runtime.stderr = (
-            f'{getattr(runtime, "stderr", "")}{update_proc.stderr}{install_proc.stderr}'
-        )
+        stdout += f'{update_proc.stdout}{install_proc.stdout}'
+        stderr += f'{update_proc.stderr}{install_proc.stderr}'
 
     proc = subprocess.run(
         [str(installer), 'R2019b'],
@@ -93,8 +91,21 @@ def _ensure_mcr2019b_installed(runtime):
         text=True,
         env=run_env,
     )
-    runtime.stdout = f'{getattr(runtime, "stdout", "")}{proc.stdout}'
-    runtime.stderr = f'{getattr(runtime, "stderr", "")}{proc.stderr}'
+    stdout += proc.stdout
+    stderr += proc.stderr
+    return stdout, stderr
+
+
+def ensure_mcr2019b_available(runtime_env: dict[str, str] | None = None) -> None:
+    """Run a one-time MCR readiness check/install before workflow execution."""
+    _ensure_mcr2019b(runtime_env=runtime_env)
+
+
+def _ensure_mcr2019b_installed(runtime):
+    """Install MCR R2019b on demand for FreeSurfer segmentation tools."""
+    stdout, stderr = _ensure_mcr2019b(runtime_env=getattr(runtime, 'environ', {}) or {})
+    runtime.stdout = f'{getattr(runtime, "stdout", "")}{stdout}'
+    runtime.stderr = f'{getattr(runtime, "stderr", "")}{stderr}'
     return runtime
 
 
