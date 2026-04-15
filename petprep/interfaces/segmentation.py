@@ -209,12 +209,21 @@ class SegmentHA_T1(FSCommand):
             runtime.returncode = 0
             return runtime
 
-        cmd = CommandLine(
-            command='segmentHA_T1.sh',
-            args=self.inputs.subject_id,
-            environ={'SUBJECTS_DIR': self.inputs.subjects_dir},
+        cmd = [
+            'segmentHA_T1.sh',
+            self.inputs.subject_id,
+            str(self.inputs.subjects_dir),
+        ]
+        proc = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **runtime.environ, 'SUBJECTS_DIR': str(self.inputs.subjects_dir)},
         )
-        runtime = cmd.run()
+        runtime.stdout = proc.stdout
+        runtime.stderr = proc.stderr
+        runtime.returncode = proc.returncode
 
         return runtime
 

@@ -2,7 +2,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from ... import config
-from ..segmentation import MRISclimbicSeg, SegmentBS, SegmentGTM, SegmentWM, _set_freesurfer_seed
+from ..segmentation import (
+    MRISclimbicSeg,
+    SegmentBS,
+    SegmentGTM,
+    SegmentHA_T1,
+    SegmentWM,
+    _set_freesurfer_seed,
+)
 
 
 def test_segmentgtm_skip(tmp_path):
@@ -75,3 +82,54 @@ def test_set_freesurfer_seed_runtime():
     runtime = _set_freesurfer_seed(runtime)
 
     assert runtime.environ['FREESURFER_RANDOM_SEED'] == str(config.seeds.freesurfer)
+
+
+def test_segmentha_t1_uses_explicit_subjects_dir(monkeypatch, tmp_path):
+    subject_dir = tmp_path / 'sub-01'
+    (subject_dir / 'mri').mkdir(parents=True)
+
+    captured = {}
+
+    def _fake_run(cmd, check, capture_output, text, env):
+        captured['cmd'] = cmd
+        captured['env'] = env
+        out_dir = tmp_path / 'sub-01' / 'mri'
+        for out in (
+            'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+            'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+            'lh.hippoSfVolumes-T1.v22.txt',
+            'lh.amygNucVolumes-T1.v22.txt',
+            'rh.hippoSfVolumes-T1.v22.txt',
+            'rh.amygNucVolumes-T1.v22.txt',
+        ):
+            (out_dir / out).write_text('')
+        return SimpleNamespace(stdout='ok', stderr='', returncode=0)
+
+    monkeypatch.setattr('petprep.interfaces.segmentation.subprocess.run', _fake_run)
+
+    seg = SegmentHA_T1(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert captured['cmd'] == ['segmentHA_T1.sh', 'sub-01', str(tmp_path)]
+    assert captured['env']['SUBJECTS_DIR'] == str(tmp_path)
+    assert res.runtime.returncode == 0
+
+
+def test_segmentha_t1_skips_when_outputs_exist(tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    for out in (
+        'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+        'rh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz',
+        'lh.hippoSfVolumes-T1.v22.txt',
+        'lh.amygNucVolumes-T1.v22.txt',
+        'rh.hippoSfVolumes-T1.v22.txt',
+        'rh.amygNucVolumes-T1.v22.txt',
+    ):
+        (subj_dir / out).write_text('')
+
+    seg = SegmentHA_T1(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert res.runtime.returncode == 0
+    assert Path(res.outputs.lh_hippoAmygLabels) == subj_dir / 'lh.hippoAmygLabels-T1.v22.FSvoxelSpace.mgz'
