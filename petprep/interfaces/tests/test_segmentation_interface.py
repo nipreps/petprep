@@ -101,8 +101,8 @@ def test_segmentbs_skips_mcr_when_outputs_exist(monkeypatch, tmp_path):
         raise AssertionError('MCR install should not run when outputs already exist.')
 
     monkeypatch.setattr(
-+        'petprep.interfaces.segmentation._ensure_mcr2019b_installed', _raise_if_called
-+   )
+        'petprep.interfaces.segmentation._ensure_mcr2019b_installed', _raise_if_called
+    )
     res = seg.run()
     assert res.runtime.returncode == 0
 
