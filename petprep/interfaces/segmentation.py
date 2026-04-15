@@ -76,8 +76,12 @@ def _ensure_mcr2019b_installed(runtime):
             text=True,
             env=run_env,
         )
-        runtime.stdout = f'{getattr(runtime, "stdout", "")}{update_proc.stdout}{install_proc.stdout}'
-        runtime.stderr = f'{getattr(runtime, "stderr", "")}{update_proc.stderr}{install_proc.stderr}'
+        runtime.stdout = (
+            f'{getattr(runtime, "stdout", "")}{update_proc.stdout}{install_proc.stdout}'
+        )
+        runtime.stderr = (
+            f'{getattr(runtime, "stderr", "")}{update_proc.stderr}{install_proc.stderr}'
+        )
 
     proc = subprocess.run(
         [str(installer), 'R2019b'],
