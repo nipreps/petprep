@@ -38,11 +38,12 @@ def _set_freesurfer_seed(runtime):
 
 def _ensure_mcr2019b_installed(runtime):
     """Install MCR R2019b on demand for FreeSurfer segmentation tools."""
-    mcr_root = Path(os.getenv('MCRROOT', '/opt/freesurfer/MCRv97'))
+    runtime_env = getattr(runtime, 'environ', {}) or {}
+    fs_home = Path(runtime_env.get('FREESURFER_HOME', os.getenv('FREESURFER_HOME', '/opt/freesurfer')))
+    mcr_root = fs_home / 'MCRv97'
     if mcr_root.exists():
         return runtime
 
-    fs_home = Path(os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
     installer = fs_home / 'bin' / 'fs_install_mcr'
     if not installer.exists():
         raise RuntimeError(f'MCR R2019b is required but installer was not found at "{installer}".')
