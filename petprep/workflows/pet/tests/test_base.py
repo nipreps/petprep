@@ -144,23 +144,8 @@ def test_pvc_entity_added(bids_root: Path):
         assert wf.get_node('ds_pet_cifti').inputs.pvc == pvc_method
 
     assert wf.get_node('ds_pet_tacs').inputs.pvc == pvc_method
-    pet_tacs_meta = wf.get_node('ds_pet_tacs').inputs.meta_dict
-    assert pet_tacs_meta['PVCMethod'] == pvc_method
-    assert pet_tacs_meta['FWHM_x'] == 1.0
-    assert pet_tacs_meta['FWHM_y'] == 1.0
-    assert pet_tacs_meta['FWHM_z'] == 1.0
-    assert pet_tacs_meta['SoftwareName'] == 'petpvc'
-    assert 'CommandLine' in pet_tacs_meta
-
     if 'ds_ref_tacs' in wf.list_node_names():
         assert wf.get_node('ds_ref_tacs').inputs.pvc == pvc_method
-        ref_tacs_meta = wf.get_node('ds_ref_tacs').inputs.meta_dict
-        assert ref_tacs_meta['PVCMethod'] == pvc_method
-        assert ref_tacs_meta['FWHM_x'] == 1.0
-        assert ref_tacs_meta['FWHM_y'] == 1.0
-        assert ref_tacs_meta['FWHM_z'] == 1.0
-        assert ref_tacs_meta['SoftwareName'] == 'petpvc'
-        assert 'CommandLine' in ref_tacs_meta
 
 
 def test_pvc_used_in_std_space(bids_root: Path):

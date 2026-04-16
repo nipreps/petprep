@@ -138,6 +138,19 @@ def test_prepare_timing_parameters_and_psf_metadata():
         'CommandLine': 'petprep /bids /out participant',
     }
 
+    assert build_pvc_tacs_dict(
+        pvc_method='MG',
+        fwhm_x=None,
+        fwhm_y=4.5,
+        fwhm_z=None,
+        software_name='',
+        software_version='',
+        command_line='',
+    ) == {
+        'PVCMethod': 'MG',
+        'FWHM_y': 4.5,
+    }
+
 
 def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):
     from ..outputs import init_func_fit_reports_wf
