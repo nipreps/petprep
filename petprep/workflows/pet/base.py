@@ -48,8 +48,8 @@ from .apply import init_pet_volumetric_resample_wf
 from .confounds import init_carpetplot_wf, init_pet_confs_wf
 from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
-    build_pvc_tacs_dict,
     build_psf_dict,
+    build_pvc_tacs_dict,
     init_ds_pet_native_wf,
     init_ds_volumes_wf,
     prepare_timing_parameters,
