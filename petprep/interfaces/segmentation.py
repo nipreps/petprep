@@ -8,7 +8,6 @@ function used by the segmentation workflow.
 """
 
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -37,7 +36,7 @@ def _set_freesurfer_seed(runtime):
 
 
 def _ensure_mcr2019b(runtime_env: dict[str, str] | None = None) -> tuple[str, str]:
-    """Ensure MCR R2019b is available and return collected stdout/stderr."""
+    """Validate that MCR R2019b is available and return empty stdout/stderr."""
     runtime_env = runtime_env or {}
     fs_home = Path(
         runtime_env.get('FREESURFER_HOME', os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
@@ -46,63 +45,19 @@ def _ensure_mcr2019b(runtime_env: dict[str, str] | None = None) -> tuple[str, st
     if mcr_root.exists():
         return '', ''
 
-    installer = fs_home / 'bin' / 'fs_install_mcr'
-    if not installer.exists():
-        raise RuntimeError(f'MCR R2019b is required but installer was not found at "{installer}".')
-
-    run_env = os.environ.copy()
-    run_env.update(runtime_env)
-    stdout = ''
-    stderr = ''
-
-    if shutil.which('unzip') is None:
-        apt_get = shutil.which('apt-get')
-        if apt_get is None:
-            raise RuntimeError(
-                'MCR R2019b is required but "unzip" is not available and apt-get is missing. '
-                'Install unzip before running this segmentation.'
-            )
-        if os.geteuid() != 0:
-            raise RuntimeError(
-                'MCR R2019b is required but "unzip" is not available. '
-                'Re-run with root privileges so petprep can install unzip automatically.'
-            )
-        update_proc = subprocess.run(
-            [apt_get, 'update'],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=run_env,
-        )
-        install_proc = subprocess.run(
-            [apt_get, 'install', '-y', '--no-install-recommends', 'unzip'],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=run_env,
-        )
-        stdout += f'{update_proc.stdout}{install_proc.stdout}'
-        stderr += f'{update_proc.stderr}{install_proc.stderr}'
-
-    proc = subprocess.run(
-        [str(installer), 'R2019b'],
-        check=True,
-        capture_output=True,
-        text=True,
-        env=run_env,
+    raise RuntimeError(
+        f'MCR R2019b is required but was not found at "{mcr_root}". '
+        'Use a PETPrep container/image that includes MCR installation.'
     )
-    stdout += proc.stdout
-    stderr += proc.stderr
-    return stdout, stderr
 
 
 def ensure_mcr2019b_available(runtime_env: dict[str, str] | None = None) -> None:
-    """Run a one-time MCR readiness check/install before workflow execution."""
+    """Run a one-time MCR readiness check before workflow execution."""
     _ensure_mcr2019b(runtime_env=runtime_env)
 
 
 def _ensure_mcr2019b_installed(runtime):
-    """Install MCR R2019b on demand for FreeSurfer segmentation tools."""
+    """Validate MCR R2019b availability for FreeSurfer segmentation tools."""
     stdout, stderr = _ensure_mcr2019b(runtime_env=getattr(runtime, 'environ', {}) or {})
     runtime.stdout = f'{getattr(runtime, "stdout", "")}{stdout}'
     runtime.stderr = f'{getattr(runtime, "stderr", "")}{stderr}'
