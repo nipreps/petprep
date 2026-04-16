@@ -96,7 +96,7 @@ def test_refmask_sources(tmp_path: Path):
 def test_prepare_timing_parameters_and_psf_metadata():
     from nipype.interfaces.base import Undefined
 
-    from ..outputs import build_psf_dict, prepare_timing_parameters
+    from ..outputs import build_psf_dict, build_pvc_tacs_dict, prepare_timing_parameters
 
     timing = prepare_timing_parameters(
         {
@@ -118,6 +118,25 @@ def test_prepare_timing_parameters_and_psf_metadata():
     assert build_psf_dict(3, 4.5, 5) == {'fwhm_x': 3.0, 'fwhm_y': 4.5, 'fwhm_z': 5.0}
     assert build_psf_dict(Undefined, 4.5, 5) == {}
     assert build_psf_dict(None, 4.5, 5) == {}
+
+    assert build_pvc_tacs_dict(pvc_method=None) == {}
+    assert build_pvc_tacs_dict(
+        pvc_method='GTM',
+        fwhm_x=3,
+        fwhm_y=4.5,
+        fwhm_z=5,
+        software_name='PETPVC',
+        software_version='1.2.3',
+        command_line='petprep /bids /out participant',
+    ) == {
+        'PVCMethod': 'GTM',
+        'FWHM_x': 3.0,
+        'FWHM_y': 4.5,
+        'FWHM_z': 5.0,
+        'SoftwareName': 'petpvc',
+        'SoftwareVersion': '1.2.3',
+        'CommandLine': 'petprep /bids /out participant',
+    }
 
 
 def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):

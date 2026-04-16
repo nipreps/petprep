@@ -30,6 +30,7 @@ Orchestrating the PET-preprocessing workflow
 
 """
 
+import sys
 from pathlib import Path
 
 from nipype.interfaces import utility as niu
@@ -47,6 +48,7 @@ from .apply import init_pet_volumetric_resample_wf
 from .confounds import init_carpetplot_wf, init_pet_confs_wf
 from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
+    build_pvc_tacs_dict,
     build_psf_dict,
     init_ds_pet_native_wf,
     init_ds_volumes_wf,
@@ -361,6 +363,9 @@ configured with cubic B-spline interpolation.
     pvc_method = getattr(config.workflow, 'pvc_method', None)
     pvc_psf = getattr(config.workflow, 'pvc_psf', None)
     run_pvc = pvc_tool is not None and pvc_method is not None and pvc_psf is not None
+    tacs_fwhm_x = None
+    tacs_fwhm_y = None
+    tacs_fwhm_z = None
 
     if run_pvc:
         try:
@@ -376,6 +381,7 @@ configured with cubic B-spline interpolation.
                 psf_vals = psf_vals * 3
             if len(psf_vals) != 3:
                 raise ValueError('PETPVC requires one or three PSF values (FWHM x/y/z).')
+            tacs_fwhm_x, tacs_fwhm_y, tacs_fwhm_z = psf_vals
             pvc_kwargs = {
                 'fwhm_x': psf_vals[0],
                 'fwhm_y': psf_vals[1],
@@ -383,6 +389,7 @@ configured with cubic B-spline interpolation.
             }
         else:
             # PETSurfer only accepts an isotropic PSF
+            tacs_fwhm_x = tacs_fwhm_y = tacs_fwhm_z = float(pvc_psf[0])
             pvc_kwargs = {'psf': float(pvc_psf[0])}
 
         pet_pvc_wf = init_pet_pvc_wf(
@@ -742,6 +749,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     ds_pet_tacs.inputs.source_file = pet_file
     if pvc_method is not None:
         ds_pet_tacs.inputs.pvc = pvc_method
+        ds_pet_tacs.inputs.meta_dict = build_pvc_tacs_dict(
+            pvc_method=pvc_method,
+            fwhm_x=tacs_fwhm_x,
+            fwhm_y=tacs_fwhm_y,
+            fwhm_z=tacs_fwhm_z,
+            software_name=pvc_tool,
+            command_line=' '.join(sys.argv),
+        )
 
     workflow.connect([
         (pet_t1w_src, pet_tacs_wf, [(pet_t1w_field, 'inputnode.pet_anat')]),
@@ -776,6 +791,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ds_ref_tacs.inputs.source_file = pet_file
         if pvc_method is not None:
             ds_ref_tacs.inputs.pvc = pvc_method
+            ds_ref_tacs.inputs.meta_dict = build_pvc_tacs_dict(
+                pvc_method=pvc_method,
+                fwhm_x=tacs_fwhm_x,
+                fwhm_y=tacs_fwhm_y,
+                fwhm_z=tacs_fwhm_z,
+                software_name=pvc_tool,
+                command_line=' '.join(sys.argv),
+            )
 
         workflow.connect([
             (pet_t1w_src, pet_ref_tacs_wf, [(pet_t1w_field, 'inputnode.pet_anat')]),

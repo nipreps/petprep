@@ -86,6 +86,38 @@ def build_psf_dict(fwhm_x=None, fwhm_y=None, fwhm_z=None):
     }
 
 
+def build_pvc_tacs_dict(
+    *,
+    pvc_method: str | None,
+    fwhm_x: float | None = None,
+    fwhm_y: float | None = None,
+    fwhm_z: float | None = None,
+    software_name: str | None = None,
+    software_version: str | None = None,
+    command_line: str | None = None,
+):
+    """Construct PVC metadata for TAC sidecars."""
+    if pvc_method is None:
+        return {}
+
+    meta = {'PVCMethod': str(pvc_method)}
+
+    if fwhm_x is not None:
+        meta['FWHM_x'] = float(fwhm_x)
+    if fwhm_y is not None:
+        meta['FWHM_y'] = float(fwhm_y)
+    if fwhm_z is not None:
+        meta['FWHM_z'] = float(fwhm_z)
+    if software_name:
+        meta['SoftwareName'] = str(software_name).lower()
+    if software_version:
+        meta['SoftwareVersion'] = str(software_version)
+    if command_line:
+        meta['CommandLine'] = str(command_line)
+
+    return meta
+
+
 def init_func_fit_reports_wf(
     *,
     freesurfer: bool,
