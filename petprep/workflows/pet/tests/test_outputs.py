@@ -115,9 +115,12 @@ def test_prepare_timing_parameters_and_psf_metadata():
         'Units': 'Bq/mL',
     }
 
-    assert build_pvc_metadata_dict(
-        pvc_method='GTM', fwhm_x=3, fwhm_y=4.5, fwhm_z=5
-    ) == {'PVCMethod': 'GTM', 'FWHM_x': 3.0, 'FWHM_y': 4.5, 'FWHM_z': 5.0}
+    assert build_pvc_metadata_dict(pvc_method='GTM', fwhm_x=3, fwhm_y=4.5, fwhm_z=5) == {
+            'PVCMethod': 'GTM',
+            'FWHM_x': 3.0,
+            'FWHM_y': 4.5,
+            'FWHM_z': 5.0
+    }
     assert build_pvc_metadata_dict(pvc_method='GTM', fwhm_x=Undefined, fwhm_y=4.5, fwhm_z=5) == {
         'PVCMethod': 'GTM',
         'FWHM_y': 4.5,
