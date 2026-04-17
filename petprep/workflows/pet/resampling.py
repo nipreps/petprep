@@ -44,6 +44,7 @@ from ...config import DEFAULT_MEMORY_MIN_GB
 from ...interfaces.bids import BIDSURI
 from ...interfaces.workbench import MetricDilate, MetricMask, MetricResample
 from .outputs import build_psf_dict, prepare_timing_parameters
+from .outputs import build_pvc_metadata_dict, prepare_timing_parameters
 
 
 def init_pet_surf_wf(
@@ -54,6 +55,8 @@ def init_pet_surf_wf(
     metadata: dict,
     output_dir: str,
     pvc_method: str | None = None,
+    pvc_software_name: str | None = None,
+    pvc_command_line: str | None = None,
     name: str = 'pet_surf_wf',
 ):
     """
@@ -211,14 +214,24 @@ The PET time-series were resampled onto the following surfaces
 
     psf_meta = pe.Node(
         niu.Function(
-            input_names=['fwhm_x', 'fwhm_y', 'fwhm_z'],
+            input_names=[
+                'pvc_method',
+                'fwhm_x',
+                'fwhm_y',
+                'fwhm_z',
+                'software_name',
+                'command_line',
+            ],
             output_names=['meta_dict'],
-            function=build_psf_dict,
+            function=build_pvc_metadata_dict,
         ),
         name='psf_meta',
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
+    psf_meta.inputs.pvc_method = pvc_method
+    psf_meta.inputs.software_name = pvc_software_name
+    psf_meta.inputs.command_line = pvc_command_line
 
     workflow.connect(
         [

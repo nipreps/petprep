@@ -66,47 +66,29 @@ def prepare_timing_parameters(metadata: dict):
     return timing_parameters
 
 
-def build_psf_dict(fwhm_x=None, fwhm_y=None, fwhm_z=None):
-    """Construct a metadata dictionary for PSF parameters."""
-    from nipype.interfaces.base import Undefined as _Undefined
-
-    if (
-        fwhm_x is None
-        or fwhm_y is None
-        or fwhm_z is None
-        or fwhm_x is _Undefined
-        or fwhm_y is _Undefined
-        or fwhm_z is _Undefined
-    ):
-        return {}
-    return {
-        'fwhm_x': float(fwhm_x),
-        'fwhm_y': float(fwhm_y),
-        'fwhm_z': float(fwhm_z),
-    }
-
-
-def build_pvc_tacs_dict(
+def build_pvc_metadata_dict(
     *,
-    pvc_method: str | None,
-    fwhm_x: float | None = None,
-    fwhm_y: float | None = None,
-    fwhm_z: float | None = None,
+    pvc_method: str | None = None,
+    fwhm_x=None,
+    fwhm_y=None,
+    fwhm_z=None,
     software_name: str | None = None,
     software_version: str | None = None,
     command_line: str | None = None,
 ):
-    """Construct PVC metadata for TAC sidecars."""
+    """Construct a metadata dictionary for PVC parameters."""
+    from nipype.interfaces.base import Undefined as _Undefined
+
     if pvc_method is None:
         return {}
 
     meta = {'PVCMethod': str(pvc_method)}
 
-    if fwhm_x is not None:
+    if fwhm_x is not None and fwhm_x is not _Undefined:
         meta['FWHM_x'] = float(fwhm_x)
-    if fwhm_y is not None:
+    if fwhm_y is not None and fwhm_y is not _Undefined:
         meta['FWHM_y'] = float(fwhm_y)
-    if fwhm_z is not None:
+    if fwhm_z is not None and fwhm_z is not _Undefined:
         meta['FWHM_z'] = float(fwhm_z)
     if software_name:
         meta['SoftwareName'] = str(software_name).lower()
@@ -116,6 +98,11 @@ def build_pvc_tacs_dict(
         meta['CommandLine'] = str(command_line)
 
     return meta
+
+
+def build_pvc_tacs_dict(**kwargs):
+    """Construct PVC metadata for TAC sidecars."""
+    return build_pvc_metadata_dict(**kwargs)
 
 
 def init_func_fit_reports_wf(
@@ -799,6 +786,8 @@ def init_ds_volumes_wf(
     output_dir: str,
     metadata: list[dict],
     pvc_method: str | None = None,
+    pvc_software_name: str | None = None,
+    pvc_command_line: str | None = None,
     name='ds_volumes_wf',
 ) -> pe.Workflow:
     timing_parameters = prepare_timing_parameters(metadata)
@@ -845,14 +834,24 @@ def init_ds_volumes_wf(
 
     psf_meta = pe.Node(
         niu.Function(
-            input_names=['fwhm_x', 'fwhm_y', 'fwhm_z'],
+            input_names=[
+                'pvc_method',
+                'fwhm_x',
+                'fwhm_y',
+                'fwhm_z',
+                'software_name',
+                'command_line',
+            ],
             output_names=['meta_dict'],
-            function=build_psf_dict,
+            function=build_pvc_metadata_dict,
         ),
         name='psf_meta',
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
+    psf_meta.inputs.pvc_method = pvc_method
+    psf_meta.inputs.software_name = pvc_software_name
+    psf_meta.inputs.command_line = pvc_command_line
 
     # PET is pre-resampled
     ds_pet = pe.Node(

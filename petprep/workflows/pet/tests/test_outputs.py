@@ -96,7 +96,7 @@ def test_refmask_sources(tmp_path: Path):
 def test_prepare_timing_parameters_and_psf_metadata():
     from nipype.interfaces.base import Undefined
 
-    from ..outputs import build_psf_dict, build_pvc_tacs_dict, prepare_timing_parameters
+    from ..outputs import build_pvc_metadata_dict, build_pvc_tacs_dict, prepare_timing_parameters
 
     timing = prepare_timing_parameters(
         {
@@ -115,9 +115,14 @@ def test_prepare_timing_parameters_and_psf_metadata():
         'Units': 'Bq/mL',
     }
 
-    assert build_psf_dict(3, 4.5, 5) == {'fwhm_x': 3.0, 'fwhm_y': 4.5, 'fwhm_z': 5.0}
-    assert build_psf_dict(Undefined, 4.5, 5) == {}
-    assert build_psf_dict(None, 4.5, 5) == {}
+    assert build_pvc_metadata_dict(
+        pvc_method='GTM', fwhm_x=3, fwhm_y=4.5, fwhm_z=5
+    ) == {'PVCMethod': 'GTM', 'FWHM_x': 3.0, 'FWHM_y': 4.5, 'FWHM_z': 5.0}
+    assert build_pvc_metadata_dict(pvc_method='GTM', fwhm_x=Undefined, fwhm_y=4.5, fwhm_z=5) == {
+        'PVCMethod': 'GTM',
+        'FWHM_y': 4.5,
+        'FWHM_z': 5.0,
+    }
 
     assert build_pvc_tacs_dict(pvc_method=None) == {}
     assert build_pvc_tacs_dict(

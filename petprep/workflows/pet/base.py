@@ -48,7 +48,7 @@ from .apply import init_pet_volumetric_resample_wf
 from .confounds import init_carpetplot_wf, init_pet_confs_wf
 from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
-    build_psf_dict,
+    build_pvc_metadata_dict,
     build_pvc_tacs_dict,
     init_ds_pet_native_wf,
     init_ds_volumes_wf,
@@ -411,13 +411,23 @@ configured with cubic B-spline interpolation.
 
         psf_meta = pe.Node(
             niu.Function(
-                input_names=['fwhm_x', 'fwhm_y', 'fwhm_z'],
+                input_names=[
+                    'pvc_method',
+                    'fwhm_x',
+                    'fwhm_y',
+                    'fwhm_z',
+                    'software_name',
+                    'command_line',
+                ],
                 output_names=['meta_dict'],
-                function=build_psf_dict,
+                function=build_pvc_metadata_dict,
             ),
             name='pvc_psf_meta',
             run_without_submitting=True,
         )
+        psf_meta.inputs.pvc_method = pvc_method
+        psf_meta.inputs.software_name = pvc_tool
+        psf_meta.inputs.command_line = ' '.join(sys.argv)
 
         merge_cifti_meta = pe.Node(
             DictMerge(), name='merge_cifti_meta', run_without_submitting=True
@@ -467,6 +477,8 @@ configured with cubic B-spline interpolation.
             output_dir=petprep_dir,
             metadata=all_metadata[0],
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='ds_pet_t1_wf',
         )
         ds_pet_t1_wf.inputs.inputnode.source_files = pet_file
@@ -531,6 +543,8 @@ configured with cubic B-spline interpolation.
             output_dir=petprep_dir,
             metadata=all_metadata[0],
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='ds_pet_std_wf',
         )  # downstream datasink gets PVC method
         ds_pet_std_wf.inputs.inputnode.source_files = pet_series
@@ -603,6 +617,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             metadata=all_metadata[0],
             output_dir=petprep_dir,
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='pet_surf_wf',
         )
         pet_surf_wf.inputs.inputnode.source_file = pet_file
