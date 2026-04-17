@@ -43,7 +43,6 @@ from ... import config
 from ...config import DEFAULT_MEMORY_MIN_GB
 from ...interfaces.bids import BIDSURI
 from ...interfaces.workbench import MetricDilate, MetricMask, MetricResample
-from .outputs import build_psf_dict, prepare_timing_parameters
 from .outputs import build_pvc_metadata_dict, prepare_timing_parameters
 
 
