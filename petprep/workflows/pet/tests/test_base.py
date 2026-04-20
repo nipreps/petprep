@@ -144,7 +144,6 @@ def test_pvc_entity_added(bids_root: Path):
         assert wf.get_node('ds_pet_cifti').inputs.pvc == pvc_method
 
     assert wf.get_node('ds_pet_tacs').inputs.pvc == pvc_method
-
     if 'ds_ref_tacs' in wf.list_node_names():
         assert wf.get_node('ds_ref_tacs').inputs.pvc == pvc_method
 
