@@ -59,7 +59,12 @@ jobs:
           else
             echo "build=true" >> $GITHUB_OUTPUT
           fi
-
+      
+      - name: Clean up disk space
+        run: |
+          cd scripts 
+          ./run-if-disk-over.sh 80 docker buildx prune -a -f
+      
       - name: Build base image
         if: steps.base.outputs.build == 'true'
         uses: docker/build-push-action@v6
