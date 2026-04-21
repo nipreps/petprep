@@ -169,7 +169,7 @@ def test_pet_native_precomputes(
 def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     """Ensure the PET mask is generated and connected correctly."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
 
     for path in pet_series:
         img.to_filename(path)
@@ -300,7 +300,7 @@ def test_pet_reference_utilities(tmp_path: Path):
 def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method):
     """Ensure the reference mask report is passed to the reports workflow."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
 
@@ -371,11 +371,16 @@ def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method)
 def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     """Stage 1 should run only when HMC derivatives are missing."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = False
+        config.workflow.petref = 'template'
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     assert any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
@@ -387,6 +392,8 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     precomputed = {'petref': str(ref_file), 'transforms': {'hmc': str(dummy_affine)}}
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = False
+        config.workflow.petref = 'template'
         wf2 = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
