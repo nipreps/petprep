@@ -548,7 +548,7 @@ def _find_nearest_path(path_dict, input_path):
     ... }
     >>> input_path = Path('/data/derivatives/source-1/sub-01/pet/sub-01_task-pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # match to 'bids:deriv-0:'
-    'bids:deriv-0:sub-01/pet/sub-01_task-pet.nii.gz'
+    'bids:deriv-0:sub-01/pet/sub-01_pet.nii.gz'
     >>> input_path = Path('/out/sub-01/pet/sub-01_task-pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # no match- absolute path
     '/out/sub-01/pet/sub-01_task-pet.nii.gz'
