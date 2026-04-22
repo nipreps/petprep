@@ -138,3 +138,31 @@ def test_crop_img_adjusts_affine():
     cropped = motion._crop_img(img, (slice(1, 3), slice(0, 2), slice(2, 4)))
 
     assert np.allclose(cropped.affine[:3, 3], [2.0, 0.0, 8.0])
+
+
+def test_crop_img_adjusts_affine_for_oriented_image():
+    motion = MotionPlot()
+    data = np.ones((4, 4, 4), dtype=float)
+    affine = np.array(
+        [
+            [0.0, -2.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    img = nb.Nifti1Image(data, affine)
+
+    cropped = motion._crop_img(img, (slice(1, 3), slice(0, 2), slice(2, 4)))
+
+    assert np.allclose(cropped.affine[:3, 3], [0.0, 2.0, 6.0])
+
+
+def test_merge_crop_slices_uses_union():
+    motion = MotionPlot()
+    merged = motion._merge_crop_slices(
+        (slice(2, 8), slice(4, 9), slice(1, 5)),
+        (slice(1, 6), slice(5, 10), slice(0, 7)),
+    )
+
+    assert merged == (slice(1, 8), slice(4, 10), slice(0, 7))
