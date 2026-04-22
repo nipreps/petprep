@@ -813,8 +813,8 @@ discourage its usage.""",
 
 def parse_args(args=None, namespace=None):
     """Parse args and run further checks on the command line."""
-    from json import load
     import logging
+    from json import load
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
 
