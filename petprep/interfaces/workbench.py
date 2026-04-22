@@ -571,13 +571,13 @@ class VolumeToSurfaceMapping(WBCommand, OpenMPCommandMixin):
     Examples:
     >>> from petprep.interfaces.workbench import VolumeToSurfaceMapping
     >>> vol2surf = VolumeToSurfaceMapping()
-    >>> vol2surf.inputs.volume_file = 'bold.nii.gz'
+    >>> vol2surf.inputs.volume_file = 'pet.nii.gz'
     >>> vol2surf.inputs.surface_file = 'lh.midthickness.surf.gii'
     >>> vol2surf.inputs.method = 'ribbon-constrained'
     >>> vol2surf.inputs.inner_surface = 'lh.white.surf.gii'
     >>> vol2surf.inputs.outer_surface = 'lh.pial.surf.gii'
     >>> vol2surf.cmdline  # doctest: +NORMALIZE_WHITESPACE
-    'wb_command -volume-to-surface-mapping bold.nii.gz lh.midthickness.surf.gii \
+    'wb_command -volume-to-surface-mapping pet.nii.gz lh.midthickness.surf.gii \
     lh.midthickness.surf_mapped.func.gii -ribbon-constrained lh.white.surf.gii lh.pial.surf.gii'
     """
 
@@ -661,10 +661,10 @@ class MetricMask(WBCommand):
 
     >>> from petprep.interfaces.workbench import MetricMask
     >>> metric_mask = MetricMask()
-    >>> metric_mask.inputs.in_file = 'lh.bold.func.gii'
+    >>> metric_mask.inputs.in_file = 'lh.pet.func.gii'
     >>> metric_mask.inputs.mask = 'lh.roi.shape.gii'
     >>> metric_mask.cmdline
-    'wb_command -metric-mask lh.bold.func.gii lh.roi.shape.gii lh.bold.func_masked.func.gii'
+    'wb_command -metric-mask lh.pet.func.gii lh.roi.shape.gii lh.pet.func_masked.func.gii'
     """
 
     input_spec = MetricMaskInputSpec
