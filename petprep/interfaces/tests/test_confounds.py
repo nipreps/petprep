@@ -35,12 +35,12 @@ def test_FilterDropped(tmp_path, data_dir):
 
 def test_FSLRMSDeviation(tmp_path, data_dir):
     base = 'sub-01_task-mixedgamblestask_run-01'
-    xfms = data_dir / f'{base}_from-orig_to-boldref_mode-image_desc-hmc_xfm.txt'
-    boldref = data_dir / f'{base}_desc-hmc_boldref.nii.gz'
+    xfms = data_dir / f'{base}_from-orig_to-petref_mode-image_desc-hmc_xfm.txt'
+    petref = data_dir / f'{base}_desc-hmc_petref.nii.gz'
     timeseries = data_dir / f'{base}_desc-motion_timeseries.tsv'
 
     rmsd = pe.Node(
-        confounds.FSLRMSDeviation(xfm_file=str(xfms), petref_file=str(boldref)),
+        confounds.FSLRMSDeviation(xfm_file=str(xfms), petref_file=str(petref)),
         name='rmsd',
         base_dir=str(tmp_path),
     )
@@ -55,12 +55,12 @@ def test_FSLRMSDeviation(tmp_path, data_dir):
 
 def test_FSLMotionParams(tmp_path, data_dir):
     base = 'sub-01_task-mixedgamblestask_run-01'
-    xfms = data_dir / f'{base}_from-orig_to-boldref_mode-image_desc-hmc_xfm.txt'
-    boldref = data_dir / f'{base}_desc-hmc_boldref.nii.gz'
+    xfms = data_dir / f'{base}_from-orig_to-petref_mode-image_desc-hmc_xfm.txt'
+    petref = data_dir / f'{base}_desc-hmc_petref.nii.gz'
     orig_timeseries = data_dir / f'{base}_desc-motion_timeseries.tsv'
 
     motion = pe.Node(
-        confounds.FSLMotionParams(xfm_file=str(xfms), petref_file=str(boldref)),
+        confounds.FSLMotionParams(xfm_file=str(xfms), petref_file=str(petref)),
         name='fsl_motion',
         base_dir=str(tmp_path),
     )

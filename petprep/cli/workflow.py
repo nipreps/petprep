@@ -87,7 +87,7 @@ def build_workflow(config_file, retval):
         build_log.log(25, f'Running --reports-only on participants {", ".join(subject_list)}')
         session_list = (
             config.execution.bids_filters.get(
-                'pet', config.execution.bids_filters.get('bold', {})
+                'pet', config.execution.bids_filters.get('pet', {})
             ).get('session')
             if config.execution.bids_filters
             else None
