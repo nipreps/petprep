@@ -487,6 +487,16 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
     assert config.workflow.ref_mask_index == (3, 4)
     _reset_config()
 
+    # Default segmentation is GTM; semiovale is only defined for WM segmentation
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--ref-mask-name', 'semiovale'])
+    _reset_config()
+
+    parse_args(args=base_args + ['--seg', 'wm', '--ref-mask-name', 'semiovale'])
+    assert config.workflow.seg == 'wm'
+    assert config.workflow.ref_mask_name == 'semiovale'
+    _reset_config()
+
 
 def test_hmc_init_frame_parsing(tmp_path):
     """Ensure --hmc-init-frame accepts optional integers and defaults to auto."""
