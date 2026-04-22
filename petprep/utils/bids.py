@@ -555,7 +555,7 @@ def _find_nearest_path(path_dict, input_path):
     >>> input_path = Path('/data/sub-01/pet/sub-01_pet.nii.gz')
     >>> _find_nearest_path(path_dict, input_path)  # match to 'bids:raw:'
     'bids:raw:sub-01/pet/sub-01_pet.nii.gz'
-    >>> input_path = 'bids::sub-01/pet/sub-01_task-pet.nii.gz'
+    >>> input_path = 'bids::sub-01/pet/sub-01_pet.nii.gz'
     >>> _find_nearest_path(path_dict, input_path)  # already a BIDS-URI
     'bids::sub-01/pet/sub-01_task-pet.nii.gz'
     """
