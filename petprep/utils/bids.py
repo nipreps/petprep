@@ -557,7 +557,7 @@ def _find_nearest_path(path_dict, input_path):
     'bids:raw:sub-01/pet/sub-01_pet.nii.gz'
     >>> input_path = 'bids::sub-01/pet/sub-01_pet.nii.gz'
     >>> _find_nearest_path(path_dict, input_path)  # already a BIDS-URI
-    'bids::sub-01/pet/sub-01_task-pet.nii.gz'
+    'bids::sub-01/pet/sub-01_pet.nii.gz'
     """
     # Don't modify BIDS-URIs
     if isinstance(input_path, str) and input_path.startswith('bids:'):
