@@ -11,7 +11,7 @@ from nipype.pipeline import engine as pe
 from nipype.pipeline.engine.nodes import NodeExecutionError
 
 from petprep.interfaces.tacs import ExtractRefTAC, ExtractTACs
-from petprep.workflows.pet.ref_tacs import init_pet_ref_tacs_wf
+from petprep.workflows.pet.ref_tacs import init_pet_ref_tacs_wf, resample_mask_to_pet
 from petprep.workflows.pet.tacs import init_pet_tacs_wf
 
 
@@ -414,7 +414,7 @@ def test_ref_tacs_workflow_mismatched_meta(tmp_path):
         wf.run()
 
 
-def test_resample_pet_to_mask_fallback(tmp_path, monkeypatch):
+def test_resample_mask_to_pet_fallback(tmp_path, monkeypatch):
     """Fallback resampling should run when nilearn raises BoundingBoxError."""
     pet_data = np.stack([np.ones((2, 2, 2)), np.ones((2, 2, 2)) * 2], axis=-1)
     pet_file = tmp_path / 'pet.nii.gz'
@@ -431,6 +431,6 @@ def test_resample_pet_to_mask_fallback(tmp_path, monkeypatch):
 
     monkeypatch.setattr('nilearn.image.resample_to_img', _raise_bbox_error)
 
-    out_file = resample_pet_to_mask(str(pet_file), str(mask_file))
+    out_file = resample_mask_to_pet(str(mask_file), str(pet_file))
     out_img = nb.load(out_file)
-    assert out_img.shape == (2, 2, 2, 2)
+    assert out_img.shape == (2, 2, 2)
