@@ -301,3 +301,25 @@ def test_ref_tacs_workflow_mismatched_meta(tmp_path):
 
     with pytest.raises(NodeExecutionError):
         wf.run()
+
+
+def test_resample_pet_to_mask_fallback(tmp_path, monkeypatch):
+    """Fallback resampling should run when nilearn raises BoundingBoxError."""
+    pet_data = np.stack([np.ones((2, 2, 2)), np.ones((2, 2, 2)) * 2], axis=-1)
+    pet_file = tmp_path / 'pet.nii.gz'
+    nb.Nifti1Image(pet_data, np.eye(4)).to_filename(pet_file)
+
+    mask_data = np.ones((2, 2, 2), dtype='int16')
+    mask_file = tmp_path / 'mask.nii.gz'
+    nb.Nifti1Image(mask_data, np.eye(4)).to_filename(mask_file)
+
+    from nilearn.image.resampling import BoundingBoxError
+
+    def _raise_bbox_error(*args, **kwargs):
+        raise BoundingBoxError('synthetic failure')
+
+    monkeypatch.setattr('nilearn.image.resample_to_img', _raise_bbox_error)
+
+    out_file = resample_pet_to_mask(str(pet_file), str(mask_file))
+    out_img = nb.load(out_file)
+    assert out_img.shape == (2, 2, 2, 2)
