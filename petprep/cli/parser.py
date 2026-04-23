@@ -876,11 +876,20 @@ def parse_args(args=None, namespace=None):
 
         seg_refmask_config = refmask_config.get(config.workflow.seg, {})
         if opts.ref_mask_name not in seg_refmask_config:
+            supported_segs = sorted(
+                seg_name
+                for seg_name, seg_config in refmask_config.items()
+                if opts.ref_mask_name in seg_config
+            )
             allowed_regions = sorted(seg_refmask_config.keys())
+            seg_hint = ''
+            if supported_segs:
+                seg_hint = f", but only for --seg {', '.join(supported_segs)}"
             if allowed_regions:
                 parser.error(
                     f"--ref-mask-name '{opts.ref_mask_name}' is not available for "
-                    f'--seg {config.workflow.seg}. Choose one of: {", ".join(allowed_regions)}.'
+                    f'--seg {config.workflow.seg}{seg_hint}. '
+                    f'Choose one of: {", ".join(allowed_regions)} for --seg {config.workflow.seg}.'
                 )
             parser.error(
                 f'--seg {config.workflow.seg} does not define any predefined reference masks. '

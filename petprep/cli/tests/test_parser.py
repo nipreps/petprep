@@ -466,7 +466,7 @@ def test_pvc_invalid_method(tmp_path, minimal_bids):
     _reset_config()
 
 
-def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
+def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch, capsys):
     work_dir = tmp_path / 'work'
     base_args = [
         str(minimal_bids),
@@ -490,6 +490,11 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
     # Default segmentation is GTM; semiovale is only defined for WM segmentation
     with pytest.raises(SystemExit):
         parse_args(args=base_args + ['--ref-mask-name', 'semiovale'])
+    err = capsys.readouterr().err
+    assert (
+        "--ref-mask-name 'semiovale' is not available for --seg gtm, but only for --seg wm. "
+        'Choose one of: cerebellum, neocortex, thalamus for --seg gtm.' in err
+    )
     _reset_config()
 
     parse_args(args=base_args + ['--seg', 'wm', '--ref-mask-name', 'semiovale'])
