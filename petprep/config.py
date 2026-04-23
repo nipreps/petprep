@@ -396,7 +396,7 @@ class execution(_Config):
     debug = []
     """Debug mode(s)."""
     petprep_dir = None
-    """Root of PETPrep BIDS Derivatives dataset. Depends on output_layout."""
+    """Root of PETPrep BIDS Derivatives dataset."""
     fs_license_file = _fs_license
     """An existing file containing a FreeSurfer license."""
     fs_subjects_dir = None
@@ -421,8 +421,6 @@ class execution(_Config):
     """Folder where derivatives will be stored."""
     aggr_ses_reports = None
     """Maximum number of sessions aggregated in one subject's visual report."""
-    output_layout = None
-    """Layout of derivatives within output_dir."""
     output_spaces = None
     """List of (non)standard spaces designated (with the ``--output-spaces`` flag of
     the command line) as spatial references for outputs."""

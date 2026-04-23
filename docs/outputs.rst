@@ -57,11 +57,6 @@ The log directory contains `citation boilerplate`_ text.
 ``dataset_description.json`` is a metadata file in which PETPrep
 records metadata recommended by the BIDS standard.
 
-This default layout, may be explicitly specified with the
-``--output-layout bids`` command-line option.
-For compatibility with versions of fMRIPrep prior to 21.0, the
-`legacy layout`_ is available via ``--output-layout legacy``.
-
 Processing level
 ----------------
 As of version 0.0.1, PETPrep supports three levels of derivatives:
@@ -619,24 +614,17 @@ to which tissue-specific regressors correlate with global signal.
 
 See implementation on :mod:`~petprep.workflows.pet.confounds.init_pet_confs_wf`.
 
-Legacy layout
--------------
+Custom output paths
+-------------------
 
-Prior to tools such as fMRIPrep 21.0, the following organizational structure was used::
+If you want PETPrep and FreeSurfer derivatives to be stored as sibling folders,
+you can use the following organizational structure::
 
     <output_dir>/
-      fmriprep/
+      petprep/
       freesurfer/
 
-Although this has the advantage of keeping all outputs together,
-it ensured that the output of fMRIPrep could not itself be a BIDS derivative dataset,
-only contain one.
-
-To restore this behavior, use the ``--output-layout legacy`` command-line option.
-
-The BIDS and legacy layouts are otherwise the same in all respects.
-It is thus possible to achieve identical results with the BIDS layout by using
-the following invocation::
+This layout can be achieved by using the following invocation::
 
     petprep <input_dir>/ <output_dir>/petprep/ participant \
         --fs-subjects-dir <output_dir>/freesurfer/ [OPTIONS]
