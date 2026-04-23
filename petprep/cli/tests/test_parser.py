@@ -503,6 +503,53 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch, capsys):
     _reset_config()
 
 
+def test_reference_mask_validation_edge_cases(tmp_path, minimal_bids, monkeypatch, capsys):
+    """Cover parser errors for unsupported masks with and without segmentation mappings."""
+    from importlib import resources
+    from importlib.resources import files as ir_files
+
+    work_dir = tmp_path / 'work'
+    base_args = [
+        str(minimal_bids),
+        str(tmp_path / 'out'),
+        'participant',
+        '-w',
+        str(work_dir),
+        '--skip-bids-validation',
+    ]
+
+    # Force a ref-mask config where default GTM has known regions, but the queried
+    # mask is unavailable in every segmentation -> supported_segs is empty.
+    refmask_dir = tmp_path / 'fake_refmask'
+    refmask_dir.mkdir()
+    (refmask_dir / 'config.json').write_text(
+        '{"gtm": {"cerebellum": {"refmask_indices": [47, 8]}}, "wm": {"semiovale": {"refmask_indices": [5001, 5002]}}}'
+    )
+
+    def _mock_files(pkg_name):
+        if pkg_name == 'petprep.data.reference_mask':
+            return refmask_dir
+        return ir_files(pkg_name)
+
+    monkeypatch.setattr(resources, 'files', _mock_files)
+
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--ref-mask-name', 'not-a-region'])
+    err = capsys.readouterr().err
+    assert (
+        "--ref-mask-name 'not-a-region' is not available for --seg gtm. "
+        'Choose one of: cerebellum for --seg gtm.' in err
+    )
+    _reset_config()
+
+    # Segmentation choices can include entries not present in refmask config.
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--seg', 'brainstem', '--ref-mask-name', 'cerebellum'])
+    err = capsys.readouterr().err
+    assert '--seg brainstem does not define any predefined reference masks.' in err
+    _reset_config()
+
+
 def test_hmc_init_frame_parsing(tmp_path):
     """Ensure --hmc-init-frame accepts optional integers and defaults to auto."""
     datapath = tmp_path / 'data'
