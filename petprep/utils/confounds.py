@@ -83,7 +83,7 @@ def acompcor_masks(in_files, is_aseg=False, zooms=None):
     > partial voluming. Since CSF regions are typically small compared
     > to white matter regions mask, erosion was not applied.
 
-    This particular procedure is not generalizable to BOLD data with different voxel zooms
+    This particular procedure is not generalizable to PET data with different voxel zooms
     as the mathematical morphology operations will be scaled by those.
     Also, from reading the excerpt above and the tCompCor description, I (@oesteban)
     believe that they always operated slice-wise given the large slice-thickness of
@@ -93,7 +93,7 @@ def acompcor_masks(in_files, is_aseg=False, zooms=None):
     aspects:
 
       * the masks are prepared in high-resolution, anatomical space and then
-        projected into BOLD space; and,
+        projected into PET space; and,
       * instead of using binary erosion, a dilated GM map is generated -- thresholding
         the corresponding PV map at 0.05 (i.e., pixels containing at least 5% of GM tissue)
         and then subtracting that map from the CSF, WM and CSF+WM (combined) masks.
@@ -103,7 +103,7 @@ def acompcor_masks(in_files, is_aseg=False, zooms=None):
     When the probseg maps provene from FreeSurfer's ``recon-all`` (i.e., they are
     discrete), binary maps are *transformed* into some sort of partial volume maps
     by means of a Gaussian smoothing filter with sigma adjusted by the size of the
-    BOLD data.
+    PET data.
 
     """
     from pathlib import Path
