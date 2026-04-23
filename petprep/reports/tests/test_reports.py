@@ -149,6 +149,7 @@ def test_pet_report(tmp_path, monkeypatch):
     html_content = html_file.read_text()
     assert '<div id="PET"' in html_content
 
+
 def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
     work_dir = tmp_path / 'work'
     target = work_dir / 'reportlets' / 'petprep' / 'sub-02'
