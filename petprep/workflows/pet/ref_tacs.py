@@ -18,7 +18,9 @@ def resample_mask_to_pet(mask_file, pet_file):
     pet_img = nb.load(pet_file)
     mask_img = nb.load(mask_file)
 
-    same_grid = mask_img.shape[:3] == pet_img.shape[:3] and np.allclose(mask_img.affine, pet_img.affine)
+    same_grid = mask_img.shape[:3] == pet_img.shape[:3] and np.allclose(
+        mask_img.affine, pet_img.affine
+    )
 
     if same_grid:
         resampled = mask_img
