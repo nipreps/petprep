@@ -18,26 +18,31 @@ def resample_mask_to_pet(mask_file, pet_file):
     pet_img = nb.load(pet_file)
     mask_img = nb.load(mask_file)
 
-    try:
-        resampled = resample_to_img(
-            mask_file,
-            pet_file,
-            interpolation='nearest',
-            copy_header=True,
-        )
-    except BoundingBoxError:
+    same_grid = mask_img.shape[:3] == pet_img.shape[:3] and np.allclose(mask_img.affine, pet_img.affine)
+
+    if same_grid:
+        resampled = mask_img
+    else:
         try:
-            resampled = resample_img(
-                mask_img,
-                target_affine=pet_img.affine,
-                target_shape=pet_img.shape[:3],
+            resampled = resample_to_img(
+                mask_file,
+                pet_file,
                 interpolation='nearest',
-                force_resample=True,
                 copy_header=True,
             )
         except BoundingBoxError:
-            zeros = np.zeros(pet_img.shape[:3], dtype=np.int16)
-            resampled = nb.Nifti1Image(zeros, pet_img.affine, pet_img.header)
+            try:
+                resampled = resample_img(
+                    mask_img,
+                    target_affine=pet_img.affine,
+                    target_shape=pet_img.shape[:3],
+                    interpolation='nearest',
+                    force_resample=True,
+                    copy_header=True,
+                )
+            except BoundingBoxError:
+                zeros = np.zeros(pet_img.shape[:3], dtype=np.int16)
+                resampled = nb.Nifti1Image(zeros, pet_img.affine, pet_img.header)
 
     out_data = np.rint(resampled.get_fdata()).astype(np.int16)
     out_file = os.path.abspath('mask_resampled.nii.gz')
