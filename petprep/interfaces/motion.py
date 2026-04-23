@@ -69,13 +69,20 @@ class MotionPlot(SimpleInterface):
         svg_file = runtime.cwd / 'pet_motion_hmc.svg'
         svg_file.parent.mkdir(parents=True, exist_ok=True)
 
-        mid_orig, cut_coords_orig, vmin_orig, vmax_orig, crop_slices = (
-            self._compute_display_params(self.inputs.original_pet, return_crop_slices=True)
+        _, _, vmin_orig, vmax_orig, orig_crop_slices = self._compute_display_params(
+            self.inputs.original_pet, return_crop_slices=True
         )
-        _, _, vmin_corr, vmax_corr, _ = self._compute_display_params(
+        _, _, vmin_corr, vmax_corr, corr_crop_slices = self._compute_display_params(
+            self.inputs.corrected_pet, return_crop_slices=True
+        )
+        crop_slices = self._merge_crop_slices(orig_crop_slices, corr_crop_slices)
+        _, cut_coords_orig, _, _ = self._compute_display_params(
+            self.inputs.original_pet,
+            crop_slices=crop_slices,
+        )
+        _, cut_coords_corr, _, _ = self._compute_display_params(
             self.inputs.corrected_pet,
             crop_slices=crop_slices,
-            return_crop_slices=True,
         )
 
         fd_values = None
@@ -85,7 +92,7 @@ class MotionPlot(SimpleInterface):
         svg_file = self._build_animation(
             output_path=svg_file,
             cut_coords_orig=cut_coords_orig,
-            cut_coords_corr=cut_coords_orig,
+            cut_coords_corr=cut_coords_corr,
             vmin_orig=vmin_orig,
             vmax_orig=vmax_orig,
             vmin_corr=vmin_corr,
@@ -156,6 +163,24 @@ class MotionPlot(SimpleInterface):
         largest = counts.argmax()
         return labeled == largest
 
+    def _merge_crop_slices(
+        self,
+        first: tuple[slice, slice, slice] | None,
+        second: tuple[slice, slice, slice] | None,
+    ) -> tuple[slice, slice, slice] | None:
+        if first is None:
+            return second
+        if second is None:
+            return first
+
+        merged = []
+        for first_slc, second_slc in zip(first, second):
+            start = min(first_slc.start or 0, second_slc.start or 0)
+            stop = max(first_slc.stop or 0, second_slc.stop or 0)
+            merged.append(slice(start, stop))
+
+        return tuple(merged)
+
     def _crop_img(
         self,
         img: nib.spatialimages.SpatialImage,
@@ -166,9 +191,8 @@ class MotionPlot(SimpleInterface):
 
         data = np.asanyarray(img.dataobj)[crop_slices]
         affine = img.affine.copy()
-        zooms = img.header.get_zooms()[:3]
         starts = np.array([slc.start or 0 for slc in crop_slices])
-        affine[:3, 3] += starts * zooms
+        affine[:3, 3] += affine[:3, :3] @ starts
         return img.__class__(data, affine, img.header)
 
     def _load_framewise_displacement(self, fd_file: str) -> np.ndarray:
