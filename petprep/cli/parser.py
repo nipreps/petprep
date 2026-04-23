@@ -884,7 +884,7 @@ def parse_args(args=None, namespace=None):
             allowed_regions = sorted(seg_refmask_config.keys())
             seg_hint = ''
             if supported_segs:
-                seg_hint = f", but only for --seg {', '.join(supported_segs)}"
+                seg_hint = f', but only for --seg {", ".join(supported_segs)}'
             if allowed_regions:
                 parser.error(
                     f"--ref-mask-name '{opts.ref_mask_name}' is not available for "
