@@ -7,50 +7,41 @@ from nipype.pipeline import engine as pe
 from ...interfaces import ExtractRefTAC
 
 
-def resample_pet_to_mask(pet_file, mask_file):
+def resample_mask_to_pet(mask_file, pet_file):
     import os
 
     import nibabel as nb
     import numpy as np
-    from nilearn.image import resample_to_img
+    from nilearn.image import resample_img, resample_to_img
     from nilearn.image.resampling import BoundingBoxError
 
     pet_img = nb.load(pet_file)
     mask_img = nb.load(mask_file)
 
     try:
-        resampled = resample_to_img(pet_img, mask_img, interpolation='continuous')
+        resampled = resample_to_img(
+            mask_file,
+            pet_file,
+            interpolation='nearest',
+            copy_header=True,
+        )
     except BoundingBoxError:
-        from nibabel.processing import resample_from_to
-
-        # Fallback to nibabel resampling, which is more permissive when
-        # world-space bounding boxes are numerically inconsistent.
-        if pet_img.ndim == 3:
-            resampled = resample_from_to(pet_img, mask_img, order=1, mode='constant', cval=0.0)
-        else:
-            frame_data = []
-            for frame_idx in range(pet_img.shape[-1]):
-                frame_img = nb.Nifti1Image(
-                    pet_img.dataobj[..., frame_idx],
-                    pet_img.affine,
-                    pet_img.header,
-                )
-                resampled_frame = resample_from_to(
-                    frame_img,
-                    mask_img,
-                    order=1,
-                    mode='constant',
-                    cval=0.0,
-                )
-                frame_data.append(resampled_frame.get_fdata())
-            resampled = nb.Nifti1Image(
-                np.asarray(np.stack(frame_data, axis=-1), dtype=np.float32),
-                mask_img.affine,
-                mask_img.header,
+        try:
+            resampled = resample_img(
+                mask_img,
+                target_affine=pet_img.affine,
+                target_shape=pet_img.shape[:3],
+                interpolation='nearest',
+                force_resample=True,
+                copy_header=True,
             )
+        except BoundingBoxError:
+            zeros = np.zeros(pet_img.shape[:3], dtype=np.int16)
+            resampled = nb.Nifti1Image(zeros, pet_img.affine, pet_img.header)
 
-    out_file = os.path.abspath('pet_resampled.nii.gz')
-    resampled.to_filename(out_file)
+    out_data = np.rint(resampled.get_fdata()).astype(np.int16)
+    out_file = os.path.abspath('mask_resampled.nii.gz')
+    nb.Nifti1Image(out_data, pet_img.affine, pet_img.header).to_filename(out_file)
     return out_file
 
 
@@ -65,13 +56,13 @@ def init_pet_ref_tacs_wf(*, name: str = 'pet_ref_tacs_wf') -> pe.Workflow:
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=['timeseries']), name='outputnode')
 
-    resample_pet = pe.Node(
+    resample_mask = pe.Node(
         Function(
-            input_names=['pet_file', 'mask_file'],
-            output_names=['resampled_pet'],
-            function=resample_pet_to_mask,
+            input_names=['mask_file', 'pet_file'],
+            output_names=['resampled_mask'],
+            function=resample_mask_to_pet,
         ),
-        name='resample_pet',
+        name='resample_mask',
     )
 
     tac = pe.Node(ExtractRefTAC(), name='tac')
@@ -80,15 +71,15 @@ def init_pet_ref_tacs_wf(*, name: str = 'pet_ref_tacs_wf') -> pe.Workflow:
         [
             (
                 inputnode,
-                resample_pet,
+                resample_mask,
                 [('pet_anat', 'pet_file'), ('mask_file', 'mask_file')],
             ),
-            (resample_pet, tac, [('resampled_pet', 'in_file')]),
+            (inputnode, tac, [('pet_anat', 'in_file')]),
+            (resample_mask, tac, [('resampled_mask', 'mask_file')]),
             (
                 inputnode,
                 tac,
                 [
-                    ('mask_file', 'mask_file'),
                     ('metadata', 'metadata'),
                     ('ref_mask_name', 'ref_mask_name'),
                 ],

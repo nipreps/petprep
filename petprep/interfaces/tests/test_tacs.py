@@ -271,6 +271,80 @@ def test_ExtractRefTAC_mismatched_frames(tmp_path):
         node.run()
 
 
+def test_ref_tacs_workflow_uses_input_pet_and_resampled_mask(tmp_path):
+    """Workflow should preserve PET input and only resample the reference mask."""
+    pet_data = np.stack(
+        [
+            np.ones((2, 2, 2)),
+            np.ones((2, 2, 2)) * 2,
+        ],
+        axis=-1,
+    )
+    pet_file = tmp_path / 'pet.nii.gz'
+    nb.Nifti1Image(pet_data, np.eye(4)).to_filename(pet_file)
+
+    mask_data = np.zeros((2, 2, 2), dtype='int16')
+    mask_data[0] = 1
+    mask_file = tmp_path / 'mask.nii.gz'
+    nb.Nifti1Image(mask_data, np.eye(4)).to_filename(mask_file)
+
+    meta_json = tmp_path / 'pet.json'
+    meta_json.write_text(json.dumps({'FrameTimesStart': [0, 1], 'FrameDuration': [1, 1]}))
+
+    wf = init_pet_ref_tacs_wf()
+    wf.base_dir = str(tmp_path)
+    wf.config['execution']['remove_unnecessary_outputs'] = False
+    wf.inputs.inputnode.pet_anat = str(pet_file)
+    wf.inputs.inputnode.mask_file = str(mask_file)
+    wf.inputs.inputnode.metadata = str(meta_json)
+    wf.inputs.inputnode.ref_mask_name = 'ref'
+
+    wf.run()
+
+    tac_inputs_file = tmp_path / 'pet_ref_tacs_wf' / 'tac' / '_inputs.pklz'
+    with gzip.open(tac_inputs_file, 'rb') as f:
+        inputs = pickle.load(f)
+
+    assert inputs['in_file'] == str(pet_file)
+    assert inputs['mask_file'].endswith('mask_resampled.nii.gz')
+
+
+def test_ref_tacs_workflow_nonoverlapping_affines(tmp_path):
+    """Workflow should not crash when PET and mask FoVs do not overlap."""
+    pet_data = np.stack(
+        [
+            np.ones((2, 2, 2)),
+            np.ones((2, 2, 2)) * 2,
+        ],
+        axis=-1,
+    )
+    pet_file = tmp_path / 'pet.nii.gz'
+    nb.Nifti1Image(pet_data, np.eye(4)).to_filename(pet_file)
+
+    mask_data = np.zeros((2, 2, 2), dtype='int16')
+    mask_data[0] = 1
+    mask_file = tmp_path / 'mask_shifted.nii.gz'
+    shifted_affine = np.eye(4)
+    shifted_affine[:3, 3] = 1000
+    nb.Nifti1Image(mask_data, shifted_affine).to_filename(mask_file)
+
+    meta_json = tmp_path / 'pet.json'
+    meta_json.write_text(json.dumps({'FrameTimesStart': [0, 1], 'FrameDuration': [1, 1]}))
+
+    wf = init_pet_ref_tacs_wf()
+    wf.base_dir = str(tmp_path)
+    wf.config['execution']['remove_unnecessary_outputs'] = False
+    wf.inputs.inputnode.pet_anat = str(pet_file)
+    wf.inputs.inputnode.mask_file = str(mask_file)
+    wf.inputs.inputnode.metadata = str(meta_json)
+    wf.inputs.inputnode.ref_mask_name = 'ref'
+
+    wf.run()
+
+    out_tsv = tmp_path / 'pet_ref_tacs_wf' / 'tac' / 'pet_tacs.tsv'
+    assert out_tsv.exists()
+
+
 def test_ref_tacs_workflow_mismatched_meta(tmp_path):
     """Workflow should fail with inconsistent metadata."""
     pet_data = np.stack(
