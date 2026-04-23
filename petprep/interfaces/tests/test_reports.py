@@ -71,6 +71,7 @@ def test_subject_summary_handles_missing_task(tmp_path):
     )
 
     segment = summary._generate_segment()
+    assert 'PET series: 2' in segment
     assert 'Task: rest (1 run)' in segment
     assert 'Task: <none> (1 run)' in segment
 
@@ -80,9 +81,9 @@ def test_subject_summary_handles_missing_task(tmp_path):
     ['mri_coreg', 'mri_robust_register', 'ants_registration'],
 )
 def test_functional_summary_with_metadata(registration):
-    from ..reports import FunctionalSummary
+    from ..reports import PETSummary
 
-    summary = FunctionalSummary(
+    summary = PETSummary(
         registration=registration,
         registration_dof=6,
         orientation='RAS',
@@ -114,9 +115,9 @@ def test_functional_summary_with_metadata(registration):
 
 @pytest.mark.parametrize('winner, expected', [('ants', 'ANTs'), ('freesurfer', 'FreeSurfer')])
 def test_functional_summary_auto_select(winner, expected):
-    from ..reports import FunctionalSummary
+    from ..reports import PETSummary
 
-    summary = FunctionalSummary(
+    summary = PETSummary(
         registration='auto_select',
         registration_dof=6,
         orientation='RAS',

@@ -182,7 +182,7 @@ SUBJECT_TEMPLATE = """\
 \t<ul class="elem-desc">
 \t\t<li>Subject ID: {subject_id}</li>
 \t\t<li>Structural images: {n_t1s:d} T1-weighted {t2w}</li>
-\t\t<li>Functional series: {n_pet:d}</li>
+\t\t<li>PET series: {n_pet:d}</li>
 {tasks}
 \t\t<li>Standard output spaces: {std_spaces}</li>
 \t\t<li>Non-standard output spaces: {nstd_spaces}</li>
@@ -190,7 +190,7 @@ SUBJECT_TEMPLATE = """\
 \t</ul>
 """
 
-FUNCTIONAL_TEMPLATE = """\
+PET_TEMPLATE = """\
 \t\t<details open>
 \t\t<summary>Summary</summary>
 \t\t<ul class="elem-desc">
@@ -244,7 +244,7 @@ class SubjectSummaryInputSpec(BaseInterfaceInputSpec):
     subject_id = Str(desc='Subject ID')
     pet = InputMultiObject(
         traits.Either(File(exists=True), traits.List(File(exists=True))),
-        desc='PET functional series',
+        desc='PET series',
     )
     std_spaces = traits.List(Str, desc='list of standard spaces')
     nstd_spaces = traits.List(Str, desc='list of non-standard spaces')
@@ -324,7 +324,7 @@ class SubjectSummary(SummaryInterface):
         )
 
 
-class FunctionalSummaryInputSpec(TraitedSpec):
+class PETSummaryInputSpec(TraitedSpec):
     registration = traits.Enum(
         'mri_coreg',
         'mri_robust_register',
@@ -378,8 +378,8 @@ class FunctionalSummaryInputSpec(TraitedSpec):
     hmc_disabled = traits.Bool(False, desc='Head motion correction disabled')
 
 
-class FunctionalSummary(SummaryInterface):
-    input_spec = FunctionalSummaryInputSpec
+class PETSummary(SummaryInterface):
+    input_spec = PETSummaryInputSpec
 
     def _generate_segment(self):
         dof = self.inputs.registration_dof
@@ -465,7 +465,7 @@ class FunctionalSummary(SummaryInterface):
 
         dose_str = f'{dose}' if dose is not None else 'n/a'
 
-        return FUNCTIONAL_TEMPLATE.format(
+        return PET_TEMPLATE.format(
             registration=reg,
             anat_reference=anat_reference,
             reference=petref_strategy,
@@ -480,6 +480,11 @@ class FunctionalSummary(SummaryInterface):
             frame_start_times=frame_times,
             frame_durations=frame_durations,
         )
+
+
+# Backward compatibility alias
+FunctionalSummaryInputSpec = PETSummaryInputSpec
+FunctionalSummary = PETSummary
 
 
 class AboutSummaryInputSpec(BaseInterfaceInputSpec):

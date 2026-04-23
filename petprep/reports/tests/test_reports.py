@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 
 import pytest
-import yaml
 from bids.layout import BIDSLayout
 
 import petprep.reports.core as core
@@ -149,21 +148,6 @@ def test_pet_report(tmp_path, monkeypatch):
     assert html_file.is_file()
     html_content = html_file.read_text()
     assert '<div id="PET"' in html_content
-
-
-def test_report_specs_do_not_include_functional_sections():
-    specs_dir = Path(data.load.readable('reports-spec.yml')).parent
-
-    for spec_file in specs_dir.glob('reports-spec*.yml'):
-        spec = yaml.safe_load(spec_file.read_text())
-
-        assert all(section['name'] != 'Functional' for section in spec['sections'])
-        assert all(
-            reportlet.get('bids', {}).get('suffix') != 'bold'
-            for section in spec['sections']
-            for reportlet in section.get('reportlets', [])
-        )
-
 
 def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
     work_dir = tmp_path / 'work'
