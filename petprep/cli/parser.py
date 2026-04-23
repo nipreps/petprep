@@ -880,7 +880,7 @@ def parse_args(args=None, namespace=None):
             if allowed_regions:
                 parser.error(
                     f"--ref-mask-name '{opts.ref_mask_name}' is not available for "
-                    f"--seg {config.workflow.seg}. Choose one of: {', '.join(allowed_regions)}."
+                    f'--seg {config.workflow.seg}. Choose one of: {", ".join(allowed_regions)}.'
                 )
             parser.error(
                 f'--seg {config.workflow.seg} does not define any predefined reference masks. '
