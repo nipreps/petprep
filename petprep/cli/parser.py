@@ -804,8 +804,14 @@ discourage its usage.""",
 def parse_args(args=None, namespace=None):
     """Parse args and run further checks on the command line."""
     import logging
+    from json import load
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
+
+    try:
+        from importlib.resources import files as ir_files
+    except ImportError:  # PY<3.9
+        from importlib_resources import files as ir_files
 
     argv = list(args) if args is not None else sys.argv[1:]
     parser = _build_parser()
@@ -853,6 +859,33 @@ def parse_args(args=None, namespace=None):
 
     if opts.ref_mask_index is not None and opts.ref_mask_name is None:
         parser.error('Option --ref-mask-index requires --ref-mask-name.')
+
+    if opts.ref_mask_name is not None and opts.ref_mask_index is None:
+        with open(ir_files('petprep.data.reference_mask') / 'config.json') as f:
+            refmask_config = load(f)
+
+        seg_refmask_config = refmask_config.get(config.workflow.seg, {})
+        if opts.ref_mask_name not in seg_refmask_config:
+            supported_segs = sorted(
+                seg_name
+                for seg_name, seg_config in refmask_config.items()
+                if opts.ref_mask_name in seg_config
+            )
+            allowed_regions = sorted(seg_refmask_config.keys())
+            seg_hint = ''
+            if supported_segs:
+                seg_hint = f', but only for --seg {", ".join(supported_segs)}'
+            if allowed_regions:
+                parser.error(
+                    f"--ref-mask-name '{opts.ref_mask_name}' is not available for "
+                    f'--seg {config.workflow.seg}{seg_hint}. '
+                    f'Choose one of: {", ".join(allowed_regions)} for --seg {config.workflow.seg}.'
+                )
+            parser.error(
+                f'--seg {config.workflow.seg} does not define any predefined reference masks. '
+                'Either select a compatible segmentation or provide --ref-mask-index '
+                'for custom labels.'
+            )
 
     if opts.ref_mask_name is not None:
         config.workflow.ref_mask_name = opts.ref_mask_name
