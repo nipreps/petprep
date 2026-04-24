@@ -163,6 +163,7 @@ def init_single_subject_wf(subject_id: str):
         init_resample_surfaces_wf,
     )
 
+    from petprep.interfaces.segmentation import ensure_mcr2019b_available
     from petprep.workflows.pet.base import init_pet_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
@@ -524,6 +525,9 @@ It is released under the [CC0]\
                 ]),
             ])  # fmt:skip
 
+    if config.workflow.seg in {'brainstem', 'hippocampusAmygdala', 'thalamicNuclei'}:
+        ensure_mcr2019b_available()
+
     segmentation_wf = init_segmentation_wf(
         seg=config.workflow.seg,
         name=f'pet_{config.workflow.seg}_seg_wf',
@@ -535,8 +539,12 @@ It is released under the [CC0]\
                 segmentation_wf,
                 [
                     ('outputnode.t1w_preproc', 'inputnode.t1w_preproc'),
+                    ('outputnode.t1w_mask', 'inputnode.t1w_mask'),
+                    ('outputnode.anat_ribbon', 'inputnode.anat_ribbon'),
                     ('outputnode.subjects_dir', 'inputnode.subjects_dir'),
                     ('outputnode.subject_id', 'inputnode.subject_id'),
+                    ('outputnode.template', 'inputnode.template'),
+                    ('outputnode.std2anat_xfm', 'inputnode.std2anat_xfm'),
                 ],
             ),
         ]

@@ -82,6 +82,21 @@ def generate_reports(
     errors = []
     for subject_label in subject_list:
         subject_label = subject_label.removeprefix('sub-')
+
+        subject_reportlets_dir = reportlets_dir
+        if reportlets_dir is not None:
+            subject_reportlets_dir = next(
+                (
+                    candidate
+                    for candidate in (
+                        reportlets_dir / 'petprep' / f'sub-{subject_label}',
+                        reportlets_dir / f'sub-{subject_label}',
+                        reportlets_dir,
+                    )
+                    if candidate.exists()
+                ),
+                reportlets_dir,
+            )
         # The number of sessions is intentionally not based on session_list but
         # on the total number of sessions, because I want the final derivatives
         # folder to be the same whether sessions were run one at a time or all-together.
@@ -106,7 +121,7 @@ def generate_reports(
             run_uuid,
             bootstrap_file=bootstrap_file,
             out_filename=html_report,
-            reportlets_dir=reportlets_dir,
+            reportlets_dir=subject_reportlets_dir,
             errorname=f'report-{run_uuid}-{subject_label}.err',
             subject=subject_label,
         )

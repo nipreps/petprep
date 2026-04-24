@@ -91,3 +91,109 @@ def test_refmask_sources(tmp_path: Path):
         assert any('T1w' in src for src in sources)
         assert any('dseg' in src for src in sources)
         assert all('/pet/' not in src for src in sources)
+
+
+def test_prepare_timing_parameters_and_psf_metadata():
+    from nipype.interfaces.base import Undefined
+
+    from ..outputs import build_pvc_metadata_dict, build_pvc_tacs_dict, prepare_timing_parameters
+
+    timing = prepare_timing_parameters(
+        {
+            'VolumeTiming': [0, 10],
+            'AcquisitionDuration': [10, 10],
+            'InjectedRadioactivity': 120,
+            'InjectedRadioactivityUnits': 'MBq',
+            'Units': 'Bq/mL',
+        }
+    )
+    assert timing == {
+        'FrameTimesStart': [0, 10],
+        'FrameDuration': [10, 10],
+        'InjectedRadioactivity': 120,
+        'InjectedRadioactivityUnits': 'MBq',
+        'Units': 'Bq/mL',
+    }
+
+    assert build_pvc_metadata_dict(pvc_method='GTM', fwhm_x=3, fwhm_y=4.5, fwhm_z=5) == {
+        'PVCMethod': 'GTM',
+        'FWHM_x': 3.0,
+        'FWHM_y': 4.5,
+        'FWHM_z': 5.0,
+    }
+    assert build_pvc_metadata_dict(pvc_method='GTM', fwhm_x=Undefined, fwhm_y=4.5, fwhm_z=5) == {
+        'PVCMethod': 'GTM',
+        'FWHM_y': 4.5,
+        'FWHM_z': 5.0,
+    }
+
+    assert build_pvc_tacs_dict(pvc_method=None) == {}
+    assert build_pvc_tacs_dict(
+        pvc_method='GTM',
+        fwhm_x=3,
+        fwhm_y=4.5,
+        fwhm_z=5,
+        software_name='PETPVC',
+        software_version='1.2.3',
+        command_line='petprep /bids /out participant',
+    ) == {
+        'PVCMethod': 'GTM',
+        'FWHM_x': 3.0,
+        'FWHM_y': 4.5,
+        'FWHM_z': 5.0,
+        'SoftwareName': 'petpvc',
+        'SoftwareVersion': '1.2.3',
+        'CommandLine': 'petprep /bids /out participant',
+    }
+
+    assert build_pvc_tacs_dict(
+        pvc_method='MG',
+        fwhm_x=None,
+        fwhm_y=4.5,
+        fwhm_z=None,
+        software_name='',
+        software_version='',
+        command_line='',
+    ) == {
+        'PVCMethod': 'MG',
+        'FWHM_y': 4.5,
+    }
+
+
+def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):
+    from ..outputs import init_func_fit_reports_wf
+
+    wf = init_func_fit_reports_wf(
+        freesurfer=True,
+        output_dir=str(tmp_path / 'out'),
+        ref_name='cerebellum',
+        atlas_name='HOCPA',
+    )
+
+    node_names = wf.list_node_names()
+    assert 'ds_report_refmask' in node_names
+    assert 'atlas_overlay_report' in node_names
+    assert 'ds_atlas_overlay' in node_names
+
+    edge = wf._graph.get_edge_data(
+        wf.get_node('crop_petref_atlas'), wf.get_node('atlas_overlay_report')
+    )
+    assert ('out_file', 'segmentation') in edge['connect']
+
+    ds_refmask = wf.get_node('ds_pet_t1_refmask_report')
+    assert ds_refmask.inputs.label == 'cerebellum'
+
+
+def test_init_func_fit_reports_wf_without_optional_reports(tmp_path: Path):
+    from ..outputs import init_func_fit_reports_wf
+
+    wf = init_func_fit_reports_wf(
+        freesurfer=False,
+        output_dir=str(tmp_path / 'out'),
+        ref_name='',
+        atlas_name=None,
+    )
+
+    node_names = wf.list_node_names()
+    assert 'ds_report_refmask' not in node_names
+    assert 'atlas_overlay_report' not in node_names

@@ -50,25 +50,6 @@ def fips_enabled():
 
 
 @cache
-def estimate_bold_mem_usage(bold_fname: str) -> tuple[int, dict]:
-    import nibabel as nb
-    import numpy as np
-
-    img = nb.load(bold_fname)
-    nvox = int(np.prod(img.shape, dtype='u8'))
-    # Assume tools will coerce to 8-byte floats to be safe
-    bold_size_gb = 8 * nvox / (1024**3)
-    bold_tlen = img.shape[-1]
-    mem_gb = {
-        'filesize': bold_size_gb,
-        'resampled': bold_size_gb * 4,
-        'largemem': bold_size_gb * (max(bold_tlen / 100, 1.0) + 4),
-    }
-
-    return bold_tlen, mem_gb
-
-
-@cache
 def estimate_pet_mem_usage(pet_fname: str) -> tuple[int, dict]:
     """Estimate memory usage for a PET series."""
     import nibabel as nb

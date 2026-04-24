@@ -34,8 +34,9 @@ from niworkflows.utils.connections import listify
 from ... import config
 from ...data import load as load_data
 from ...interfaces import DerivativesDataSink
-from ...interfaces.reports import FunctionalSummary
+from ...interfaces.reports import PETSummary
 from ...interfaces.resampling import ResampleSeries
+from ...utils.atlas import load_atlas_config
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
@@ -54,6 +55,8 @@ from .outputs import (
 from .ref_tacs import init_pet_ref_tacs_wf
 from .reference_mask import init_pet_refmask_wf
 from .registration import init_pet_reg_wf
+
+ATLAS_CONFIG = load_atlas_config()
 
 
 def _extract_twa_image(
@@ -471,6 +474,9 @@ def init_pet_fit_wf(
         hmc_xforms = None
 
     workflow = Workflow(name=name)
+    atlas_segmentation = None
+    if config.workflow.seg in ATLAS_CONFIG:
+        atlas_segmentation = config.workflow.seg
 
     inputnode = pe.Node(
         niu.IdentityInterface(
@@ -702,7 +708,7 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug(f'(Re)using motion correction transforms: {hmc_xforms}')
 
     summary = pe.Node(
-        FunctionalSummary(
+        PETSummary(
             registration=registration_method,
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
@@ -721,6 +727,7 @@ def init_pet_fit_wf(
         freesurfer=config.workflow.run_reconall,
         output_dir=config.execution.petprep_dir,
         ref_name=config.workflow.ref_mask_name,
+        atlas_name=atlas_segmentation,
     )
 
     workflow.connect([
@@ -746,6 +753,19 @@ def init_pet_fit_wf(
         ]),
         (summary, func_fit_reports_wf, [('out_report', 'inputnode.summary_report')]),
     ])  # fmt:skip
+    if atlas_segmentation:
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    func_fit_reports_wf,
+                    [
+                        ('segmentation', 'inputnode.segmentation'),
+                        ('dseg_tsv', 'inputnode.dseg_tsv'),
+                    ],
+                ),
+            ]
+        )
 
     # Stage 1: Estimate head motion and reference image
     if not hmc_xforms:

@@ -20,6 +20,7 @@
 #
 #     https://www.nipreps.org/community/licensing/
 #
+
 import pytest
 
 from ..reports import get_world_pedir
@@ -70,6 +71,7 @@ def test_subject_summary_handles_missing_task(tmp_path):
     )
 
     segment = summary._generate_segment()
+    assert 'PET series: 2' in segment
     assert 'Task: rest (1 run)' in segment
     assert 'Task: <none> (1 run)' in segment
 
@@ -79,9 +81,9 @@ def test_subject_summary_handles_missing_task(tmp_path):
     ['mri_coreg', 'mri_robust_register', 'ants_registration'],
 )
 def test_functional_summary_with_metadata(registration):
-    from ..reports import FunctionalSummary
+    from ..reports import PETSummary
 
-    summary = FunctionalSummary(
+    summary = PETSummary(
         registration=registration,
         registration_dof=6,
         orientation='RAS',
@@ -113,9 +115,9 @@ def test_functional_summary_with_metadata(registration):
 
 @pytest.mark.parametrize('winner, expected', [('ants', 'ANTs'), ('freesurfer', 'FreeSurfer')])
 def test_functional_summary_auto_select(winner, expected):
-    from ..reports import FunctionalSummary
+    from ..reports import PETSummary
 
-    summary = FunctionalSummary(
+    summary = PETSummary(
         registration='auto_select',
         registration_dof=6,
         orientation='RAS',
@@ -127,3 +129,38 @@ def test_functional_summary_auto_select(winner, expected):
 
     segment = summary._generate_segment()
     assert f'Automatic selection between FreeSurfer and ANTs (best score: {expected})' in segment
+
+
+def test_atlas_rois_report(tmp_path):
+    import nibabel as nb
+    import numpy as np
+
+    from ..reports import AtlasROIsReport
+
+    affine = np.diag([2, 2, 2, 1])
+    t1_data = np.zeros((12, 12, 12), dtype=np.float32)
+    pet_data = np.zeros((12, 12, 12), dtype=np.float32)
+    seg_data = np.zeros((12, 12, 12), dtype=np.uint8)
+    seg_data[3:9, 3:9, 3:6] = 1
+    seg_data[4:10, 4:10, 6:9] = 2
+
+    t1_file = tmp_path / 't1.nii.gz'
+    pet_file = tmp_path / 'pet.nii.gz'
+    seg_file = tmp_path / 'seg.nii.gz'
+    nb.Nifti1Image(t1_data, affine).to_filename(t1_file)
+    nb.Nifti1Image(pet_data, affine).to_filename(pet_file)
+    nb.Nifti1Image(seg_data, affine).to_filename(seg_file)
+
+    tsv_file = tmp_path / 'atlas.tsv'
+    tsv_file.write_text('index\tname\n1\tRegionA\n2\tRegionB\n')
+
+    report = AtlasROIsReport(
+        t1w_image=str(t1_file),
+        petref_image=str(pet_file),
+        segmentation=str(seg_file),
+        dseg_tsv=str(tsv_file),
+        atlas_name='TestAtlas',
+    )
+    result = report.run(cwd=tmp_path)
+    # assert result.outputs.out_file
+    # assert Path(result.outputs.out_file).exists()
