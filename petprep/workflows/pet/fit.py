@@ -778,6 +778,7 @@ def init_pet_fit_wf(
             omp_nthreads=omp_nthreads,
             fwhm=config.workflow.hmc_fwhm,
             start_time=config.workflow.hmc_start_time,
+            blocking_time=config.workflow.hmc_blocking_time,
             frame_durations=frame_durations,
             frame_start_times=frame_start_times,
             initial_frame=config.workflow.hmc_init_frame,

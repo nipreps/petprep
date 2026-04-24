@@ -4,6 +4,7 @@ import pytest
 
 from ..hmc import (
     _find_highest_uptake_frame,
+    _select_estimation_indices,
     get_start_frame,
     init_pet_hmc_wf,
     update_list_transforms,
@@ -31,13 +32,14 @@ def test_get_start_frame_empty():
 
 def test_update_list_transforms_padding():
     xforms = ['a', 'b', 'c']
-    assert update_list_transforms(xforms, 2) == ['a', 'a', 'a', 'b', 'c']
-    assert update_list_transforms(xforms, 0) == xforms
+    assert update_list_transforms(xforms, 2, 5) == ['a', 'a', 'a', 'b', 'c']
+    assert update_list_transforms(xforms, 0, 3) == xforms
+    assert update_list_transforms(xforms, 1, 7) == ['a', 'a', 'b', 'c', 'c', 'c', 'c']
 
 
 def test_update_list_transforms_empty():
     with pytest.raises(ValueError, match='cannot be empty'):
-        update_list_transforms([], 1)
+        update_list_transforms([], 1, 1)
 
 
 def test_init_pet_hmc_wf_nodes():
@@ -77,3 +79,17 @@ def test_find_highest_uptake_frame(tmp_path):
     expected = np.argmax([arr.sum() for arr in data]) + 1
     result = _find_highest_uptake_frame(files)
     assert result == expected
+
+
+def test_select_estimation_indices_with_stop_idx():
+    assert _select_estimation_indices(total_frames=8, start_idx=1, stop_idx=5) == [1, 2, 3, 4]
+
+
+def test_select_estimation_indices_without_stop_idx():
+    assert _select_estimation_indices(total_frames=5, start_idx=2, stop_idx=None) == [2, 3, 4]
+
+
+def test_init_pet_hmc_wf_blocking_time_adds_stop_frame_node():
+    wf = init_pet_hmc_wf(mem_gb=1, omp_nthreads=1, blocking_time=600.0)
+    names = wf.list_node_names()
+    assert 'get_blocking_frame' in names

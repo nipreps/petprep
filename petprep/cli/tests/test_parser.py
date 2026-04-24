@@ -584,3 +584,19 @@ def test_hmc_off_flag(tmp_path):
 
     opts = parser.parse_args(base_args + ['--hmc-off'])
     assert opts.hmc_off is True
+
+
+def test_hmc_blocking_time_parsing(tmp_path):
+    """Ensure --hmc-blocking-time is optional and parsed as float."""
+    datapath = tmp_path / 'data'
+    outpath = tmp_path / 'out'
+    datapath.mkdir()
+
+    parser = _build_parser()
+    base_args = [str(datapath), str(outpath), 'participant']
+
+    opts = parser.parse_args(base_args)
+    assert opts.hmc_blocking_time is None
+
+    opts = parser.parse_args(base_args + ['--hmc-blocking-time', '900'])
+    assert opts.hmc_blocking_time == 900.0

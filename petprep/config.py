@@ -616,6 +616,8 @@ class workflow(_Config):
     """FWHM for Gaussian smoothing prior to head-motion estimation."""
     hmc_start_time: float = 120.0
     """Time point (in seconds) at which head-motion estimation starts."""
+    hmc_blocking_time: float | None = None
+    """Optional blocking onset (seconds) to stop motion estimation before kinetic shifts."""
     hmc_init_frame: int | str | None = 'auto'
     """Index of initial frame for head-motion estimation ('auto' selects highest uptake)."""
     hmc_fix_frame: bool = False

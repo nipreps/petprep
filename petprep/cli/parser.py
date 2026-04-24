@@ -598,6 +598,16 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Time (in seconds) after which head-motion estimation is performed.',
     )
     g_hmc.add_argument(
+        '--hmc-blocking-time',
+        action='store',
+        default=None,
+        type=float,
+        help=(
+            'Optional time (in seconds) when a blocking challenge starts. '
+            'Frames at or after this time are excluded from head-motion estimation.'
+        ),
+    )
+    g_hmc.add_argument(
         '--hmc-init-frame',
         dest='hmc_init_frame',
         nargs='?',

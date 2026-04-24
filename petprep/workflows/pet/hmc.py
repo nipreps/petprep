@@ -84,14 +84,23 @@ def get_start_frame(
     return int(idxs[0]) if idxs.size > 0 else int(len(midpoints) - 1)
 
 
-def update_list_transforms(xforms: list[str], idx: int) -> list[str]:
+def update_list_transforms(xforms: list[str], idx: int, total_frames: int) -> list[str]:
     """
-    Left-pad `xforms` by repeating the first transform `idx` times at the beginning.
+    Expand a partial transform list to cover all original frames.
+
+    The first transform is repeated to fill frames skipped at the beginning
+    (before ``idx``), and the last transform is repeated for any dropped tail
+    frames when only a subset of the scan is used for motion estimation.
     """
     if not xforms:
         raise ValueError('The input xforms list cannot be empty.')
 
     padded_xforms = [xforms[0]] * idx + xforms
+    if len(padded_xforms) < total_frames:
+        padded_xforms.extend([padded_xforms[-1]] * (total_frames - len(padded_xforms)))
+    elif len(padded_xforms) > total_frames:
+        padded_xforms = padded_xforms[:total_frames]
+
     return padded_xforms
 
 
@@ -106,6 +115,21 @@ def _find_highest_uptake_frame(in_files: list[str]) -> int:
 
     uptake = [np.sum(nb.load(f).get_fdata(dtype=np.float32)) for f in in_files]
     return int(np.argmax(uptake)) + 1
+
+
+def _select_estimation_indices(total_frames: int, start_idx: int, stop_idx: int | None = None) -> list[int]:
+    """Select frame indices used during motion estimation."""
+    total_frames = int(total_frames)
+    if total_frames <= 0:
+        return []
+
+    start_idx = max(0, min(int(start_idx), total_frames - 1))
+    if stop_idx is None:
+        stop_idx = total_frames
+    else:
+        stop_idx = max(start_idx + 1, min(int(stop_idx), total_frames))
+
+    return list(range(start_idx, stop_idx))
 
 
 class _LTAList2ITKInputSpec(BaseInterfaceInputSpec):
@@ -145,6 +169,7 @@ def init_pet_hmc_wf(
     *,
     fwhm: float = 10.0,
     start_time: float = 120.0,
+    blocking_time: float | None = None,
     frame_durations: Sequence[float] | None = None,
     frame_start_times: Sequence[float] | None = None,
     initial_frame: int | str | None = 'auto',
@@ -181,6 +206,10 @@ def init_pet_hmc_wf(
         FWHM in millimeters for Gaussian smoothing prior to motion estimation
     start_time : :obj:`float`
         Earliest time point (in seconds) used for motion estimation.
+    blocking_time : :obj:`float` or ``None``
+        Optional time point (in seconds) at which a blocking challenge starts.
+        When set, frames at or after this time are excluded from motion
+        estimation to avoid conflating tracer-kinetic changes with motion.
     frame_durations : :class:`~typing.Sequence`\[:obj:`float`] or ``None``
         Duration of each frame in seconds. If not provided, start-time clamping
         will be skipped.
@@ -228,11 +257,12 @@ FreeSurfer's ``mri_robust_template``.
 
     inputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['pet_file', 'start_time', 'frame_durations', 'frame_start_times']
+            fields=['pet_file', 'start_time', 'blocking_time', 'frame_durations', 'frame_start_times']
         ),
         name='inputnode',
     )
     inputnode.inputs.start_time = start_time
+    inputnode.inputs.blocking_time = blocking_time
     inputnode.inputs.frame_durations = frame_durations
     inputnode.inputs.frame_start_times = frame_start_times
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
@@ -242,10 +272,6 @@ FreeSurfer's ``mri_robust_template``.
 
     # After splitting, explicitly select frames
     select_frames = pe.Node(Select(), name='select_frames')
-
-    # Define a function to create the correct indices
-    def get_frame_indices(total_frames, start_idx):
-        return list(range(start_idx, total_frames))
 
     # Explicit function for Nipype connection
     def num_files(filelist):
@@ -258,12 +284,13 @@ FreeSurfer's ``mri_robust_template``.
 
     select_idx = pe.Node(
         niu.Function(
-            input_names=['total_frames', 'start_idx'],
+            input_names=['total_frames', 'start_idx', 'stop_idx'],
             output_names=['indices'],
-            function=get_frame_indices,
+            function=_select_estimation_indices,
         ),
         name='select_indices',
     )
+    select_idx.inputs.stop_idx = None
 
     # Smooth and threshold frames
     smooth = pe.MapNode(
@@ -285,6 +312,16 @@ FreeSurfer's ``mri_robust_template``.
         name='get_start_frame',
     )
     start_frame.inputs.start_time = start_time
+    if blocking_time is not None:
+        stop_frame = pe.Node(
+            niu.Function(
+                input_names=['durations', 'start_time', 'frame_starts'],
+                output_names=['start_frame_idx'],
+                function=get_start_frame,
+            ),
+            name='get_blocking_frame',
+        )
+        stop_frame.inputs.start_time = blocking_time
 
     make_lta_list = pe.Node(
         niu.Function(
@@ -323,7 +360,7 @@ FreeSurfer's ``mri_robust_template``.
         robust_template.inputs.initial_timepoint = int(initial_frame) + 1
     upd_xfm = pe.Node(
         niu.Function(
-            input_names=['xforms', 'idx'],
+            input_names=['xforms', 'idx', 'total_frames'],
             output_names=['updated_xforms'],
             function=update_list_transforms,
         ),
@@ -352,6 +389,7 @@ FreeSurfer's ``mri_robust_template``.
         (thresh, robust_template, [('out_file', 'in_files')]),
         (robust_template, upd_xfm, [('transform_outputs', 'xforms')]),
         (start_frame, upd_xfm, [('start_frame_idx', 'idx')]),
+        (num_files_node, upd_xfm, [('length', 'total_frames')]),
         (upd_xfm, lta2itk, [('updated_xforms', 'in_xforms')]),
         (robust_template, lta2itk, [('out_file', 'in_reference')]),
         (split, lta2itk, [('out_file', 'in_source')]),
@@ -359,6 +397,16 @@ FreeSurfer's ``mri_robust_template``.
         (robust_template, ref_to_nii, [('out_file', 'in_file')]),
         (ref_to_nii, outputnode, [('out_file', 'petref')]),
     ])  # fmt:skip
+
+    if blocking_time is not None:
+        workflow.connect(
+            [
+                (inputnode, stop_frame, [('frame_durations', 'durations'),
+                                         ('frame_start_times', 'frame_starts'),
+                                         ('blocking_time', 'start_time')]),
+                (stop_frame, select_idx, [('start_frame_idx', 'stop_idx')]),
+            ]
+        )
 
     if auto_init_frame:
         workflow.connect(
