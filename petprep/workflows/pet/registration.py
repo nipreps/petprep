@@ -117,7 +117,7 @@ def init_pet_reg_wf(
     """
     from nipype.interfaces.ants import MeasureImageSimilarity, Registration
     from nipype.interfaces.freesurfer import MRIConvert, MRICoreg, RobustRegister
-    from nipype.interfaces.fsl import RobustFOV
+    from nipype.interfaces.fsl import IsotropicSmooth, RobustFOV
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
     from niworkflows.interfaces.nibabel import ApplyMask
@@ -139,6 +139,10 @@ def init_pet_reg_wf(
     outputnode.inputs.registration_score = None
 
     convert_anat = pe.Node(MRIConvert(out_type='niigz'), name='convert_anat')
+    smooth_pet_for_reg = pe.Node(
+        IsotropicSmooth(fwhm=2.0, output_type='NIFTI_GZ'),
+        name='smooth_pet_for_reg',
+    )
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
     robust_fov = pe.Node(RobustFOV(output_type='NIFTI_GZ'), name='robust_fov')
@@ -219,13 +223,14 @@ def init_pet_reg_wf(
 
         workflow.connect(
             [
+                (inputnode, smooth_pet_for_reg, [('ref_pet_brain', 'in_file')]),
                 (inputnode, robust_fov, [('anat_preproc', 'in_file')]),
                 (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
                 (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
                 (robust_fov, mask_brain, [('out_roi', 'in_file')]),
                 (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
                 # ANTs branch
-                (inputnode, ants_coreg, [('ref_pet_brain', 'moving_image')]),
+                (smooth_pet_for_reg, ants_coreg, [('out_file', 'moving_image')]),
                 (robust_fov, ants_coreg, [('out_roi', 'fixed_image')]),
                 (crop_anat_mask, ants_coreg, [('out_file', 'fixed_image_masks')]),
                 (ants_coreg, ants_convert, [(('forward_transforms', _get_first), 'in_xfms')]),
@@ -237,7 +242,7 @@ def init_pet_reg_wf(
                 (crop_anat_mask, ants_score, [('out_file', 'fixed_image_mask')]),
                 (crop_anat_mask, ants_score, [('out_file', 'moving_image_mask')]),
                 # FreeSurfer branch
-                (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
+                (smooth_pet_for_reg, fs_coreg, [('out_file', 'source_file')]),
                 (mask_brain, fs_coreg, [('out_file', 'reference_file')]),
                 (fs_coreg, fs_convert, [('out_lta_file', 'in_xfms')]),
                 (inputnode, fs_warp, [('ref_pet_brain', 'input_image')]),
@@ -351,7 +356,7 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
+            (smooth_pet_for_reg, coreg, [('out_file', coreg_moving)]),
             (
                 robust_fov,
                 coreg,
@@ -383,7 +388,7 @@ def init_pet_reg_wf(
         connections = [
             (robust_fov, mask_brain, [('out_roi', 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
-            (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
+            (smooth_pet_for_reg, coreg, [('out_file', coreg_moving)]),
             (mask_brain, coreg, [('out_file', coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),
             (
@@ -407,6 +412,7 @@ def init_pet_reg_wf(
     workflow.connect(
         [
             (inputnode, convert_anat, [('anat_preproc', 'in_file')]),
+            (inputnode, smooth_pet_for_reg, [('ref_pet_brain', 'in_file')]),
             (convert_anat, robust_fov, [('out_file', 'in_file')]),
             (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
             (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
