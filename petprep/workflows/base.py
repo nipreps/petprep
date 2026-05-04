@@ -105,7 +105,7 @@ def init_petprep_wf():
         ]
         if missing:
             config.loggers.workflow.warning(
-                f"Skipping subject {subject_id}: missing required {' and '.join(missing)} data."
+                f'Skipping subject {subject_id}: missing required {" and ".join(missing)} data.'
             )
             continue
         valid_subjects.append(subject_id)

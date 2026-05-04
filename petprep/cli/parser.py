@@ -1132,7 +1132,7 @@ applied."""
         ]
         if missing:
             build_log.warning(
-                f"Skipping subject {subject_id}: missing required {' and '.join(missing)} data."
+                f'Skipping subject {subject_id}: missing required {" and ".join(missing)} data.'
             )
             continue
         valid_subjects.append(subject_id)
