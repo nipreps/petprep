@@ -58,7 +58,9 @@ def get_sessions(layout: BIDSLayout, subject=None, **filters) -> list[str]:
             sessions = layout.get_sessions(subject=subject)
 
     if sessions is not None:
-        normalized = [session.removeprefix('ses-') for session in sessions if isinstance(session, str)]
+        normalized = [
+            session.removeprefix('ses-') for session in sessions if isinstance(session, str)
+        ]
         if len(normalized) == len(sessions):
             return sorted(normalized)
 
