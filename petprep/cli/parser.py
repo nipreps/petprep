@@ -1063,7 +1063,9 @@ applied."""
         )
 
     if config.execution.session_label:
-        available_sessions = set(get_sessions(config.execution.layout, subject=list(participant_label)))
+        available_sessions = set(
+            get_sessions(config.execution.layout, subject=list(participant_label))
+        )
         missing_sessions = set(config.execution.session_label) - available_sessions
         if missing_sessions:
             parser.error(

@@ -136,7 +136,9 @@ def generate_reports(
             if session_list is None:
                 all_filters = config.execution.bids_filters or {}
                 filters = all_filters.get('pet', {})
-                session_list = get_sessions(config.execution.layout, subject=subject_label, **filters)
+                session_list = get_sessions(
+                    config.execution.layout, subject=subject_label, **filters
+                )
 
             session_list = [ses.removeprefix('ses-') for ses in session_list]
 

@@ -54,7 +54,9 @@ def get_sessions(layout: BIDSLayout, subject=None, **filters) -> list[str]:
         return sorted(layout.get_sessions(subject=subject))
 
     entities = {'subject': subject, **filters}
-    files = layout.get(return_type='object', **{k: v for k, v in entities.items() if v is not None})
+    files = layout.get(
+        return_type='object', **{k: v for k, v in entities.items() if v is not None}
+    )
     sessions = {bids_file.entities.get('session') for bids_file in files}
     return sorted(session for session in sessions if session)
 
