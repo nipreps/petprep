@@ -1114,7 +1114,37 @@ applied."""
         config.execution.run_label = sorted(set(config.execution.run_label))
         config.execution.bids_filters['pet']['run'] = config.execution.run_label
 
-    config.execution.participant_label = sorted(participant_label)
+    from ..utils.bids import get_subject_modality_status
+
+    valid_subjects = []
+    for subject_id in sorted(participant_label):
+        status = get_subject_modality_status(
+            bids_dir=config.execution.bids_dir,
+            subject_id=subject_id,
+            bids_filters=config.execution.bids_filters,
+            derivatives=config.execution.derivatives,
+            anat_only=config.workflow.anat_only,
+        )
+        missing = [
+            modality
+            for modality, present in (('PET', status['pet']), ('T1w', status['t1w']))
+            if not present
+        ]
+        if missing:
+            build_log.warning(
+                f"Skipping subject {subject_id}: missing required {' and '.join(missing)} data."
+            )
+            continue
+        valid_subjects.append(subject_id)
+
+    if not valid_subjects:
+        parser.error(
+            'None of the selected participants have the required input data after applying the '
+            'current filters. All selected subjects were skipped because they were missing PET '
+            'and/or T1w data.'
+        )
+
+    config.execution.participant_label = valid_subjects
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
 
     if config.execution.combine_runs:

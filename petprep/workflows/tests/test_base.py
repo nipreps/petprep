@@ -31,6 +31,19 @@ BASE_LAYOUT = {
     },
 }
 
+MIXED_LAYOUT = {
+    '01': {
+        'anat': [{'suffix': 'T1w'}],
+        'pet': [{'suffix': 'pet', 'metadata': {}}],
+    },
+    '02': {
+        'pet': [{'suffix': 'pet', 'metadata': {}}],
+    },
+    '03': {
+        'anat': [{'suffix': 'T1w'}],
+    },
+}
+
 
 @pytest.fixture(scope='module')
 def custom_queries():
@@ -103,6 +116,35 @@ def multisession_bids_root(tmp_path_factory):
     return bids_dir
 
 
+@pytest.fixture(scope='module')
+def mixed_bids_root(tmp_path_factory):
+    base = tmp_path_factory.mktemp('mixed-subjects')
+    bids_dir = base / 'bids'
+    generate_bids_skeleton(bids_dir, MIXED_LAYOUT)
+
+    img3d = nb.Nifti1Image(np.zeros((10, 10, 10)), np.eye(4))
+    img4d = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
+
+    anat_dir = bids_dir / 'sub-01' / 'anat'
+    anat_dir.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(anat_dir / 'sub-01_T1w.nii.gz')
+
+    for subject_id in ('01', '02'):
+        pet_dir = bids_dir / f'sub-{subject_id}' / 'pet'
+        pet_dir.mkdir(parents=True, exist_ok=True)
+        pet_path = pet_dir / f'sub-{subject_id}_pet.nii.gz'
+        img4d.to_filename(pet_path)
+        (pet_path.with_suffix('').with_suffix('.json')).write_text(
+            json.dumps({'FrameTimesStart': [0], 'FrameDuration': [1]})
+        )
+
+    anat_dir = bids_dir / 'sub-03' / 'anat'
+    anat_dir.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(anat_dir / 'sub-03_T1w.nii.gz')
+
+    return bids_dir
+
+
 def test_segmentation_shared_across_runs(multisession_bids_root):
     with mock_config(bids_dir=multisession_bids_root):
         wf = init_single_subject_wf('01')
@@ -127,6 +169,16 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
         assert ('outputnode.segmentation', 'inputnode.segmentation') in edge['connect']
         assert ('outputnode.dseg_tsv', 'inputnode.dseg_tsv') in edge['connect']
         assert all('_seg_wf' not in n for n in pet_node.list_node_names())
+
+
+def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_root):
+    with mock_config(bids_dir=mixed_bids_root):
+        config.execution.participant_label = ['01', '02', '03']
+        wf = init_petprep_wf()
+
+    assert any(name.startswith('sub_01_wf.') for name in wf.list_node_names())
+    assert not any(name.startswith('sub_02_wf.') for name in wf.list_node_names())
+    assert not any(name.startswith('sub_03_wf.') for name in wf.list_node_names())
 
 
 def _make_params(
