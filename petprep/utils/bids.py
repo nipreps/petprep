@@ -42,6 +42,23 @@ from .. import config
 from ..data import load as load_data
 
 
+def get_sessions(layout: BIDSLayout, subject=None, **filters) -> list[str]:
+    """Collect session labels from indexed file entities.
+
+    PyBIDS can return incorrect values from ``layout.get_sessions()`` when a dataset
+    includes subject-level ``*_sessions.tsv`` files. Reading the ``session`` entity
+    directly from indexed files avoids that collision.
+    """
+
+    if not hasattr(layout, 'get'):
+        return sorted(layout.get_sessions(subject=subject))
+
+    entities = {'subject': subject, **filters}
+    files = layout.get(return_type='object', **{k: v for k, v in entities.items() if v is not None})
+    sessions = {bids_file.entities.get('session') for bids_file in files}
+    return sorted(session for session in sessions if session)
+
+
 @cache
 def _get_layout(derivatives_dir: Path) -> BIDSLayout:
     from petprep.data import load as load_data
