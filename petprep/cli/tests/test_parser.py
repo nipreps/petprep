@@ -469,7 +469,6 @@ def test_parse_args_skips_participants_missing_t1w(tmp_path, caplog):
         _reset_config()
 
 
-
 def test_parse_args_errors_when_all_selected_participants_missing_t1w(tmp_path, capsys):
     bids = _make_pet_bids_dataset(tmp_path, subjects_without_t1w=('01',))
     out_dir = tmp_path / 'out'
