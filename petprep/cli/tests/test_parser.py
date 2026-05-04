@@ -336,6 +336,76 @@ def test_tracer_label_validation(tmp_path):
     _reset_config()
 
 
+def test_rec_label_only_filters_pet(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_rec-acdyn_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--rec-label',
+                'acdyn',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        filters = config.execution.bids_filters
+        assert filters.get('pet', {}).get('reconstruction') == ['acdyn']
+        assert 'reconstruction' not in filters.get('anat', {})
+    finally:
+        _reset_config()
+
+
+def test_rec_label_validation(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_rec-acdyn_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--rec-label',
+                'wrongrec',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+    _reset_config()
+
+
 def test_run_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
