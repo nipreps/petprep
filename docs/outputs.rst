@@ -570,24 +570,31 @@ The procedure essentially follows the initial proposal of the approach by Patria
 
 Confounds and "carpet"-plot on the visual reports
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The visual reports provide several sections per task and run to aid designing
+The visual reports provide several sections per session and run to aid designing
 a denoising strategy for subsequent analysis.
 Some of the estimated confounds are plotted with a "carpet" visualization of the
-:abbr:`BOLD (blood-oxygen level-dependent)` time series [Power2016]_.
+:abbr:`PET (positron emission tomography)` time series.
 An example of these plots follows:
 
-.. figure:: _static/sub-405_ses-01_task-rest_run-01_desc-carpetplot_bold.svg
+.. figure:: _static/sub-01_ses-baseline_desc-carpetplot_pet.svg
 
-    The figure shows on top several confounds estimated for the BOLD series:
+    The figure shows on top several confounds estimated for the PET series:
     global signals ('GS', 'CSF', 'WM'), DVARS,
     and framewise-displacement ('FD').
-    At the bottom, a 'carpetplot' summarizing the BOLD series [Power2016]_.
+    At the bottom, a 'carpetplot' summarizing tracer uptake over time.
     The carpet plot rows correspond to voxelwise time series,
     and are separated into regions: cortical gray matter, deep
     gray matter, white matter and cerebrospinal fluid, cerebellum
     and the brain-edge or “crown” [Provins2022]_.
     The crown corresponds to the voxels located on a
     closed band around the brain [Patriat2015]_.
+
+Motion correction diagnostics are also included:
+
+.. figure:: _static/sub-01_ses-baseline_desc-hmc_pet.svg
+
+    Animated before/after PET frames summarize head-motion correction,
+    with a synchronized framewise displacement trace.
 
 Noise components computed during each CompCor decomposition are evaluated according
 to the fraction of variance that they explain across the nuisance ROI.
@@ -596,31 +603,15 @@ use in denoising operations: a component is saved if it contributes to explainin
 the top 50 percent of variance in the nuisance ROI.
 *PETPrep* can be configured to save all components instead using the command line
 option ``--return-all-components``.
-*PETPrep* reports include a plot of the cumulative variance explained by each
-component, ordered by descending singular value.
-
-.. figure:: _static/sub-01_task-rest_compcor.svg
-
-    The figure displays the cumulative variance explained by components for each
-    of four CompCor decompositions (left to right: anatomical CSF mask, anatomical
-    white matter mask, anatomical combined mask, temporal).
-    The number of components is plotted on the abscissa and
-    the cumulative variance explained on the ordinate.
-    Dotted lines indicate the minimum number of components necessary
-    to explain 50%, 70%, and 90% of the variance in the nuisance mask.
-    By default, only the components that explain the top 50% of the variance
-    are saved.
 
 Also included is a plot of correlations among confound regressors.
 This can be used to guide selection of a confound model or to assess the extent
 to which tissue-specific regressors correlate with global signal.
 
-.. figure:: _static/sub-01_task-mixedgamblestask_run-01_confounds_correlation.svg
+.. figure:: _static/sub-01_ses-baseline_desc-confoundcorr_pet.svg
 
     The left-hand panel shows the matrix of correlations among selected confound
     time series as a heat-map.
-    Note the zero-correlation blocks near the diagonal; these correspond to each
-    CompCor decomposition.
     The right-hand panel displays the correlation of selected confound time series
     with the mean global signal computed across the whole brain; the regressors shown
     are those with greatest correlation with the global signal.

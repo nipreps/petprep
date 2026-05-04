@@ -28,11 +28,6 @@ BASE_LAYOUT = {
                 'metadata': {},
             },
         ],
-        'func': [
-            {'task': 'mixedgamblestask', 'run': 1, 'suffix': 'bold'},
-            {'task': 'mixedgamblestask', 'run': 2, 'suffix': 'bold'},
-            {'task': 'mixedgamblestask', 'run': 3, 'suffix': 'bold'},
-        ],
     },
 }
 
@@ -83,15 +78,6 @@ def bids_root(tmp_path_factory):
     }
     json_path = pet_dir / 'sub-01_pet.json'
     json_path.write_text(json.dumps(metadata))
-
-    # func files (optional for PET workflow but included for consistency)
-    func_dir = bids_dir / 'sub-01' / 'func'
-    func_dir.mkdir(parents=True, exist_ok=True)
-    for run in range(1, 4):
-        func_path = func_dir / f'sub-01_task-mixedgamblestask_run-0{run}_bold.nii.gz'
-        img.to_filename(func_path)
-        events_path = func_dir / f'sub-01_task-mixedgamblestask_run-0{run}_events.tsv'
-        events_path.write_text('onset\tduration\ttrial_type\n')
 
     return bids_dir
 

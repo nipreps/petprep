@@ -34,7 +34,7 @@ from niworkflows.utils.connections import listify
 from ... import config
 from ...data import load as load_data
 from ...interfaces import DerivativesDataSink
-from ...interfaces.reports import FunctionalSummary
+from ...interfaces.reports import PETSummary
 from ...interfaces.resampling import ResampleSeries
 from ...utils.atlas import load_atlas_config
 from ...utils.misc import estimate_pet_mem_usage
@@ -708,7 +708,7 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug(f'(Re)using motion correction transforms: {hmc_xforms}')
 
     summary = pe.Node(
-        FunctionalSummary(
+        PETSummary(
             registration=registration_method,
             registration_dof=config.workflow.pet2anat_dof,
             orientation=orientation,
