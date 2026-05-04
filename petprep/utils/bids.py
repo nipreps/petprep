@@ -61,8 +61,12 @@ def get_sessions(layout: BIDSLayout, subject=None, **filters) -> list[str]:
         normalized = [
             session.removeprefix('ses-') for session in sessions if isinstance(session, str)
         ]
-        if len(normalized) == len(sessions):
+        if normalized:
             return sorted(normalized)
+        if sessions and len(normalized) == len(sessions):
+            return sorted(normalized)
+        if not hasattr(layout, 'get'):
+            return []
 
     entities = {'subject': subject, **filters}
     files = layout.get(
