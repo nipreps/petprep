@@ -47,6 +47,30 @@ merged with adjusted offsets, and the combined image and metadata are written
 without the ``run`` entity in their filenames. Subsequent preprocessing then
 operates on these merged series rather than the original per-run inputs.
 
+Filtering PET inputs by BIDS entities
+-------------------------------------
+*PETPrep* can restrict which PET series are preprocessed by matching BIDS
+entities in the input filenames. In addition to
+:option:`--participant-label` and :option:`--session-label`, PET-specific
+filters are available through :option:`--tracer-label`, :option:`--rec-label`,
+and :option:`--run-label`.
+
+Use :option:`--rec-label` when a dataset contains multiple reconstruction
+variants for the same acquisition and only a subset should be processed. The
+option accepts one or more reconstruction identifiers, and the ``rec-`` prefix
+is optional. For example, if a dataset includes files such as
+``sub-01_rec-FBP_pet.nii.gz`` and ``sub-01_rec-OSEM_pet.nii.gz``, both can be
+selected explicitly with: ::
+
+    petprep data/bids_root/ out/ participant --rec-label FBP OSEM
+
+The equivalent command with explicit BIDS entity values is also valid: ::
+
+    petprep data/bids_root/ out/ participant --rec-label rec-FBP rec-OSEM
+
+These filters apply to PET inputs only, so anatomical files are still resolved
+using the matching subject and session context.
+
 Command-Line Arguments
 ----------------------
 .. argparse::
