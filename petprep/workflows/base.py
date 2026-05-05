@@ -43,6 +43,66 @@ from ..interfaces import DerivativesDataSink
 from ..interfaces.reports import AboutSummary, SubjectSummary
 
 
+def _build_segmentation_boilerplate(seg: str) -> str:
+    """Compose segmentation boilerplate text for the selected workflow."""
+    from ..utils.atlas import load_atlas_config
+
+    atlas_config = load_atlas_config()
+    atlas_citations = {
+        'MASSP20': ' [@massp20].',
+        'HOCPA': ' [@hocpa].',
+    }
+
+    if seg in atlas_config:
+        citation = atlas_citations.get(
+            seg, ' [@schaefer2018].' if seg.startswith('Schaefer2018') else '.'
+        )
+        return (
+            f'A brain mask was computed and the structural image was segmented with the '
+            f'``{seg}`` atlas, which was warped into anatomical space{citation}'
+        )
+
+    return (
+        f'A brain mask was computed and the structural image was segmented using the '
+        f'``{seg}`` FreeSurfer workflow [@fs_reconall].'
+    )
+
+
+def _build_pvc_boilerplate(pvc_tool: str, pvc_method: str, pvc_psf: tuple[float, ...]) -> str:
+    """Compose PVC boilerplate text including tool references."""
+    pvc_citation = {'petpvc': '[@petpvc]', 'petsurfer': '[@petsurfer]'}.get(pvc_tool.lower())
+    citation_text = f' {pvc_citation}' if pvc_citation else ''
+    return (
+        f' Partial volume correction was applied using ``{pvc_tool}`` '
+        f'with method ``{pvc_method}`` and PSF {pvc_psf} mm{citation_text}.'
+    )
+
+
+def _build_reference_mask_boilerplate(
+    ref_mask_name: str, ref_mask_index: tuple[int, ...] | None
+) -> str:
+    """Compose reference-mask boilerplate text."""
+    if ref_mask_index:
+        return (
+            f' A reference region mask for ``{ref_mask_name}`` was generated using '
+            f'segmentation labels {ref_mask_index}, and the corresponding time-activity '
+            'curve was extracted.'
+        )
+
+    if ref_mask_name == 'semiovale':
+        return (
+            ' A predefined reference region mask for ``semiovale`` was generated in '
+            'centrum semiovale white matter, and the corresponding time-activity curve '
+            'was extracted following the optimized reference-region strategy for '
+            '[11C]UCB-J described by Khattar et al. [@doi:10.1177/0271678X261441071].'
+        )
+
+    return (
+        f' A predefined reference region mask for ``{ref_mask_name}`` was generated, '
+        'and the corresponding time-activity curve was extracted.'
+    )
+
+
 def init_petprep_wf():
     """
     Build *PETPrep*'s pipeline.
@@ -588,24 +648,18 @@ PET data preprocessing
 
 : For each of the {len(pet_runs)} PET runs found per subject (across all
 tasks and sessions), the following preprocessing steps were performed. Robust head
-motion estimation and correction were carried out after generating a
-reference image, which was subsequently coregistered to the T1-weighted
-anatomical image. A brain mask was computed and the structural image was
-segmented with the ``{config.workflow.seg}`` segmentation workflow from FreeSurfer."""
+motion estimation and correction were {'' if not config.workflow.hmc_off else 'not '}carried out after generating a
+reference image{'' if not config.workflow.hmc_off else ' from the uncorrected PET series'}, which was subsequently coregistered to the T1-weighted
+anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
 
     if config.workflow.pvc_tool and config.workflow.pvc_method:
-        pet_pre_desc += (
-            f' Partial volume correction was applied using'
-            f' ``{config.workflow.pvc_tool}`` using the method'
-            f' ``{config.workflow.pvc_method}`` and with a PSF of'
-            f' {config.workflow.pvc_psf} mm.'
+        pet_pre_desc += _build_pvc_boilerplate(
+            config.workflow.pvc_tool, config.workflow.pvc_method, config.workflow.pvc_psf
         )
 
     if config.workflow.ref_mask_name:
-        pet_pre_desc += (
-            f' A reference region mask for the ``{config.workflow.ref_mask_name}``'
-            ' was generated and the corresponding time-activity curve'
-            ' extracted.'
+        pet_pre_desc += _build_reference_mask_boilerplate(
+            config.workflow.ref_mask_name, config.workflow.ref_mask_index
         )
 
     pet_pre_desc += '\n'

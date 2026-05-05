@@ -13,7 +13,13 @@ from niworkflows.utils.bids import collect_data as original_collect_data
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from ... import config
-from ..base import init_petprep_wf, init_single_subject_wf
+from ..base import (
+    _build_pvc_boilerplate,
+    _build_reference_mask_boilerplate,
+    _build_segmentation_boilerplate,
+    init_petprep_wf,
+    init_single_subject_wf,
+)
 from ..tests import mock_config
 
 BASE_LAYOUT = {
@@ -169,6 +175,38 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
         assert ('outputnode.segmentation', 'inputnode.segmentation') in edge['connect']
         assert ('outputnode.dseg_tsv', 'inputnode.dseg_tsv') in edge['connect']
         assert all('_seg_wf' not in n for n in pet_node.list_node_names())
+
+
+def test_segmentation_boilerplate_mentions_atlas_reference():
+    desc = _build_segmentation_boilerplate('MASSP20')
+    assert 'atlas' in desc
+    assert 'warped into anatomical space' in desc
+    assert '[@massp20]' in desc
+
+
+def test_pvc_boilerplate_includes_tool_reference():
+    desc = _build_pvc_boilerplate('petpvc', 'GTM', (5.0,))
+    assert '``petpvc``' in desc
+    assert '``GTM``' in desc
+    assert '[@petpvc]' in desc
+
+
+def test_reference_mask_boilerplate_predefined():
+    desc = _build_reference_mask_boilerplate('cerebellum', None)
+    assert 'predefined reference region mask' in desc
+    assert '``cerebellum``' in desc
+
+
+def test_reference_mask_boilerplate_semiovale_citation():
+    desc = _build_reference_mask_boilerplate('semiovale', None)
+    assert 'centrum semiovale white matter' in desc
+    assert '[@doi:10.1177/0271678X261441071]' in desc
+
+
+def test_reference_mask_boilerplate_custom_labels():
+    desc = _build_reference_mask_boilerplate('custom', (8, 47))
+    assert 'segmentation labels (8, 47)' in desc
+    assert 'time-activity curve was extracted' in desc
 
 
 def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_root):
