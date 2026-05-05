@@ -89,6 +89,14 @@ def _build_reference_mask_boilerplate(
             'curve was extracted.'
         )
 
+    if ref_mask_name == 'semiovale':
+        return (
+            ' A predefined reference region mask for ``semiovale`` was generated in '
+            'centrum semiovale white matter, and the corresponding time-activity curve '
+            'was extracted following the optimized reference-region strategy for '
+            '[11C]UCB-J described by Khattar et al. [@doi:10.1177/0271678X261441071].'
+        )
+
     return (
         f' A predefined reference region mask for ``{ref_mask_name}`` was generated, '
         'and the corresponding time-activity curve was extracted.'

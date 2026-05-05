@@ -155,6 +155,12 @@ def test_reference_mask_boilerplate_predefined():
     assert '``cerebellum``' in desc
 
 
+def test_reference_mask_boilerplate_semiovale_citation():
+    desc = _build_reference_mask_boilerplate('semiovale', None)
+    assert 'centrum semiovale white matter' in desc
+    assert '[@doi:10.1177/0271678X261441071]' in desc
+
+
 def test_reference_mask_boilerplate_custom_labels():
     desc = _build_reference_mask_boilerplate('custom', (8, 47))
     assert 'segmentation labels (8, 47)' in desc
