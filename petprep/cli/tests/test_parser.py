@@ -160,6 +160,81 @@ def test_parse_args(tmp_path, minimal_bids):
     _reset_config()
 
 
+def test_parse_args_skips_subjects_missing_pet_or_t1w(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    img4d = nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4))
+
+    t1w_01 = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    t1w_01.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_01)
+    pet_01 = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
+    pet_01.parent.mkdir(parents=True, exist_ok=True)
+    img4d.to_filename(pet_01)
+    (pet_01.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    pet_02 = bids / 'sub-02' / 'pet' / 'sub-02_pet.nii.gz'
+    pet_02.parent.mkdir(parents=True, exist_ok=True)
+    img4d.to_filename(pet_02)
+    (pet_02.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    t1w_03 = bids / 'sub-03' / 'anat' / 'sub-03_T1w.nii.gz'
+    t1w_03.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_03)
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.execution.participant_label == ['01']
+    finally:
+        _reset_config()
+
+
+def test_parse_args_errors_when_all_subjects_missing_required_modalities(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    t1w_01 = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    t1w_01.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_01)
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+    _reset_config()
+
+
 def test_bids_filter_file(tmp_path, capsys):
     bids_path = tmp_path / 'data'
     out_path = tmp_path / 'out'

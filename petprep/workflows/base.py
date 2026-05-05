@@ -67,6 +67,8 @@ def init_petprep_wf():
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.bids import BIDSFreeSurferDir
 
+    from ..utils.bids import get_subject_modality_status
+
     ver = Version(config.environment.version)
 
     petprep_wf = Workflow(name=f'petprep_{ver.major}_{ver.minor}_wf')
@@ -87,7 +89,33 @@ def init_petprep_wf():
         if config.execution.fs_subjects_dir is not None:
             fsdir.inputs.subjects_dir = str(config.execution.fs_subjects_dir.absolute())
 
+    valid_subjects = []
     for subject_id in config.execution.participant_label:
+        status = get_subject_modality_status(
+            bids_dir=config.execution.bids_dir,
+            subject_id=subject_id,
+            bids_filters=config.execution.bids_filters,
+            derivatives=config.execution.derivatives,
+            anat_only=config.workflow.anat_only,
+        )
+        missing = [
+            modality
+            for modality, present in (('PET', status['pet']), ('T1w', status['t1w']))
+            if not present
+        ]
+        if missing:
+            config.loggers.workflow.warning(
+                f'Skipping subject {subject_id}: missing required {" and ".join(missing)} data.'
+            )
+            continue
+        valid_subjects.append(subject_id)
+
+    if not valid_subjects:
+        raise RuntimeError(
+            'No subjects with the required PET and T1w inputs remain after subject-level checks.'
+        )
+
+    for subject_id in valid_subjects:
         single_subject_wf = init_single_subject_wf(subject_id)
 
         single_subject_wf.config['execution']['crashdump_dir'] = str(
