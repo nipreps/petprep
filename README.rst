@@ -74,6 +74,10 @@ This tool allows you to easily do the following:
 - Automate and parallelize processing steps, which provides a significant
   speed-up from manual processing or shell-scripted pipelines.
 
+At startup, *PETPrep* checks each selected subject for the required PET and
+T1w inputs. Subjects missing PET and/or T1w data are skipped, and a warning is
+emitted before subject-level workflows are built.
+
 PETPrep also extracts regional time-activity curves as tabular files with frame
 timings and uptake values. These tables can be fed directly into
 pharmacokinetic modeling tools such as kinfitr_ or PMOD_ to estimate tracer kinetics or compute binding estimates.
