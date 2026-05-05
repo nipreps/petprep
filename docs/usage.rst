@@ -15,8 +15,13 @@ Execution and the BIDS format
 The *PETPrep* workflow takes as principal input the path of the dataset
 that is to be processed.
 The input dataset is required to be in valid :abbr:`BIDS (Brain Imaging Data
-Structure)` format, and it must include at least one T1w structural image and
-(unless disabled with a flag) a PET scan.
+Structure)` format. For a subject to be processed, the selected inputs for that
+subject must include at least one T1w structural image and, unless disabled
+with a flag, a PET scan.
+At the beginning of the workflow, *PETPrep* checks each selected subject for
+these required inputs. Subjects missing PET and/or T1w data are skipped, and a
+warning is emitted before subject-level workflows are built. The run only
+errors if no selected subjects remain after these checks.
 We highly recommend that you validate your dataset with the free, online
 `BIDS Validator <https://bids-standard.github.io/bids-validator/>`_.
 
