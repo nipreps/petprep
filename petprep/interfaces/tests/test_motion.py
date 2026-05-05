@@ -19,12 +19,14 @@ def test_motion_plot_builds_svg(tmp_path, monkeypatch):
     corr_path = _write_image(tmp_path / 'corr.nii.gz', (4, 4, 4, 2))
 
     call_count = {'count': 0}
+    plot_calls = []
 
     def fake_plot_epi(img, **kwargs):
         height = 10 if call_count['count'] % 2 == 0 else 6
         array = np.ones((height, 8, 3), dtype=np.uint8) * 255
         from imageio import v2 as imageio
 
+        plot_calls.append(kwargs.copy())
         imageio.imwrite(kwargs['output_file'], array)
         call_count['count'] += 1
 
@@ -42,6 +44,10 @@ def test_motion_plot_builds_svg(tmp_path, monkeypatch):
     assert 'frame-0' in content
     assert 'animation-delay: 0.05s' in content
     assert call_count['count'] == 4
+    assert plot_calls[0]['vmin'] == plot_calls[1]['vmin']
+    assert plot_calls[0]['vmax'] == plot_calls[1]['vmax']
+    assert plot_calls[2]['vmin'] == plot_calls[3]['vmin']
+    assert plot_calls[2]['vmax'] == plot_calls[3]['vmax']
 
 
 def test_compute_display_params_handles_single_frame(tmp_path):

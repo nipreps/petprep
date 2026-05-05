@@ -26,6 +26,7 @@ import sys
 
 from .. import config
 from ..utils.atlas import load_atlas_config
+from ..utils.bids import get_sessions
 
 
 def _build_parser(**kwargs):
@@ -1077,7 +1078,7 @@ applied."""
 
     if config.execution.session_label:
         available_sessions = set(
-            config.execution.layout.get_sessions(subject=list(participant_label) or None)
+            get_sessions(config.execution.layout, subject=list(participant_label))
         )
         missing_sessions = set(config.execution.session_label) - available_sessions
         if missing_sessions:
