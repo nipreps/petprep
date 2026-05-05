@@ -54,7 +54,9 @@ def _build_segmentation_boilerplate(seg: str) -> str:
     }
 
     if seg in atlas_config:
-        citation = atlas_citations.get(seg, ' [@schaefer2018].' if seg.startswith('Schaefer2018') else '.')
+        citation = atlas_citations.get(
+            seg, ' [@schaefer2018].' if seg.startswith('Schaefer2018') else '.'
+        )
         return (
             f'A brain mask was computed and the structural image was segmented with the '
             f'``{seg}`` atlas, which was warped into anatomical space{citation}'
@@ -76,7 +78,9 @@ def _build_pvc_boilerplate(pvc_tool: str, pvc_method: str, pvc_psf: tuple[float,
     )
 
 
-def _build_reference_mask_boilerplate(ref_mask_name: str, ref_mask_index: tuple[int, ...] | None) -> str:
+def _build_reference_mask_boilerplate(
+    ref_mask_name: str, ref_mask_index: tuple[int, ...] | None
+) -> str:
     """Compose reference-mask boilerplate text."""
     if ref_mask_index:
         return (
