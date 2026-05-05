@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -40,6 +41,40 @@ from packaging.version import Version
 
 from .. import config
 from ..data import load as load_data
+
+
+def get_sessions(layout: BIDSLayout, subject=None, **filters) -> list[str]:
+    """Collect session labels, falling back to indexed file entities when needed.
+
+    PyBIDS can return incorrect values from ``layout.get_sessions()`` when a dataset
+    includes subject-level ``*_sessions.tsv`` files. Reading the ``session`` entity
+    directly from indexed files avoids that collision.
+    """
+
+    sessions = None
+    if hasattr(layout, 'get_sessions'):
+        try:
+            sessions = layout.get_sessions(subject=subject, **filters)
+        except TypeError:
+            sessions = layout.get_sessions(subject=subject)
+
+    if sessions is not None:
+        normalized = [
+            session.removeprefix('ses-') for session in sessions if isinstance(session, str)
+        ]
+        if normalized:
+            return sorted(normalized)
+        if sessions and len(normalized) == len(sessions):
+            return sorted(normalized)
+        if not hasattr(layout, 'get'):
+            return []
+
+    entities = {'subject': subject, **filters}
+    files = layout.get(
+        return_type='object', **{k: v for k, v in entities.items() if v is not None}
+    )
+    sessions = {bids_file.entities.get('session') for bids_file in files}
+    return sorted(session for session in sessions if session)
 
 
 @cache
@@ -328,6 +363,46 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             combined_files.append(str(output_img))
 
     return combined_root, combined_files
+
+
+def get_subject_modality_status(
+    bids_dir: Path,
+    subject_id: str,
+    *,
+    bids_filters: dict | None = None,
+    derivatives: dict | None = None,
+    anat_only: bool = False,
+) -> dict[str, bool]:
+    """Return subject-level PET/T1w availability after applying active filters."""
+    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES, collect_data
+
+    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+    queries['t1w'].pop('datatype', None)
+    subject_data = collect_data(
+        bids_dir,
+        subject_id,
+        bids_filters=bids_filters,
+        queries=queries,
+    )[0]
+
+    has_pet = anat_only or bool(subject_data['pet'])
+    has_t1w = bool(subject_data['t1w'])
+
+    if not has_t1w and derivatives:
+        from smriprep.utils.bids import collect_derivatives as collect_anat_derivatives
+
+        anatomical_cache = {}
+        for deriv_dir in derivatives.values():
+            anatomical_cache.update(
+                collect_anat_derivatives(
+                    derivatives_dir=deriv_dir,
+                    subject_id=subject_id,
+                    std_spaces=[],
+                )
+            )
+        has_t1w = 't1w_preproc' in anatomical_cache
+
+    return {'pet': has_pet, 't1w': has_t1w}
 
 
 def validate_input_dir(exec_env, bids_dir, participant_label, need_T1w=True):

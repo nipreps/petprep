@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from bids.layout import BIDSLayout
@@ -177,3 +178,30 @@ def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
     generate_reports(['02'], tmp_path, 'fake', work_dir=work_dir)
 
     assert recorded_reportlets == [target]
+
+
+def test_generate_reports_uses_indexed_session_entities(tmp_path, monkeypatch):
+    recorded_sessions = []
+
+    def _record_report(*args, session=None, **kwargs):
+        recorded_sessions.append(session)
+        return None
+
+    class _Layout:
+        def get(self, return_type='object', subject=None, session=None, **kwargs):
+            assert return_type == 'object'
+            labels = ['001', '003']
+            if session is not None:
+                allowed = session if isinstance(session, list) else [session]
+                labels = [label for label in labels if label in allowed]
+            return [SimpleNamespace(entities={'session': label}) for label in labels]
+
+    monkeypatch.setattr(core, 'run_reports', _record_report)
+    monkeypatch.setattr(config.execution, 'aggr_ses_reports', 1)
+    monkeypatch.setattr(config.execution, 'layout', _Layout())
+    monkeypatch.setattr(config.execution, 'bids_filters', {'pet': {'session': ['001', '003']}})
+
+    failed_reports = generate_reports(['01'], tmp_path, 'fake')
+
+    assert not failed_reports
+    assert recorded_sessions == [None, '001', '001', '003', '003']

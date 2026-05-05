@@ -60,6 +60,10 @@
     img {
       max-width: 100%;
     }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -103,8 +107,8 @@
      overflow: visible;
     }
     hr {
-      background-color: #1a1a1a;
       border: none;
+      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -166,6 +170,7 @@
     div.csl-bib-body { }
     div.csl-entry {
       clear: both;
+      margin-bottom: 0em;
     }
     .hanging-indent div.csl-entry {
       margin-left:2em;
@@ -182,98 +187,104 @@
     div.csl-indent {
       margin-left: 2em;
     }  </style>
-  <!--[if lt IE 9]>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
-  <![endif]-->
 </head>
 <body>
 <p>Results included in this manuscript come from preprocessing performed
-using <em>PETPrep</em> 23.1.4 (<span class="citation"
+using <em>PETPrep</em> 0.0.6.dev46+g7efcfc0b8 (<span class="citation"
 data-cites="fmriprep1">Esteban et al. (2019)</span>; <span
 class="citation" data-cites="fmriprep2">Esteban et al. (2018)</span>;
-RRID:SCR_016216), which is based on <em>Nipype</em> 1.8.6 (<span
+RRID:SCR_016216), which is based on <em>Nipype</em> 1.11.0 (<span
 class="citation" data-cites="nipype1">K. Gorgolewski et al.
 (2011)</span>; <span class="citation" data-cites="nipype2">K. J.
 Gorgolewski et al. (2018)</span>; RRID:SCR_002502).</p>
 <dl>
 <dt>Anatomical data preprocessing</dt>
 <dd>
-<p>A total of 79 T1-weighted (T1w) images were found within the input
-BIDS dataset. Anatomical preprocessing was reused from previously
-existing derivative objects.</p>
+<p>A total of 1 T1-weighted (T1w) images were found within the input
+BIDS dataset. The T1w image was corrected for intensity non-uniformity
+(INU) with <code>N4BiasFieldCorrection</code> <span class="citation"
+data-cites="n4">(Tustison et al. 2010)</span>, distributed with ANTs
+2.6.5 <span class="citation" data-cites="ants">(Avants et al. 2008,
+RRID:SCR_004757)</span>, and used as T1w-reference throughout the
+workflow. The T1w-reference was then skull-stripped with a
+<em>Nipype</em> implementation of the
+<code>antsBrainExtraction.sh</code> workflow (from ANTs), using
+OASIS30ANTs as target template. Brain tissue segmentation of
+cerebrospinal fluid (CSF), white-matter (WM) and gray-matter (GM) was
+performed on the brain-extracted T1w using <code>fast</code> <span
+class="citation" data-cites="fsl_fast">(FSL (version unknown),
+RRID:SCR_002823, Zhang, Brady, and Smith 2001)</span>. Brain surfaces
+were reconstructed using <code>recon-all</code> <span class="citation"
+data-cites="fs_reconall">(FreeSurfer 7.4.1, RRID:SCR_001847, Dale,
+Fischl, and Sereno 1999)</span>, and the brain mask estimated previously
+was refined with a custom variation of the method to reconcile
+ANTs-derived and FreeSurfer-derived segmentations of the cortical
+gray-matter of Mindboggle <span class="citation"
+data-cites="mindboggle">(RRID:SCR_002438, Klein et al. 2017)</span>.
+Volume-based spatial normalization to one standard space
+(MNI152NLin2009cAsym) was performed through nonlinear registration with
+<code>antsRegistration</code> (ANTs 2.6.5), using brain-extracted
+versions of both T1w reference and the T1w template. The following
+template was were selected for spatial normalization and accessed with
+<em>TemplateFlow</em> <span class="citation"
+data-cites="templateflow">(25.1.2, Ciric et al. 2022)</span>: <em>ICBM
+152 Nonlinear Asymmetrical template version 2009c</em> [<span
+class="citation" data-cites="mni152nlin2009casym">Fonov et al.
+(2009)</span>, RRID:SCR_008796; TemplateFlow ID:
+MNI152NLin2009cAsym].</p>
 </dd>
-<dt>Functional data preprocessing</dt>
+<dt>PET data preprocessing</dt>
 <dd>
-<p>For each of the 1 BOLD runs found per subject (across all tasks and
-sessions), the following preprocessing was performed. First, a reference
-volume and its skull-stripped version were generated from the shortest
-echo of the BOLD run using a custom methodology of <em>fMRIPrep</em>.
-Head-motion parameters with respect to the BOLD reference
-(transformation matrices, and six corresponding rotation and translation
-parameters) are estimated before any spatiotemporal filtering using
-<code>mcflirt</code> <span class="citation" data-cites="mcflirt">(FSL
-<ver>, Jenkinson et al. 2002)</span>. BOLD runs were slice-time
-corrected to 0.738s (0.5 of slice acquisition range 0s-1.48s) using
-<code>3dTshift</code> from AFNI <span class="citation"
-data-cites="afni">(Cox and Hyde 1997, RRID:SCR_005927)</span>. The BOLD
-time-series (including slice-timing correction when applied) were
-resampled onto their original, native space by applying the transforms
-to correct for head-motion. These resampled BOLD time-series will be
-referred to as <em>preprocessed BOLD in original space</em>, or just
-<em>preprocessed BOLD</em>. A T2<sup>★</sup> map was estimated from the
-preprocessed EPI echoes, by voxel-wise fitting the maximal number of
-echoes with reliable signal in that voxel to a monoexponential signal
-decay model with nonlinear regression. The T2<sup>★</sup>/S<sub>0</sub>
-estimates from a log-linear regression fit were used for initial values.
-The calculated T2<sup>★</sup> map was then used to optimally combine
-preprocessed BOLD across echoes following the method described in <span
-class="citation" data-cites="posse_t2s">(Posse et al. 1999)</span>. The
-optimally combined time series was carried forward as the
-<em>preprocessed BOLD</em>. The BOLD reference was then co-registered to
-the T1w reference using <code>bbregister</code> (FreeSurfer) which
-implements boundary-based registration <span class="citation"
-data-cites="bbr">(Greve and Fischl 2009)</span>. Co-registration was
-configured with six degrees of freedom. First, a reference volume and
-its skull-stripped version were generated using a custom methodology of
-<em>fMRIPrep</em>. Several confounding time-series were calculated based
-on the <em>preprocessed BOLD</em>: framewise displacement (FD), DVARS
-and three region-wise global signals. FD was computed using two
-formulations following Power (absolute sum of relative motions, <span
-class="citation" data-cites="power_fd_dvars">Power et al. (2014)</span>)
-and Jenkinson (relative root mean square displacement between affines,
-<span class="citation" data-cites="mcflirt">Jenkinson et al.
-(2002)</span>). FD and DVARS are calculated for each functional run,
-both using their implementations in <em>Nipype</em> <span
-class="citation" data-cites="power_fd_dvars">(following the definitions
-by Power et al. 2014)</span>. The three global signals are extracted
-within the CSF, the WM, and the whole-brain masks. Additionally, a set
-of physiological regressors were extracted to allow for component-based
-noise correction <span class="citation"
-data-cites="compcor">(<em>CompCor</em>, Behzadi et al. 2007)</span>.
-Principal components are estimated after high-pass filtering the
-<em>preprocessed BOLD</em> time-series (using a discrete cosine filter
-with 128s cut-off) for the two <em>CompCor</em> variants: temporal
-(tCompCor) and anatomical (aCompCor). tCompCor components are then
-calculated from the top 2% variable voxels within the brain mask. For
-aCompCor, three probabilistic masks (CSF, WM and combined CSF+WM) are
-generated in anatomical space. The implementation differs from that of
-Behzadi et al. in that instead of eroding the masks by 2 pixels on BOLD
-space, a mask of pixels that likely contain a volume fraction of GM is
-subtracted from the aCompCor masks. This mask is obtained by dilating a
-GM mask extracted from the FreeSurfer’s <em>aseg</em> segmentation, and
-it ensures components are not extracted from voxels containing a minimal
-fraction of GM. Finally, these masks are resampled into BOLD space and
-binarized by thresholding at 0.99 (as in the original implementation).
-Components are also calculated separately within the WM and CSF masks.
-For each CompCor decomposition, the <em>k</em> components with the
-largest singular values are retained, such that the retained components’
-time series are sufficient to explain 50 percent of variance across the
-nuisance mask (CSF, WM, combined, or temporal). The remaining components
-are dropped from consideration. The head-motion estimates calculated in
-the correction step were also placed within the corresponding confounds
-file. The confound time series derived from head motion estimates and
-global signals were expanded with the inclusion of temporal derivatives
-and quadratic terms for each <span class="citation"
+<p>For each of the 1 PET runs found per subject (across all tasks and
+sessions), the following preprocessing steps were performed. Robust head
+motion estimation and correction were carried out after generating a
+reference image, which was subsequently coregistered to the T1-weighted
+anatomical image. A brain mask was computed and the structural image was
+segmented with the <code>gtm</code> segmentation workflow from
+FreeSurfer. A reference region mask for the <code>semiovale</code> was
+generated and the corresponding time-activity curve extracted.
+Head-motion parameters with respect to the PET reference (transformation
+matrices, and six corresponding rotation and translation parameters) are
+estimated before any spatiotemporal filtering using FreeSurfer’s
+<code>mri_robust_template</code>. Several confounding time-series were
+calculated based on the <em>preprocessed PET</em>: framewise
+displacement (FD), DVARS and three region-wise global signals. FD was
+computed using two formulations following Power (absolute sum of
+relative motions, <span class="citation"
+data-cites="power_fd_dvars">Power et al. (2014)</span>) and Jenkinson
+(relative root mean square displacement between affines, <span
+class="citation" data-cites="mcflirt">Jenkinson et al. (2002)</span>).
+FD and DVARS are calculated for each PET run, both using their
+implementations in <em>Nipype</em> <span class="citation"
+data-cites="power_fd_dvars">(following the definitions by Power et al.
+2014)</span>. The three global signals are extracted within the CSF, the
+WM, and the whole-brain masks. Additionally, a set of physiological
+regressors were extracted to allow for component-based noise correction
+<span class="citation" data-cites="compcor">(<em>CompCor</em>, Behzadi
+et al. 2007)</span>. Principal components are estimated after high-pass
+filtering the <em>preprocessed PET</em> time-series (using a discrete
+cosine filter with 128s cut-off) for the two <em>CompCor</em> variants:
+temporal (tCompCor) and anatomical (aCompCor). tCompCor components are
+then calculated from the top 2% variable voxels within the brain mask.
+For aCompCor, three probabilistic masks (CSF, WM and combined CSF+WM)
+are generated in anatomical space. The implementation differs from that
+of Behzadi et al. in that instead of eroding the masks by 2 pixels on
+PET space, a mask of pixels that likely contain a volume fraction of GM
+is subtracted from the aCompCor masks. This mask is obtained by dilating
+a GM mask extracted from the FreeSurfer’s <em>aseg</em> segmentation,
+and it ensures components are not extracted from voxels containing a
+minimal fraction of GM. Finally, these masks are resampled into PET
+space and binarized by thresholding at 0.99 (as in the original
+implementation). Components are also calculated separately within the WM
+and CSF masks. For each CompCor decomposition, the <em>k</em> components
+with the largest singular values are retained, such that the retained
+components’ time series are sufficient to explain 50 percent of variance
+across the nuisance mask (CSF, WM, combined, or temporal). The remaining
+components are dropped from consideration. The head-motion estimates
+calculated in the correction step were also placed within the
+corresponding confounds file. The confound time series derived from head
+motion estimates and global signals were expanded with the inclusion of
+temporal derivatives and quadratic terms for each <span class="citation"
 data-cites="confounds_satterthwaite_2013">(Satterthwaite et al.
 2013)</span>. Frames that exceeded a threshold of 0.5 mm FD or 1.5
 standardized DVARS were annotated as motion outliers. Additional
@@ -281,38 +292,31 @@ nuisance timeseries are calculated by means of principal components
 analysis of the signal found within a thin band (<em>crown</em>) of
 voxels around the edge of the brain, as proposed by <span
 class="citation" data-cites="patriat_improved_2017">(Patriat, Reynolds,
-and Birn 2017)</span>. The BOLD time-series were resampled into standard
-space, generating a <em>preprocessed BOLD run in MNI152NLin2009cAsym
-space</em>. First, a reference volume and its skull-stripped version
-were generated using a custom methodology of <em>fMRIPrep</em>. All
-resamplings can be performed with <em>a single interpolation step</em>
-by composing all the pertinent transformations (i.e. head-motion
-transform matrices, susceptibility distortion correction when available,
-and co-registrations to anatomical and output spaces). Gridded
-(volumetric) resamplings were performed using
-<code>antsApplyTransforms</code> (ANTs), configured with Lanczos
-interpolation to minimize the smoothing effects of other kernels <span
-class="citation" data-cites="lanczos">(Lanczos 1964)</span>. Non-gridded
-(surface) resamplings were performed using <code>mri_vol2surf</code>
-(FreeSurfer).</p>
+and Birn 2017)</span>. All resamplings can be performed with <em>a
+single interpolation step</em> by composing all the pertinent
+transformations (i.e. head-motion transform matrices, susceptibility
+distortion correction when available, and co-registrations to anatomical
+and output spaces). Gridded (volumetric) resamplings were performed
+using <code>nitransforms</code>, configured with cubic B-spline
+interpolation.</p>
 </dd>
 </dl>
-<p>Many internal operations of <em>fMRIPrep</em> use <em>Nilearn</em>
-0.10.1 <span class="citation" data-cites="nilearn">(Abraham et al. 2014,
-RRID:SCR_001362)</span>, mostly within the functional processing
-workflow. For more details of the pipeline, see <a
-href="https://fmriprep.readthedocs.io/en/latest/workflows.html"
-title="FMRIPrep&#39;s documentation">the section corresponding to
-workflows in <em>fMRIPrep</em>’s documentation</a>.</p>
+<p>Many internal operations of <em>PETPrep</em> use <em>Nilearn</em>
+0.11.1 <span class="citation" data-cites="nilearn">(Abraham et al. 2014,
+RRID:SCR_001362)</span>, mostly within the PET processing workflow. For
+more details of the pipeline, see <a
+href="https://petprep.readthedocs.io/en/latest/workflows.html"
+title="PETPrep&#39;s documentation">the section corresponding to
+workflows in <em>PETPrep</em>’s documentation</a>.</p>
 <h3 id="copyright-waiver">Copyright Waiver</h3>
-<p>The above boilerplate text was automatically generated by fMRIPrep
+<p>The above boilerplate text was automatically generated by PETPrep
 with the express intention that users should copy and paste this text
 into their manuscripts <em>unchanged</em>. It is released under the <a
 href="https://creativecommons.org/publicdomain/zero/1.0/">CC0</a>
 license.</p>
 <h3 class="unnumbered" id="references">References</h3>
 <div id="refs" class="references csl-bib-body hanging-indent"
-role="list">
+data-entry-spacing="0" role="list">
 <div id="ref-nilearn" class="csl-entry" role="listitem">
 Abraham, Alexandre, Fabian Pedregosa, Michael Eickenberg, Philippe
 Gervais, Andreas Mueller, Jean Kossaifi, Alexandre Gramfort, Bertrand
@@ -321,6 +325,14 @@ Neuroimaging with Scikit-Learn.”</span> <em>Frontiers in
 Neuroinformatics</em> 8. <a
 href="https://doi.org/10.3389/fninf.2014.00014">https://doi.org/10.3389/fninf.2014.00014</a>.
 </div>
+<div id="ref-ants" class="csl-entry" role="listitem">
+Avants, B. B., C. L. Epstein, M. Grossman, and J. C. Gee. 2008.
+<span>“Symmetric Diffeomorphic Image Registration with
+Cross-Correlation: Evaluating Automated Labeling of Elderly and
+Neurodegenerative Brain.”</span> <em>Medical Image Analysis</em> 12 (1):
+26–41. <a
+href="https://doi.org/10.1016/j.media.2007.06.004">https://doi.org/10.1016/j.media.2007.06.004</a>.
+</div>
 <div id="ref-compcor" class="csl-entry" role="listitem">
 Behzadi, Yashar, Khaled Restom, Joy Liau, and Thomas T. Liu. 2007.
 <span>“A Component Based Noise Correction Method (<span>CompCor</span>)
@@ -328,16 +340,24 @@ for <span>BOLD</span> and Perfusion Based fMRI.”</span>
 <em>NeuroImage</em> 37 (1): 90–101. <a
 href="https://doi.org/10.1016/j.neuroimage.2007.04.042">https://doi.org/10.1016/j.neuroimage.2007.04.042</a>.
 </div>
-<div id="ref-afni" class="csl-entry" role="listitem">
-Cox, Robert W., and James S. Hyde. 1997. <span>“Software Tools for
-Analysis and Visualization of fMRI Data.”</span> <em>NMR in
-Biomedicine</em> 10 (4-5): 171–78. <a
-href="https://doi.org/10.1002/(SICI)1099-1492(199706/08)10:4/5&lt;171::AID-NBM453&gt;3.0.CO;2-L">https://doi.org/10.1002/(SICI)1099-1492(199706/08)10:4/5&lt;171::AID-NBM453&gt;3.0.CO;2-L</a>.
+<div id="ref-templateflow" class="csl-entry" role="listitem">
+Ciric, R., William H. Thompson, R. Lorenz, M. Goncalves, E. MacNicol, C.
+J. Markiewicz, Y. O. Halchenko, et al. 2022.
+<span>“<span>TemplateFlow</span>: <span>FAIR</span>-Sharing of
+Multi-Scale, Multi-Species Brain Models.”</span> <em>Nature Methods</em>
+19: 1568–71. <a
+href="https://doi.org/10.1038/s41592-022-01681-2">https://doi.org/10.1038/s41592-022-01681-2</a>.
+</div>
+<div id="ref-fs_reconall" class="csl-entry" role="listitem">
+Dale, Anders M., Bruce Fischl, and Martin I. Sereno. 1999.
+<span>“Cortical Surface-Based Analysis: I. Segmentation and Surface
+Reconstruction.”</span> <em>NeuroImage</em> 9 (2): 179–94. <a
+href="https://doi.org/10.1006/nimg.1998.0395">https://doi.org/10.1006/nimg.1998.0395</a>.
 </div>
 <div id="ref-fmriprep2" class="csl-entry" role="listitem">
 Esteban, Oscar, Ross Blair, Christopher J. Markiewicz, Shoshana L.
 Berleant, Craig Moodie, Feilong Ma, Ayse Ilkay Isik, et al. 2018.
-<span>“fMRIPrep 23.1.4.”</span> <em>Software</em>. <a
+<span>“fMRIPrep &lt;Version&gt;.”</span> <em>Software</em>. <a
 href="https://doi.org/10.5281/zenodo.852659">https://doi.org/10.5281/zenodo.852659</a>.
 </div>
 <div id="ref-fmriprep1" class="csl-entry" role="listitem">
@@ -347,6 +367,13 @@ Ilkay Isik, Asier Erramuzpe Aliaga, James Kent, et al. 2019.
 Pipeline for Functional <span>MRI</span>.”</span> <em>Nature
 Methods</em> 16: 111–16. <a
 href="https://doi.org/10.1038/s41592-018-0235-4">https://doi.org/10.1038/s41592-018-0235-4</a>.
+</div>
+<div id="ref-mni152nlin2009casym" class="csl-entry" role="listitem">
+Fonov, VS, AC Evans, RC McKinstry, CR Almli, and DL Collins. 2009.
+<span>“Unbiased Nonlinear Average Age-Appropriate Brain Templates from
+Birth to Adulthood.”</span> <em>NeuroImage</em> 47, Supplement 1: S102.
+<a
+href="https://doi.org/10.1016/S1053-8119(09)70884-5">https://doi.org/10.1016/S1053-8119(09)70884-5</a>.
 </div>
 <div id="ref-nipype1" class="csl-entry" role="listitem">
 Gorgolewski, K., C. D. Burns, C. Madison, D. Clark, Y. O. Halchenko, M.
@@ -361,12 +388,6 @@ Erik Ziegler, David Gage Ellis, Michael Philipp Notter, Dorota Jarecka,
 et al. 2018. <span>“Nipype.”</span> <em>Software</em>. <a
 href="https://doi.org/10.5281/zenodo.596855">https://doi.org/10.5281/zenodo.596855</a>.
 </div>
-<div id="ref-bbr" class="csl-entry" role="listitem">
-Greve, Douglas N, and Bruce Fischl. 2009. <span>“Accurate and Robust
-Brain Image Alignment Using Boundary-Based Registration.”</span>
-<em>NeuroImage</em> 48 (1): 63–72. <a
-href="https://doi.org/10.1016/j.neuroimage.2009.06.060">https://doi.org/10.1016/j.neuroimage.2009.06.060</a>.
-</div>
 <div id="ref-mcflirt" class="csl-entry" role="listitem">
 Jenkinson, Mark, Peter Bannister, Michael Brady, and Stephen Smith.
 2002. <span>“Improved Optimization for the Robust and Accurate Linear
@@ -374,11 +395,12 @@ Registration and Motion Correction of Brain Images.”</span>
 <em>NeuroImage</em> 17 (2): 825–41. <a
 href="https://doi.org/10.1006/nimg.2002.1132">https://doi.org/10.1006/nimg.2002.1132</a>.
 </div>
-<div id="ref-lanczos" class="csl-entry" role="listitem">
-Lanczos, C. 1964. <span>“Evaluation of Noisy Data.”</span> <em>Journal
-of the Society for Industrial and Applied Mathematics Series B Numerical
-Analysis</em> 1 (1): 76–85. <a
-href="https://doi.org/10.1137/0701007">https://doi.org/10.1137/0701007</a>.
+<div id="ref-mindboggle" class="csl-entry" role="listitem">
+Klein, Arno, Satrajit S. Ghosh, Forrest S. Bao, Joachim Giard, Yrjö
+Häme, Eliezer Stavsky, Noah Lee, et al. 2017. <span>“Mindboggling
+Morphometry of Human Brains.”</span> <em>PLOS Computational Biology</em>
+13 (2): e1005350. <a
+href="https://doi.org/10.1371/journal.pcbi.1005350">https://doi.org/10.1371/journal.pcbi.1005350</a>.
 </div>
 <div id="ref-patriat_improved_2017" class="csl-entry" role="listitem">
 Patriat, Rémi, Richard C. Reynolds, and Rasmus M. Birn. 2017. <span>“An
@@ -386,15 +408,6 @@ Improved Model of Motion-Related Signal Changes in <span
 class="nocase">fMRI</span>.”</span> <em>NeuroImage</em> 144, Part A
 (January): 74–82. <a
 href="https://doi.org/10.1016/j.neuroimage.2016.08.051">https://doi.org/10.1016/j.neuroimage.2016.08.051</a>.
-</div>
-<div id="ref-posse_t2s" class="csl-entry" role="listitem">
-Posse, Stefan, Stefan Wiese, Daniel Gembris, Klaus Mathiak, Christoph
-Kessler, Maria-Liisa Grosse-Ruyken, Barbara Elghahwagi, Todd Richards,
-Stephen R. Dager, and Valerij G. Kiselev. 1999. <span>“Enhancement of
-<span>BOLD</span>-Contrast Sensitivity by Single-Shot Multi-Echo
-Functional <span>MR</span> Imaging.”</span> <em>Magnetic Resonance in
-Medicine</em> 42 (1): 87–97. <a
-href="https://doi.org/10.1002/(SICI)1522-2594(199907)42:1&lt;87::AID-MRM13&gt;3.0.CO;2-O">https://doi.org/10.1002/(SICI)1522-2594(199907)42:1&lt;87::AID-MRM13&gt;3.0.CO;2-O</a>.
 </div>
 <div id="ref-power_fd_dvars" class="csl-entry" role="listitem">
 Power, Jonathan D., Anish Mitra, Timothy O. Laumann, Abraham Z. Snyder,
@@ -412,6 +425,20 @@ regression and filtering for control of motion artifact in the
 preprocessing of resting-state functional connectivity
 data</span>.”</span> <em>NeuroImage</em> 64 (1): 240–56. <a
 href="https://doi.org/10.1016/j.neuroimage.2012.08.052">https://doi.org/10.1016/j.neuroimage.2012.08.052</a>.
+</div>
+<div id="ref-n4" class="csl-entry" role="listitem">
+Tustison, N. J., B. B. Avants, P. A. Cook, Y. Zheng, A. Egan, P. A.
+Yushkevich, and J. C. Gee. 2010. <span>“N4ITK: Improved N3 Bias
+Correction.”</span> <em>IEEE Transactions on Medical Imaging</em> 29
+(6): 1310–20. <a
+href="https://doi.org/10.1109/TMI.2010.2046908">https://doi.org/10.1109/TMI.2010.2046908</a>.
+</div>
+<div id="ref-fsl_fast" class="csl-entry" role="listitem">
+Zhang, Y., M. Brady, and S. Smith. 2001. <span>“Segmentation of Brain
+<span>MR</span> Images Through a Hidden Markov Random Field Model and
+the Expectation-Maximization Algorithm.”</span> <em>IEEE Transactions on
+Medical Imaging</em> 20 (1): 45–57. <a
+href="https://doi.org/10.1109/42.906424">https://doi.org/10.1109/42.906424</a>.
 </div>
 </div>
 </body>

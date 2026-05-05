@@ -25,6 +25,7 @@ from pathlib import Path
 from nireports.assembler.report import Report
 
 from .. import config, data
+from ..utils.bids import get_sessions
 
 
 def run_reports(
@@ -100,7 +101,7 @@ def generate_reports(
         # The number of sessions is intentionally not based on session_list but
         # on the total number of sessions, because I want the final derivatives
         # folder to be the same whether sessions were run one at a time or all-together.
-        n_ses = len(config.execution.layout.get_sessions(subject=subject_label))
+        n_ses = len(get_sessions(config.execution.layout, subject=subject_label))
 
         if bootstrap_file is not None:
             # If a config file is precised, we do not override it
@@ -135,8 +136,8 @@ def generate_reports(
             if session_list is None:
                 all_filters = config.execution.bids_filters or {}
                 filters = all_filters.get('pet', {})
-                session_list = config.execution.layout.get_sessions(
-                    subject=subject_label, **filters
+                session_list = get_sessions(
+                    config.execution.layout, subject=subject_label, **filters
                 )
 
             session_list = [ses.removeprefix('ses-') for ses in session_list]

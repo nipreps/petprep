@@ -7,6 +7,10 @@ Processing pipeline details
 available and are used as the input.
 Certain processing steps will run only when the required metadata is
 available in the input dataset.
+Before any subject-level workflow is initialized, *PETPrep* checks whether each
+selected subject has the required PET and T1w inputs. Subjects missing PET
+and/or T1w data are skipped, and a warning is issued at the start of the run.
+Processing continues for the remaining valid subjects.
 
 A (very) high-level view of the simplest pipeline (for a single dataset with only
 a single tracer and single baseline)
