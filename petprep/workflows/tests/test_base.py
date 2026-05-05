@@ -207,6 +207,8 @@ def test_reference_mask_boilerplate_custom_labels():
     desc = _build_reference_mask_boilerplate('custom', (8, 47))
     assert 'segmentation labels (8, 47)' in desc
     assert 'time-activity curve was extracted' in desc
+
+
 def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_root):
     with mock_config(bids_dir=mixed_bids_root):
         config.execution.participant_label = ['01', '02', '03']
