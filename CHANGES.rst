@@ -1,5 +1,29 @@
+0.0.6 (May 05, 2026)
+====================
+Bug-fix release in the 0.0.x series.
+
+  * ENH: dynamically update boilerplate text (#297)
+  * ENH: add reconstruction filtering support with --rec-label (#292)
+  * ENH: add support skipping subjects without T1w or PET data (#294)
+  * ENH: align colorbars in motion visualization (#296)
+  * ENH: fix session labeling filtering when sessions.tsv file is present (#290)
+  * FIX: removed functional ref to reports (#278)
+  * ENH: Fix reference mask resampling (#285)
+  * ENH: Add validation for segmentation and reference region (#284)
+  * ENH: Fix HMC report FoV cropping for corrected frames (#283)
+  * FIX: add perl to docker base (#276)
+  * WIP: Remove fMRIPrep references (#260)
+  * ENH: install MCR in dockerfile for certain segmentation workflows (#270)
+  * add cleanup script for docker (#274)
+  * ENH: Add PVC metadata to TAC sidecar outputs (#273)
+  * MAINT: fix pytest scipy dependency issue (#259)
+  * ENH: Add Schaefer 2018 atlas variants (7/17 networks, 100–1000 parcels) (#254)
+  * BUG: Fix subject ID conflicts in visualizations (#182)
+
+
 0.0.5 (March 19, 2026)
 ======================
+Bug-fix release in the 0.0.x series.
 
   * FIX: fixed references to images in atlas segmentation docs (#252)
   * ENH: Add atlas segmentation support from templateflow and visualisation in report (#232)
