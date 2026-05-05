@@ -72,7 +72,7 @@ class MotionPlot(SimpleInterface):
         _, _, vmin_orig, vmax_orig, orig_crop_slices = self._compute_display_params(
             self.inputs.original_pet, return_crop_slices=True
         )
-        _, _, vmin_corr, vmax_corr, corr_crop_slices = self._compute_display_params(
+        _, _, _, _, corr_crop_slices = self._compute_display_params(
             self.inputs.corrected_pet, return_crop_slices=True
         )
         crop_slices = self._merge_crop_slices(orig_crop_slices, corr_crop_slices)
@@ -93,10 +93,8 @@ class MotionPlot(SimpleInterface):
             output_path=svg_file,
             cut_coords_orig=cut_coords_orig,
             cut_coords_corr=cut_coords_corr,
-            vmin_orig=vmin_orig,
-            vmax_orig=vmax_orig,
-            vmin_corr=vmin_corr,
-            vmax_corr=vmax_corr,
+            vmin=vmin_orig,
+            vmax=vmax_orig,
             crop_slices=crop_slices,
             fd_values=fd_values,
         )
@@ -216,10 +214,8 @@ class MotionPlot(SimpleInterface):
         output_path: Path,
         cut_coords_orig: tuple[float, float, float],
         cut_coords_corr: tuple[float, float, float],
-        vmin_orig: float,
-        vmax_orig: float,
-        vmin_corr: float,
-        vmax_corr: float,
+        vmin: float,
+        vmax: float,
         crop_slices: tuple[slice, slice, slice] | None,
         fd_values: np.ndarray | None,
     ) -> Path:
@@ -253,8 +249,8 @@ class MotionPlot(SimpleInterface):
                     display_mode='ortho',
                     title=f'Before motion correction | Frame {idx + 1}',
                     cut_coords=cut_coords_orig,
-                    vmin=vmin_orig,
-                    vmax=vmax_orig,
+                    vmin=vmin,
+                    vmax=vmax,
                     output_file=str(orig_png),
                 )
                 plot_epi(
@@ -263,8 +259,8 @@ class MotionPlot(SimpleInterface):
                     display_mode='ortho',
                     title=f'After motion correction | Frame {idx + 1}',
                     cut_coords=cut_coords_corr,
-                    vmin=vmin_corr,
-                    vmax=vmax_corr,
+                    vmin=vmin,
+                    vmax=vmax,
                     output_file=str(corr_png),
                 )
 
