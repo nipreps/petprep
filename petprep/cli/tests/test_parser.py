@@ -341,6 +341,53 @@ def test_session_label_only_filters_pet(tmp_path):
         _reset_config()
 
 
+def test_session_label_validation_with_sessions_tsv(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+    (bids / 'participants.tsv').write_text('participant_id\nsub-01\n')
+
+    sessions_tsv = bids / 'sub-01' / 'sub-01_sessions.tsv'
+    sessions_tsv.parent.mkdir(parents=True, exist_ok=True)
+    sessions_tsv.write_text('session_id\tbody_weight\nses-blocked\t80\n')
+    (bids / 'sub-01' / 'sub-01_sessions.json').write_text(
+        '{"body_weight": {"Description": "body weight", "Units": "kg"}}'
+    )
+
+    anat_path = bids / 'sub-01' / 'ses-blocked' / 'anat' / 'sub-01_ses-blocked_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'ses-blocked' / 'pet' / 'sub-01_ses-blocked_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--participant-label',
+                '01',
+                '--session-label',
+                'blocked',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.execution.bids_filters.get('pet', {}).get('session') == ['blocked']
+    finally:
+        _reset_config()
+
+
 def test_tracer_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
