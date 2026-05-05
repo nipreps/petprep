@@ -436,6 +436,8 @@ class execution(_Config):
     """List of session identifiers that are to be preprocessed."""
     tracer_label = None
     """List of tracer identifiers that are to be preprocessed."""
+    rec_label = None
+    """List of reconstruction identifiers that are to be preprocessed."""
     run_label = None
     """List of run identifiers that are to be preprocessed."""
     combine_runs = False

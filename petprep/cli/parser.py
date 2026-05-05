@@ -210,6 +210,13 @@ def _build_parser(**kwargs):
         'identifier (the trc- prefix can be removed)',
     )
     g_bids.add_argument(
+        '--rec-label',
+        nargs='+',
+        type=lambda label: label.removeprefix('rec-'),
+        help='A space delimited list of reconstruction identifiers or a single '
+        'identifier (the rec- prefix can be removed)',
+    )
+    g_bids.add_argument(
         '--run-label',
         nargs='+',
         type=_run_label,
@@ -857,6 +864,13 @@ def parse_args(args=None, namespace=None):
             'tracer': config.execution.tracer_label,
         }
 
+    if config.execution.rec_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'reconstruction': config.execution.rec_label,
+        }
+
     if config.execution.run_label:
         config.execution.bids_filters = config.execution.bids_filters or {}
         config.execution.bids_filters['pet'] = {
@@ -1091,6 +1105,26 @@ applied."""
             parser.error(
                 'One or more tracer labels were not found in the BIDS directory: '
                 f'{", ".join(sorted(missing_tracers))}.'
+            )
+
+    if config.execution.rec_label:
+        rec_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        rec_filters = {key: value for key, value in rec_filters.items() if key != 'reconstruction'}
+        available_recs = set(
+            config.execution.layout.get(
+                target='reconstruction',
+                return_type='id',
+                subject=list(participant_label) or None,
+                **rec_filters,
+            )
+        )
+        missing_recs = set(config.execution.rec_label) - available_recs
+        if missing_recs:
+            parser.error(
+                'One or more reconstruction labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(missing_recs))}.'
             )
 
     if config.execution.run_label:
