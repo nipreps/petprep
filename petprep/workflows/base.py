@@ -355,6 +355,7 @@ It is released under the [CC0]\
                     derivatives_dir=deriv_dir,
                     subject_id=subject_id,
                     std_spaces=std_spaces,
+                    session_id=session_id,
                 )
             )
 

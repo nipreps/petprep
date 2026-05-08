@@ -220,17 +220,20 @@ def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_r
     assert not any(name.startswith('sub_03_wf.') for name in wf.list_node_names())
 
 
-def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_root):
+def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_root, tmp_path):
     with mock_config(bids_dir=multisession_bids_root):
         config.workflow.subject_anatomical_reference = 'sessionwise'
         config.execution.bids_filters['pet'] = {'session': ['01', '02']}
         config.execution.processing_groups = [('01', '01'), ('01', '02')]
-        wf = init_petprep_wf()
+        config.execution.derivatives = {'petprep': tmp_path}
+        with patch('smriprep.utils.bids.collect_derivatives', return_value={}) as collect_derivs:
+            wf = init_petprep_wf()
 
     node_names = wf.list_node_names()
     assert any(name.startswith('sub_01_ses_01_wf.') for name in node_names)
     assert any(name.startswith('sub_01_ses_02_wf.') for name in node_names)
     assert not any(name.startswith('sub_01_wf.') for name in node_names)
+    assert [call.kwargs['session_id'] for call in collect_derivs.call_args_list] == ['01', '02']
 
 
 def test_subject_fs_id_evaluates_as_nipype_connection_function():
