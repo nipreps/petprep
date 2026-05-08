@@ -432,9 +432,7 @@ def test_create_processing_groups_sessionwise(tmp_path):
 
     layout = BIDSLayout(bids, validate=False)
 
-    assert create_processing_groups(layout, ['01'], None, 'first-lex') == [
-        ('01', ['01', '02'])
-    ]
+    assert create_processing_groups(layout, ['01'], None, 'first-lex') == [('01', ['01', '02'])]
     assert create_processing_groups(layout, ['01'], None, 'sessionwise') == [
         ('01', '01'),
         ('01', '02'),
