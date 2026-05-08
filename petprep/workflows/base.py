@@ -604,12 +604,12 @@ It is released under the [CC0]\
                         f'outputnode.sphere_reg_{"msm" if msm_sulc else "fsLR"}',
                         'inputnode.sphere_reg_fsLR',
                     ),
+                    ('outputnode.cortex_mask', 'inputnode.roi'),
                 ]),
                 (hcp_morphometrics_wf, morph_grayords_wf, [
                     ('outputnode.curv', 'inputnode.curv'),
                     ('outputnode.thickness', 'inputnode.thickness'),
                     ('outputnode.sulc', 'inputnode.sulc'),
-                    ('outputnode.roi', 'inputnode.roi'),
                 ]),
                 (resample_surfaces_wf, morph_grayords_wf, [
                     ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
