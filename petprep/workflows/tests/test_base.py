@@ -7,8 +7,7 @@ from unittest.mock import patch
 import nibabel as nb
 import numpy as np
 import pytest
-from nipype.pipeline.engine.utils import evaluate_connect_function
-from nipype.pipeline.engine.utils import generate_expanded_graph
+from nipype.pipeline.engine.utils import evaluate_connect_function, generate_expanded_graph
 from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 from niworkflows.utils.bids import collect_data as original_collect_data
 from niworkflows.utils.testing import generate_bids_skeleton
