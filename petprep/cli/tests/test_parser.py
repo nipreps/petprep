@@ -437,6 +437,7 @@ def test_create_processing_groups_sessionwise(tmp_path):
         ('01', '01'),
         ('01', '02'),
     ]
+    assert create_processing_groups(layout, ['02'], ['01'], 'sessionwise') == [('02', None)]
 
 
 def test_tracer_label_only_filters_pet(tmp_path):

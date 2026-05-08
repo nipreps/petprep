@@ -17,6 +17,9 @@ from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _fmt_group,
+    _session_bids_filters,
+    _stringify_sessions,
     _subject_fs_id,
     init_petprep_wf,
     init_single_subject_wf,
@@ -239,10 +242,36 @@ def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_
 def test_subject_fs_id_evaluates_as_nipype_connection_function():
     source = inspect.getsource(_subject_fs_id)
 
+    assert evaluate_connect_function(source, [None], 'sub-976') == 'sub-976'
     assert evaluate_connect_function(source, ['wave1'], '976') == 'sub-976_ses-wave1'
     assert evaluate_connect_function(source, [['ses-01', 'ses-02']], 'sub-976') == (
         'sub-976_ses-01_02'
     )
+
+
+def test_session_helpers_format_groups_and_bids_filters(bids_root):
+    with mock_config(bids_dir=bids_root):
+        config.execution.bids_filters = {
+            'pet': {'task': 'rest'},
+            't1w': {'suffix': 'T1w'},
+            'dwi': {'session': 'keep'},
+        }
+
+        assert _stringify_sessions(None) is None
+        assert _fmt_group('01') == 'sub-01'
+        assert _fmt_group('01', ['ses-pre', 'ses-post']) == 'sub-01/ses-pre_post'
+        assert _session_bids_filters('ses-pre') == config.execution.bids_filters
+
+        config.workflow.subject_anatomical_reference = 'sessionwise'
+        filters = _session_bids_filters('ses-pre')
+
+    assert config.execution.bids_filters['pet'] == {'task': 'rest'}
+    assert filters['pet'] == {'task': 'rest', 'session': 'ses-pre'}
+    assert filters['t1w'] == {'suffix': 'T1w', 'session': 'ses-pre'}
+    assert filters['t2w'] == {'session': 'ses-pre'}
+    assert filters['flair'] == {'session': 'ses-pre'}
+    assert filters['roi'] == {'session': 'ses-pre'}
+    assert filters['dwi'] == {'session': 'keep'}
 
 
 def _make_params(

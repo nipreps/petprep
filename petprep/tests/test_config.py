@@ -104,13 +104,20 @@ def test_config_spaces():
 
 
 def test_processing_groups_roundtrip(tmp_path):
-    config.execution.processing_groups = [('01', 'pre'), ('01', 'post'), ('02', None)]
+    _reset_config()
+    config.execution.processing_groups = [
+        ('01', 'pre'),
+        ('01', 'post'),
+        ('02', None),
+        ('sub-03', ['ses-pre', 'post']),
+    ]
 
     settings = loads(config.dumps())
     assert settings['execution']['processing_groups'] == [
         'sub-01_ses-pre',
         'sub-01_ses-post',
         'sub-02',
+        'sub-03_ses-pre,post',
     ]
 
     config_file = tmp_path / 'petprep.toml'
@@ -122,7 +129,17 @@ def test_processing_groups_roundtrip(tmp_path):
         ('01', ['pre']),
         ('01', ['post']),
         ('02', None),
+        ('03', ['pre', 'post']),
     ]
+    _reset_config()
+
+
+def test_processing_groups_load_preserves_nonserialized_values():
+    groups = [('01', None)]
+
+    config.execution.load({'processing_groups': groups}, init=False)
+
+    assert config.execution.processing_groups == groups
     _reset_config()
 
 
