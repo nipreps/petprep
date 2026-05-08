@@ -355,6 +355,7 @@ It is released under the [CC0]\
                     derivatives_dir=deriv_dir,
                     subject_id=subject_id,
                     std_spaces=std_spaces,
+                    session_id=session_id,
                 )
             )
 
@@ -603,12 +604,12 @@ It is released under the [CC0]\
                         f'outputnode.sphere_reg_{"msm" if msm_sulc else "fsLR"}',
                         'inputnode.sphere_reg_fsLR',
                     ),
+                    ('outputnode.cortex_mask', 'inputnode.roi'),
                 ]),
                 (hcp_morphometrics_wf, morph_grayords_wf, [
                     ('outputnode.curv', 'inputnode.curv'),
                     ('outputnode.thickness', 'inputnode.thickness'),
                     ('outputnode.sulc', 'inputnode.sulc'),
-                    ('outputnode.roi', 'inputnode.roi'),
                 ]),
                 (resample_surfaces_wf, morph_grayords_wf, [
                     ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
@@ -764,8 +765,8 @@ anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
                 workflow.connect([
                     (select_MNI6_xfm, pet_wf, [('anat2std_xfm', 'inputnode.anat2mni6_xfm')]),
                     (select_MNI6_tpl, pet_wf, [('brain_mask', 'inputnode.mni6_mask')]),
-                    (hcp_morphometrics_wf, pet_wf, [
-                        ('outputnode.roi', 'inputnode.cortex_mask'),
+                    (anat_fit_wf, pet_wf, [
+                        ('outputnode.cortex_mask', 'inputnode.cortex_mask'),
                     ]),
                     (resample_surfaces_wf, pet_wf, [
                         ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
