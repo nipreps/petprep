@@ -7,6 +7,7 @@ from unittest.mock import patch
 import nibabel as nb
 import numpy as np
 import pytest
+from nipype.pipeline.engine.utils import evaluate_connect_function
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 from niworkflows.utils.bids import collect_data as original_collect_data
@@ -17,6 +18,7 @@ from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _subject_fs_id,
     init_petprep_wf,
     init_single_subject_wf,
 )
@@ -217,6 +219,28 @@ def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_r
     assert any(name.startswith('sub_01_wf.') for name in wf.list_node_names())
     assert not any(name.startswith('sub_02_wf.') for name in wf.list_node_names())
     assert not any(name.startswith('sub_03_wf.') for name in wf.list_node_names())
+
+
+def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_root):
+    with mock_config(bids_dir=multisession_bids_root):
+        config.workflow.subject_anatomical_reference = 'sessionwise'
+        config.execution.bids_filters['pet'] = {'session': ['01', '02']}
+        config.execution.processing_groups = [('01', '01'), ('01', '02')]
+        wf = init_petprep_wf()
+
+    node_names = wf.list_node_names()
+    assert any(name.startswith('sub_01_ses_01_wf.') for name in node_names)
+    assert any(name.startswith('sub_01_ses_02_wf.') for name in node_names)
+    assert not any(name.startswith('sub_01_wf.') for name in node_names)
+
+
+def test_subject_fs_id_evaluates_as_nipype_connection_function():
+    source = inspect.getsource(_subject_fs_id)
+
+    assert evaluate_connect_function(source, ['wave1'], '976') == 'sub-976_ses-wave1'
+    assert evaluate_connect_function(source, [['ses-01', 'ses-02']], 'sub-976') == (
+        'sub-976_ses-01_02'
+    )
 
 
 def _make_params(

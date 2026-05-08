@@ -149,12 +149,17 @@ def init_petprep_wf():
         if config.execution.fs_subjects_dir is not None:
             fsdir.inputs.subjects_dir = str(config.execution.fs_subjects_dir.absolute())
 
-    valid_subjects = []
-    for subject_id in config.execution.participant_label:
+    processing_groups = config.execution.processing_groups or [
+        (subject_id, None) for subject_id in config.execution.participant_label
+    ]
+
+    valid_groups = []
+    for subject_id, session_id in processing_groups:
+        bids_filters = _session_bids_filters(session_id)
         status = get_subject_modality_status(
             bids_dir=config.execution.bids_dir,
             subject_id=subject_id,
-            bids_filters=config.execution.bids_filters,
+            bids_filters=bids_filters,
             derivatives=config.execution.derivatives,
             anat_only=config.workflow.anat_only,
         )
@@ -165,18 +170,23 @@ def init_petprep_wf():
         ]
         if missing:
             config.loggers.workflow.warning(
-                f'Skipping subject {subject_id}: missing required {" and ".join(missing)} data.'
+                f'Skipping {_fmt_group(subject_id, session_id)}: '
+                f'missing required {" and ".join(missing)} data.'
             )
             continue
-        valid_subjects.append(subject_id)
+        valid_groups.append((subject_id, session_id))
 
-    if not valid_subjects:
+    if not valid_groups:
         raise RuntimeError(
             'No subjects with the required PET and T1w inputs remain after subject-level checks.'
         )
 
-    for subject_id in valid_subjects:
-        single_subject_wf = init_single_subject_wf(subject_id)
+    sessionwise = config.workflow.subject_anatomical_reference == 'sessionwise'
+    for subject_id, session_id in valid_groups:
+        single_subject_wf = init_single_subject_wf(
+            subject_id,
+            session_id=session_id if sessionwise else None,
+        )
 
         single_subject_wf.config['execution']['crashdump_dir'] = str(
             config.execution.petprep_dir / f'sub-{subject_id}' / 'log' / config.execution.run_uuid
@@ -198,7 +208,7 @@ def init_petprep_wf():
     return petprep_wf
 
 
-def init_single_subject_wf(subject_id: str):
+def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None = None):
     """
     Organize the preprocessing pipeline for a single subject.
 
@@ -255,7 +265,10 @@ def init_single_subject_wf(subject_id: str):
     from petprep.workflows.pet.base import init_pet_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
-    workflow = Workflow(name=f'sub_{subject_id}_wf')
+    ses_str = _stringify_sessions(session_id)
+    workflow = Workflow(
+        name='_'.join(['sub', subject_id, *(('ses', ses_str) if ses_str else ()), 'wf'])
+    )
     workflow.__desc__ = f"""
 Results included in this manuscript come from preprocessing
 performed using *PETPrep* {config.environment.version}
@@ -296,7 +309,10 @@ It is released under the [CC0]\
     subject_data = collect_data(
         config.execution.bids_dir,
         subject_id,
-        bids_filters=config.execution.bids_filters,
+        session_id=session_id
+        if config.workflow.subject_anatomical_reference == 'sessionwise'
+        else None,
+        bids_filters=_session_bids_filters(session_id),
         queries=queries,
     )[0]
 
@@ -309,7 +325,8 @@ It is released under the [CC0]\
     # Make sure we always go through these two checks
     if not anat_only and not subject_data['pet']:
         raise RuntimeError(
-            f'No PET images found for participant {subject_id}.All workflows require PET images.'
+            f'No PET images found for {_fmt_group(subject_id, session_id)}. '
+            'All workflows require PET images.'
         )
 
     pet_runs = subject_data['pet']
@@ -401,7 +418,7 @@ It is released under the [CC0]\
         freesurfer=config.workflow.run_reconall,
         hires=config.workflow.hires,
         fs_no_resume=config.workflow.fs_no_resume,
-        longitudinal=config.workflow.longitudinal,
+        longitudinal=config.workflow.subject_anatomical_reference == 'unbiased',
         msm_sulc=msm_sulc,
         t1w=subject_data['t1w'],
         t2w=subject_data['t2w'],
@@ -442,7 +459,11 @@ It is released under the [CC0]\
             ('roi', 'inputnode.roi'),
             ('flair', 'inputnode.flair'),
         ]),
-        (bids_info, anat_fit_wf, [(('subject', _prefix), 'inputnode.subject_id')]),
+        (
+            bids_info,
+            anat_fit_wf,
+            [(('subject', _subject_fs_id, session_id), 'inputnode.subject_id')],
+        ),
         # Reporting connections
         (inputnode, summary, [('subjects_dir', 'subjects_dir')]),
         (bidssrc, summary, [('t2w', 't2w'), ('pet', 'pet')]),
@@ -756,6 +777,45 @@ anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
 
 def _prefix(subid):
     return subid if subid.startswith('sub-') else f'sub-{subid}'
+
+
+def _stringify_sessions(session_id):
+    if session_id is None:
+        return None
+    if isinstance(session_id, str):
+        return session_id.removeprefix('ses-')
+    return '_'.join(session.removeprefix('ses-') for session in session_id)
+
+
+def _subject_fs_id(subid, session_id=None):
+    subject_id = subid if subid.startswith('sub-') else f'sub-{subid}'
+    if session_id is None:
+        ses_str = None
+    elif isinstance(session_id, str):
+        ses_str = session_id.removeprefix('ses-')
+    else:
+        ses_str = '_'.join(session.removeprefix('ses-') for session in session_id)
+    if ses_str:
+        subject_id = f'{subject_id}_ses-{ses_str}'
+    return subject_id
+
+
+def _fmt_group(subject_id, session_id=None):
+    ses_str = _stringify_sessions(session_id)
+    return f'sub-{subject_id}' + (f'/ses-{ses_str}' if ses_str else '')
+
+
+def _session_bids_filters(session_id):
+    bids_filters = deepcopy(config.execution.bids_filters or {})
+    if config.workflow.subject_anatomical_reference != 'sessionwise' or session_id is None:
+        return bids_filters
+
+    for datatype in ('t1w', 't2w', 'flair', 'roi', 'pet'):
+        bids_filters[datatype] = {
+            **bids_filters.get(datatype, {}),
+            'session': session_id,
+        }
+    return bids_filters
 
 
 def clean_datasinks(workflow: pe.Workflow) -> pe.Workflow:

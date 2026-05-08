@@ -43,9 +43,14 @@ def _build_parser(**kwargs):
 
     from .version import check_latest, is_flagged
 
-    deprecations = {}
+    deprecations = {
+        'longitudinal': ('--subject-anatomical-reference unbiased', '26.1.0'),
+    }
 
     class DeprecatedAction(Action):
+        def __init__(self, option_strings, dest, **kwargs):
+            super().__init__(option_strings, dest, nargs=0, **kwargs)
+
         def __call__(self, parser, namespace, values, option_string=None):
             new_opt, rem_vers = deprecations.get(self.dest, (None, None))
             msg = (
@@ -55,7 +60,10 @@ def _build_parser(**kwargs):
             if new_opt:
                 msg += f' Please use `{new_opt}` instead.'
             print(msg, file=sys.stderr)
-            delattr(namespace, self.dest)
+            if self.dest == 'longitudinal':
+                setattr(namespace, self.dest, True)
+            elif hasattr(namespace, self.dest):
+                delattr(namespace, self.dest)
 
     class ToDict(Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -229,6 +237,17 @@ def _build_parser(**kwargs):
         help='Concatenate PET runs within each session before preprocessing. '
         'Combined files omit the run entity.',
     )
+    g_bids.add_argument(
+        '--subject-anatomical-reference',
+        choices=['first-lex', 'unbiased', 'sessionwise'],
+        default='first-lex',
+        help='Method to produce the reference anatomical space: '
+        '"first-lex" uses the first T1w image in lexicographical order; '
+        '"unbiased" constructs an unbiased template from all T1w images '
+        '(previously "--longitudinal"); '
+        '"sessionwise" independently processes each session, with multiple runs '
+        'within a session handled similarly to "first-lex".',
+    )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
     #                     help='Select a specific run to be processed')
@@ -379,8 +398,9 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     )
     g_conf.add_argument(
         '--longitudinal',
-        action='store_true',
-        help='Treat dataset as longitudinal - may increase runtime',
+        action=DeprecatedAction,
+        default=False,
+        help='Deprecated - use `--subject-anatomical-reference unbiased` instead',
     )
     g_conf.add_argument(
         '--pet2anat-dof',
@@ -844,8 +864,16 @@ def parse_args(args=None, namespace=None):
         config.load(opts.config_file, skip=skip, init=False)
         config.loggers.cli.info(f'Loaded previous configuration file {opts.config_file}')
 
+    if opts.longitudinal:
+        opts.subject_anatomical_reference = 'unbiased'
+        config.loggers.cli.warning(
+            'The `--longitudinal` flag is deprecated - use '
+            '`--subject-anatomical-reference unbiased` instead.'
+        )
+
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+    config.workflow.longitudinal = config.workflow.subject_anatomical_reference == 'unbiased'
 
     config.workflow.petref_specified = '--petref' in argv
     config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
@@ -1209,3 +1237,31 @@ applied."""
         if config.execution.bids_filters and 'pet' in config.execution.bids_filters:
             config.execution.bids_filters['pet'].pop('run', None)
         config.execution.run_label = None
+
+    config.execution.processing_groups = create_processing_groups(
+        config.execution.layout,
+        config.execution.participant_label,
+        config.execution.session_label,
+        config.workflow.subject_anatomical_reference,
+    )
+
+
+def create_processing_groups(layout, subject_list, session_list, subject_anatomical_reference):
+    """Generate subject/session groups to be processed."""
+    from bids.layout import Query
+
+    groups = []
+    for subject_id in subject_list:
+        sessions = (
+            get_sessions(
+                layout,
+                subject=subject_id,
+                session=session_list or Query.OPTIONAL,
+            )
+            or None
+        )
+        if subject_anatomical_reference == 'sessionwise' and sessions:
+            groups.extend((subject_id, session) for session in sessions)
+        else:
+            groups.append((subject_id, sessions))
+    return groups
