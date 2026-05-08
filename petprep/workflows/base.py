@@ -765,8 +765,8 @@ anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
                 workflow.connect([
                     (select_MNI6_xfm, pet_wf, [('anat2std_xfm', 'inputnode.anat2mni6_xfm')]),
                     (select_MNI6_tpl, pet_wf, [('brain_mask', 'inputnode.mni6_mask')]),
-                    (hcp_morphometrics_wf, pet_wf, [
-                        ('outputnode.roi', 'inputnode.cortex_mask'),
+                    (anat_fit_wf, pet_wf, [
+                        ('outputnode.cortex_mask', 'inputnode.cortex_mask'),
                     ]),
                     (resample_surfaces_wf, pet_wf, [
                         ('outputnode.midthickness_fsLR', 'inputnode.midthickness_fsLR'),
