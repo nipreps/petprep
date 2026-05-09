@@ -44,7 +44,7 @@ def _build_parser(**kwargs):
     from .version import check_latest, is_flagged
 
     deprecations = {
-        'longitudinal': ('--subject-anatomical-reference unbiased', '26.1.0'),
+        'longitudinal': ('--subject-anatomical-reference unbiased', '0.0.7'),
     }
 
     class DeprecatedAction(Action):

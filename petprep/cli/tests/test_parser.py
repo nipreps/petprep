@@ -161,7 +161,7 @@ def test_parse_args(tmp_path, minimal_bids):
     _reset_config()
 
 
-def test_longitudinal_aliases_subject_anatomical_reference(tmp_path, minimal_bids):
+def test_longitudinal_aliases_subject_anatomical_reference(tmp_path, minimal_bids, capsys):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
 
@@ -180,8 +180,21 @@ def test_longitudinal_aliases_subject_anatomical_reference(tmp_path, minimal_bid
 
         assert config.workflow.subject_anatomical_reference == 'unbiased'
         assert config.workflow.longitudinal is True
+        assert 'will be removed in 0.0.7' in capsys.readouterr().err
     finally:
         _reset_config()
+
+
+def test_deprecated_force_bbr_flag_is_removed_from_namespace(tmp_path, capsys):
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    opts = _build_parser().parse_args([str(datapath), 'out/', 'participant', '--force-bbr'])
+
+    assert not hasattr(opts, 'force_bbr')
+    err = capsys.readouterr().err
+    assert '--force-bbr' in err
+    assert 'will be removed in a later version' in err
 
 
 def test_parse_args_skips_subjects_missing_pet_or_t1w(tmp_path):
