@@ -18,6 +18,7 @@ from ..base import (
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
     _fmt_group,
+    _prefix,
     _session_bids_filters,
     _stringify_sessions,
     _subject_fs_id,
@@ -247,6 +248,17 @@ def test_subject_fs_id_evaluates_as_nipype_connection_function():
     assert evaluate_connect_function(source, [['ses-01', 'ses-02']], 'sub-976') == (
         'sub-976_ses-01_02'
     )
+
+
+def test_subject_id_helpers():
+    assert _prefix('976') == 'sub-976'
+    assert _prefix('sub-976') == 'sub-976'
+
+    assert _subject_fs_id('976') == 'sub-976'
+    assert _subject_fs_id('sub-976', None) == 'sub-976'
+    assert _subject_fs_id('976', 'wave1') == 'sub-976_ses-wave1'
+    assert _subject_fs_id('976', 'ses-wave1') == 'sub-976_ses-wave1'
+    assert _subject_fs_id('sub-976', ['ses-01', 'ses-02']) == 'sub-976_ses-01_02'
 
 
 def test_session_helpers_format_groups_and_bids_filters(bids_root):
