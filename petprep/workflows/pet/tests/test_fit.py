@@ -623,15 +623,16 @@ def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(monkey
         def __init__(self):
             self.inputs = type('inputs', (), {})()
             self.inputs.inputnode = type('inputnode', (), {})()
-            self.result = type('result', (), {})()
-            self.result.outputs = type(
+            self.select_best = type('node', (), {})()
+            self.select_best.result = type('result', (), {})()
+            self.select_best.result.outputs = type(
                 'outputs',
                 (),
                 {
-                    'itk_pet_to_t1': 'uncropped',
-                    'itk_t1_to_pet': 'uncropped_inv',
-                    'registration_winner': 'ants',
-                    'registration_score': -0.15,
+                    'best_xfm': 'uncropped',
+                    'best_inv_xfm': 'uncropped_inv',
+                    'winner': 'ants',
+                    'best_score': -0.15,
                 },
             )()
 
@@ -644,8 +645,8 @@ def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(monkey
             )
 
         def get_node(self, name):
-            assert name == 'outputnode'
-            return self
+            assert name == 'select_best'
+            return self.select_best
 
     def _fake_init_pet_reg_wf(**kwargs):
         calls['kwargs'] = kwargs
@@ -693,15 +694,16 @@ def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
         def __init__(self):
             self.inputs = type('inputs', (), {})()
             self.inputs.inputnode = type('inputnode', (), {})()
-            self.result = type('result', (), {})()
-            self.result.outputs = type(
+            self.select_best = type('node', (), {})()
+            self.select_best.result = type('result', (), {})()
+            self.select_best.result.outputs = type(
                 'outputs',
                 (),
                 {
-                    'itk_pet_to_t1': 'uncropped',
-                    'itk_t1_to_pet': 'uncropped_inv',
-                    'registration_winner': 'ants',
-                    'registration_score': -0.005,
+                    'best_xfm': 'uncropped',
+                    'best_inv_xfm': 'uncropped_inv',
+                    'winner': 'ants',
+                    'best_score': -0.005,
                 },
             )()
 
@@ -709,7 +711,7 @@ def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
             pass
 
         def get_node(self, name):
-            return self
+            return self.select_best
 
     monkeypatch.setattr(
         'petprep.workflows.pet.registration.init_pet_reg_wf',
@@ -732,6 +734,60 @@ def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
     )
 
     assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.01)
+
+
+def test_select_or_run_uncropped_fallback_reads_manual_registration_outputs(monkeypatch):
+    """Manual registration fallback outputs come from convert and score nodes."""
+
+    class _FakeWorkflow:
+        def __init__(self):
+            self.inputs = type('inputs', (), {})()
+            self.inputs.inputnode = type('inputnode', (), {})()
+            self.convert_xfm = type('node', (), {})()
+            self.convert_xfm.result = type('result', (), {})()
+            self.convert_xfm.result.outputs = type(
+                'outputs',
+                (),
+                {'out_xfm': 'uncropped', 'out_inv': 'uncropped_inv'},
+            )()
+            self.score_registration = type('node', (), {})()
+            self.score_registration.result = type('result', (), {})()
+            self.score_registration.result.outputs = type(
+                'outputs',
+                (),
+                {'similarity': -0.15},
+            )()
+
+        def run(self, plugin):
+            pass
+
+        def get_node(self, name):
+            return {
+                'convert_xfm': self.convert_xfm,
+                'score_registration': self.score_registration,
+            }[name]
+
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        lambda **kwargs: _FakeWorkflow(),
+    )
+
+    selected = _select_or_run_uncropped_fallback(
+        'petref.nii.gz',
+        'anat.nii.gz',
+        'mask.nii.gz',
+        'cropped',
+        'cropped_inv',
+        None,
+        -0.01,
+        -0.05,
+        6,
+        'mri_coreg',
+        1.5,
+        2,
+    )
+
+    assert selected == ('uncropped', 'uncropped_inv', None, -0.15)
 
 
 def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):

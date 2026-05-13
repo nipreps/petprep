@@ -293,11 +293,19 @@ def _select_or_run_uncropped_fallback(
     fallback_wf.inputs.inputnode.anat_mask = anat_mask
     fallback_wf.run(plugin='Linear')
 
-    outputnode = fallback_wf.get_node('outputnode')
-    uncropped_transform = outputnode.result.outputs.itk_pet_to_t1
-    uncropped_inv_transform = outputnode.result.outputs.itk_t1_to_pet
-    uncropped_winner = outputnode.result.outputs.registration_winner
-    uncropped_score = outputnode.result.outputs.registration_score
+    if pet2anat_method == 'auto':
+        select_best = fallback_wf.get_node('select_best')
+        uncropped_transform = select_best.result.outputs.best_xfm
+        uncropped_inv_transform = select_best.result.outputs.best_inv_xfm
+        uncropped_winner = select_best.result.outputs.winner
+        uncropped_score = select_best.result.outputs.best_score
+    else:
+        convert_xfm = fallback_wf.get_node('convert_xfm')
+        score_registration = fallback_wf.get_node('score_registration')
+        uncropped_transform = convert_xfm.result.outputs.out_xfm
+        uncropped_inv_transform = convert_xfm.result.outputs.out_inv
+        uncropped_winner = None
+        uncropped_score = score_registration.result.outputs.similarity
 
     if uncropped_score is not None and (cropped_score is None or uncropped_score < cropped_score):
         return uncropped_transform, uncropped_inv_transform, uncropped_winner, uncropped_score
