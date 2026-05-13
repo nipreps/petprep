@@ -328,48 +328,43 @@ def _select_or_run_uncropped_auto_fallback(
     omp_nthreads,
     sloppy=False,
 ):
-    """Run uncropped fallbacks independently for weak ANTs and FreeSurfer branches."""
+    """Run uncropped auto registration only when both cropped branches are weak."""
 
     from petprep.workflows.pet.fit import _select_or_run_uncropped_fallback
     from petprep.workflows.pet.registration import _select_best_transform
 
-    ants_transform, ants_inv_transform, _, ants_score = _select_or_run_uncropped_fallback(
+    cropped_transform, cropped_inv_transform, cropped_winner, cropped_score = (
+        _select_best_transform(
+            cropped_ants_transform,
+            cropped_fs_transform,
+            cropped_ants_inv_transform,
+            cropped_fs_inv_transform,
+            cropped_ants_score,
+            cropped_fs_score,
+        )
+    )
+    if (
+        cropped_ants_score is not None
+        and cropped_ants_score <= fallback_threshold
+        or cropped_fs_score is not None
+        and cropped_fs_score <= fallback_threshold
+    ):
+        return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
+
+    return _select_or_run_uncropped_fallback(
         ref_pet_brain,
         anat_preproc,
         anat_mask,
-        cropped_ants_transform,
-        cropped_ants_inv_transform,
-        'ants',
-        cropped_ants_score,
+        cropped_transform,
+        cropped_inv_transform,
+        cropped_winner,
+        cropped_score,
         fallback_threshold,
         pet2anat_dof,
-        'ants',
+        'auto',
         mem_gb,
         omp_nthreads,
         sloppy=sloppy,
-    )
-    fs_transform, fs_inv_transform, _, fs_score = _select_or_run_uncropped_fallback(
-        ref_pet_brain,
-        anat_preproc,
-        anat_mask,
-        cropped_fs_transform,
-        cropped_fs_inv_transform,
-        'freesurfer',
-        cropped_fs_score,
-        fallback_threshold,
-        pet2anat_dof,
-        'mri_coreg',
-        mem_gb,
-        omp_nthreads,
-        sloppy=sloppy,
-    )
-    return _select_best_transform(
-        ants_transform,
-        fs_transform,
-        ants_inv_transform,
-        fs_inv_transform,
-        ants_score,
-        fs_score,
     )
 
 
