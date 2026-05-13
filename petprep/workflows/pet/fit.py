@@ -299,9 +299,7 @@ def _select_or_run_uncropped_fallback(
     uncropped_winner = outputnode.result.outputs.registration_winner
     uncropped_score = outputnode.result.outputs.registration_score
 
-    if uncropped_score is not None and (
-        cropped_score is None or uncropped_score < cropped_score
-    ):
+    if uncropped_score is not None and (cropped_score is None or uncropped_score < cropped_score):
         return uncropped_transform, uncropped_inv_transform, uncropped_winner, uncropped_score
     return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
 
@@ -717,7 +715,8 @@ def init_pet_fit_wf(
         reference_nodes['first5min'].inputs.fallback_to_first_frame = True
 
     rerun_coreg = petref2anat_xform and (
-        config.workflow.petref_specified or config.workflow.pet2anat_method_specified
+        config.workflow.petref_specified
+        or config.workflow.pet2anat_method_specified
         or not config.workflow.pet2anat_crop
     )
     if rerun_coreg:
