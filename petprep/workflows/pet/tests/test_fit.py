@@ -21,6 +21,7 @@ from ..fit import (
     _extract_twa_image,
     _select_anatomical_reference,
     _select_best_petref,
+    _select_or_run_uncropped_auto_fallback,
     _select_or_run_uncropped_fallback,
     _write_identity_xforms,
     init_pet_fit_wf,
@@ -788,6 +789,61 @@ def test_select_or_run_uncropped_fallback_reads_manual_registration_outputs(monk
     )
 
     assert selected == ('uncropped', 'uncropped_inv', None, -0.15)
+
+
+def test_select_or_run_uncropped_auto_fallback_checks_branches_independently(monkeypatch):
+    """Auto fallback should only rerun weak registration backends."""
+
+    calls = []
+
+    def _fake_fallback(
+        ref_pet_brain,
+        anat_preproc,
+        anat_mask,
+        cropped_transform,
+        cropped_inv_transform,
+        cropped_winner,
+        cropped_score,
+        fallback_threshold,
+        pet2anat_dof,
+        pet2anat_method,
+        mem_gb,
+        omp_nthreads,
+        sloppy=False,
+    ):
+        calls.append((pet2anat_method, cropped_score))
+        if cropped_score <= fallback_threshold:
+            return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
+        return (
+            f'uncropped_{pet2anat_method}',
+            f'uncropped_inv_{pet2anat_method}',
+            cropped_winner,
+            -0.2,
+        )
+
+    monkeypatch.setattr(
+        'petprep.workflows.pet.fit._select_or_run_uncropped_fallback',
+        _fake_fallback,
+    )
+
+    selected = _select_or_run_uncropped_auto_fallback(
+        'petref.nii.gz',
+        'anat.nii.gz',
+        'mask.nii.gz',
+        'cropped_ants',
+        'cropped_fs',
+        'cropped_ants_inv',
+        'cropped_fs_inv',
+        -0.15,
+        -0.01,
+        -0.05,
+        6,
+        1.5,
+        2,
+    )
+
+    assert calls == [('ants', -0.15), ('mri_coreg', -0.01)]
+    assert selected == ('uncropped_mri_coreg', 'uncropped_inv_mri_coreg', 'freesurfer', -0.2)
 
 
 def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):

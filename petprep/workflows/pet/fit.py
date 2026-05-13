@@ -312,6 +312,67 @@ def _select_or_run_uncropped_fallback(
     return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
 
 
+def _select_or_run_uncropped_auto_fallback(
+    ref_pet_brain,
+    anat_preproc,
+    anat_mask,
+    cropped_ants_transform,
+    cropped_fs_transform,
+    cropped_ants_inv_transform,
+    cropped_fs_inv_transform,
+    cropped_ants_score,
+    cropped_fs_score,
+    fallback_threshold,
+    pet2anat_dof,
+    mem_gb,
+    omp_nthreads,
+    sloppy=False,
+):
+    """Run uncropped fallbacks independently for weak ANTs and FreeSurfer branches."""
+
+    from petprep.workflows.pet.fit import _select_or_run_uncropped_fallback
+    from petprep.workflows.pet.registration import _select_best_transform
+
+    ants_transform, ants_inv_transform, _, ants_score = _select_or_run_uncropped_fallback(
+        ref_pet_brain,
+        anat_preproc,
+        anat_mask,
+        cropped_ants_transform,
+        cropped_ants_inv_transform,
+        'ants',
+        cropped_ants_score,
+        fallback_threshold,
+        pet2anat_dof,
+        'ants',
+        mem_gb,
+        omp_nthreads,
+        sloppy=sloppy,
+    )
+    fs_transform, fs_inv_transform, _, fs_score = _select_or_run_uncropped_fallback(
+        ref_pet_brain,
+        anat_preproc,
+        anat_mask,
+        cropped_fs_transform,
+        cropped_fs_inv_transform,
+        'freesurfer',
+        cropped_fs_score,
+        fallback_threshold,
+        pet2anat_dof,
+        'mri_coreg',
+        mem_gb,
+        omp_nthreads,
+        sloppy=sloppy,
+    )
+    return _select_best_transform(
+        ants_transform,
+        fs_transform,
+        ants_inv_transform,
+        fs_inv_transform,
+        ants_score,
+        fs_score,
+    )
+
+
 def _write_identity_xforms(num_frames: int, filename: Path) -> Path:
     """Write ``num_frames`` identity transforms to ``filename``."""
 
@@ -1085,56 +1146,112 @@ def init_pet_fit_wf(
 
                 reg_source = reg_wf
                 if use_crop_fallback:
-                    select_crop_fallback = pe.Node(
-                        niu.Function(
-                            function=_select_or_run_uncropped_fallback,
-                            input_names=[
-                                'ref_pet_brain',
-                                'anat_preproc',
-                                'anat_mask',
-                                'cropped_transform',
-                                'cropped_inv_transform',
-                                'cropped_winner',
-                                'cropped_score',
-                                'fallback_threshold',
-                                'pet2anat_dof',
-                                'pet2anat_method',
-                                'mem_gb',
-                                'omp_nthreads',
-                                'sloppy',
-                            ],
-                            output_names=[
-                                'best_transform',
-                                'best_inv_transform',
-                                'best_winner',
-                                'best_score',
-                            ],
-                        ),
-                        name=f'select_crop_fallback_{label}',
-                    )
-                    select_crop_fallback.inputs.fallback_threshold = (
-                        config.workflow.pet2anat_crop_fallback_threshold
-                    )
-                    select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
-                    select_crop_fallback.inputs.pet2anat_method = config.workflow.pet2anat_method
-                    select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
-                    select_crop_fallback.inputs.omp_nthreads = omp_nthreads
-                    select_crop_fallback.inputs.sloppy = config.execution.sloppy
-                    workflow.connect([
-                        (inputnode, select_crop_fallback, [
-                            ('t1w_preproc', 'anat_preproc'),
-                            ('t1w_mask', 'anat_mask'),
-                        ]),
-                        (petref_candidates, select_crop_fallback, [
-                            (label, 'ref_pet_brain')
-                        ]),
-                        (reg_wf, select_crop_fallback, [
-                            ('outputnode.itk_pet_to_t1', 'cropped_transform'),
-                            ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
-                            ('outputnode.registration_winner', 'cropped_winner'),
-                            ('outputnode.registration_score', 'cropped_score'),
-                        ]),
-                    ])  # fmt:skip
+                    if config.workflow.pet2anat_method == 'auto':
+                        select_crop_fallback = pe.Node(
+                            niu.Function(
+                                function=_select_or_run_uncropped_auto_fallback,
+                                input_names=[
+                                    'ref_pet_brain',
+                                    'anat_preproc',
+                                    'anat_mask',
+                                    'cropped_ants_transform',
+                                    'cropped_fs_transform',
+                                    'cropped_ants_inv_transform',
+                                    'cropped_fs_inv_transform',
+                                    'cropped_ants_score',
+                                    'cropped_fs_score',
+                                    'fallback_threshold',
+                                    'pet2anat_dof',
+                                    'mem_gb',
+                                    'omp_nthreads',
+                                    'sloppy',
+                                ],
+                                output_names=[
+                                    'best_transform',
+                                    'best_inv_transform',
+                                    'best_winner',
+                                    'best_score',
+                                ],
+                            ),
+                            name=f'select_crop_fallback_{label}',
+                        )
+                        select_crop_fallback.inputs.fallback_threshold = (
+                            config.workflow.pet2anat_crop_fallback_threshold
+                        )
+                        select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                        select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                        select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                        select_crop_fallback.inputs.sloppy = config.execution.sloppy
+                        workflow.connect([
+                            (inputnode, select_crop_fallback, [
+                                ('t1w_preproc', 'anat_preproc'),
+                                ('t1w_mask', 'anat_mask'),
+                            ]),
+                            (petref_candidates, select_crop_fallback, [
+                                (label, 'ref_pet_brain')
+                            ]),
+                            (reg_wf, select_crop_fallback, [
+                                ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                                ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                                ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                                ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                                ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                                ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                            ]),
+                        ])  # fmt:skip
+                    else:
+                        select_crop_fallback = pe.Node(
+                            niu.Function(
+                                function=_select_or_run_uncropped_fallback,
+                                input_names=[
+                                    'ref_pet_brain',
+                                    'anat_preproc',
+                                    'anat_mask',
+                                    'cropped_transform',
+                                    'cropped_inv_transform',
+                                    'cropped_winner',
+                                    'cropped_score',
+                                    'fallback_threshold',
+                                    'pet2anat_dof',
+                                    'pet2anat_method',
+                                    'mem_gb',
+                                    'omp_nthreads',
+                                    'sloppy',
+                                ],
+                                output_names=[
+                                    'best_transform',
+                                    'best_inv_transform',
+                                    'best_winner',
+                                    'best_score',
+                                ],
+                            ),
+                            name=f'select_crop_fallback_{label}',
+                        )
+                        select_crop_fallback.inputs.fallback_threshold = (
+                            config.workflow.pet2anat_crop_fallback_threshold
+                        )
+                        select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                        select_crop_fallback.inputs.pet2anat_method = (
+                            config.workflow.pet2anat_method
+                        )
+                        select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                        select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                        select_crop_fallback.inputs.sloppy = config.execution.sloppy
+                        workflow.connect([
+                            (inputnode, select_crop_fallback, [
+                                ('t1w_preproc', 'anat_preproc'),
+                                ('t1w_mask', 'anat_mask'),
+                            ]),
+                            (petref_candidates, select_crop_fallback, [
+                                (label, 'ref_pet_brain')
+                            ]),
+                            (reg_wf, select_crop_fallback, [
+                                ('outputnode.itk_pet_to_t1', 'cropped_transform'),
+                                ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
+                                ('outputnode.registration_winner', 'cropped_winner'),
+                                ('outputnode.registration_score', 'cropped_score'),
+                            ]),
+                        ])  # fmt:skip
                     reg_source = select_crop_fallback
 
                 label_src = pe.Node(niu.IdentityInterface(fields=['label']), name=f'label_{label}')
@@ -1228,54 +1345,106 @@ def init_pet_fit_wf(
             )
 
             if use_crop_fallback:
-                select_crop_fallback = pe.Node(
-                    niu.Function(
-                        function=_select_or_run_uncropped_fallback,
-                        input_names=[
-                            'ref_pet_brain',
-                            'anat_preproc',
-                            'anat_mask',
-                            'cropped_transform',
-                            'cropped_inv_transform',
-                            'cropped_winner',
-                            'cropped_score',
-                            'fallback_threshold',
-                            'pet2anat_dof',
-                            'pet2anat_method',
-                            'mem_gb',
-                            'omp_nthreads',
-                            'sloppy',
-                        ],
-                        output_names=[
-                            'best_transform',
-                            'best_inv_transform',
-                            'best_winner',
-                            'best_score',
-                        ],
-                    ),
-                    name='select_crop_fallback',
-                )
-                select_crop_fallback.inputs.fallback_threshold = (
-                    config.workflow.pet2anat_crop_fallback_threshold
-                )
-                select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
-                select_crop_fallback.inputs.pet2anat_method = config.workflow.pet2anat_method
-                select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
-                select_crop_fallback.inputs.omp_nthreads = omp_nthreads
-                select_crop_fallback.inputs.sloppy = config.execution.sloppy
-                workflow.connect([
-                    (inputnode, select_crop_fallback, [
-                        ('t1w_preproc', 'anat_preproc'),
-                        ('t1w_mask', 'anat_mask'),
-                    ]),
-                    (petref_buffer, select_crop_fallback, [('petref', 'ref_pet_brain')]),
-                    (pet_reg_wf, select_crop_fallback, [
-                        ('outputnode.itk_pet_to_t1', 'cropped_transform'),
-                        ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
-                        ('outputnode.registration_winner', 'cropped_winner'),
-                        ('outputnode.registration_score', 'cropped_score'),
-                    ]),
-                ])  # fmt:skip
+                if config.workflow.pet2anat_method == 'auto':
+                    select_crop_fallback = pe.Node(
+                        niu.Function(
+                            function=_select_or_run_uncropped_auto_fallback,
+                            input_names=[
+                                'ref_pet_brain',
+                                'anat_preproc',
+                                'anat_mask',
+                                'cropped_ants_transform',
+                                'cropped_fs_transform',
+                                'cropped_ants_inv_transform',
+                                'cropped_fs_inv_transform',
+                                'cropped_ants_score',
+                                'cropped_fs_score',
+                                'fallback_threshold',
+                                'pet2anat_dof',
+                                'mem_gb',
+                                'omp_nthreads',
+                                'sloppy',
+                            ],
+                            output_names=[
+                                'best_transform',
+                                'best_inv_transform',
+                                'best_winner',
+                                'best_score',
+                            ],
+                        ),
+                        name='select_crop_fallback',
+                    )
+                    select_crop_fallback.inputs.fallback_threshold = (
+                        config.workflow.pet2anat_crop_fallback_threshold
+                    )
+                    select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                    select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                    select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                    select_crop_fallback.inputs.sloppy = config.execution.sloppy
+                    workflow.connect([
+                        (inputnode, select_crop_fallback, [
+                            ('t1w_preproc', 'anat_preproc'),
+                            ('t1w_mask', 'anat_mask'),
+                        ]),
+                        (petref_buffer, select_crop_fallback, [('petref', 'ref_pet_brain')]),
+                        (pet_reg_wf, select_crop_fallback, [
+                            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                            ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                            ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                        ]),
+                    ])  # fmt:skip
+                else:
+                    select_crop_fallback = pe.Node(
+                        niu.Function(
+                            function=_select_or_run_uncropped_fallback,
+                            input_names=[
+                                'ref_pet_brain',
+                                'anat_preproc',
+                                'anat_mask',
+                                'cropped_transform',
+                                'cropped_inv_transform',
+                                'cropped_winner',
+                                'cropped_score',
+                                'fallback_threshold',
+                                'pet2anat_dof',
+                                'pet2anat_method',
+                                'mem_gb',
+                                'omp_nthreads',
+                                'sloppy',
+                            ],
+                            output_names=[
+                                'best_transform',
+                                'best_inv_transform',
+                                'best_winner',
+                                'best_score',
+                            ],
+                        ),
+                        name='select_crop_fallback',
+                    )
+                    select_crop_fallback.inputs.fallback_threshold = (
+                        config.workflow.pet2anat_crop_fallback_threshold
+                    )
+                    select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                    select_crop_fallback.inputs.pet2anat_method = config.workflow.pet2anat_method
+                    select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                    select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                    select_crop_fallback.inputs.sloppy = config.execution.sloppy
+                    workflow.connect([
+                        (inputnode, select_crop_fallback, [
+                            ('t1w_preproc', 'anat_preproc'),
+                            ('t1w_mask', 'anat_mask'),
+                        ]),
+                        (petref_buffer, select_crop_fallback, [('petref', 'ref_pet_brain')]),
+                        (pet_reg_wf, select_crop_fallback, [
+                            ('outputnode.itk_pet_to_t1', 'cropped_transform'),
+                            ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
+                            ('outputnode.registration_winner', 'cropped_winner'),
+                            ('outputnode.registration_score', 'cropped_score'),
+                        ]),
+                    ])  # fmt:skip
                 pet_reg_source = select_crop_fallback
 
             workflow.connect([

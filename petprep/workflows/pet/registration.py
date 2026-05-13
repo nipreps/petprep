@@ -135,7 +135,18 @@ def init_pet_reg_wf(
 
     outputnode = pe.Node(
         niu.IdentityInterface(
-            fields=['itk_pet_to_t1', 'itk_t1_to_pet', 'registration_winner', 'registration_score']
+            fields=[
+                'itk_pet_to_t1',
+                'itk_t1_to_pet',
+                'registration_winner',
+                'registration_score',
+                'itk_pet_to_t1_ants',
+                'itk_t1_to_pet_ants',
+                'registration_score_ants',
+                'itk_pet_to_t1_fs',
+                'itk_t1_to_pet_fs',
+                'registration_score_fs',
+            ]
         ),
         name='outputnode',
     )
@@ -273,6 +284,16 @@ def init_pet_reg_wf(
                     ('winner', 'registration_winner'),
                     ('best_score', 'registration_score'),
                 ]),
+                (ants_convert, outputnode, [
+                    ('out_xfm', 'itk_pet_to_t1_ants'),
+                    ('out_inv', 'itk_t1_to_pet_ants'),
+                ]),
+                (ants_score, outputnode, [('similarity', 'registration_score_ants')]),
+                (fs_convert, outputnode, [
+                    ('out_xfm', 'itk_pet_to_t1_fs'),
+                    ('out_inv', 'itk_t1_to_pet_fs'),
+                ]),
+                (fs_score, outputnode, [('similarity', 'registration_score_fs')]),
             ]
         )  # fmt:skip
 
