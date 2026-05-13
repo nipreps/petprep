@@ -21,11 +21,13 @@ from ..fit import (
     _extract_twa_image,
     _select_anatomical_reference,
     _select_best_petref,
+    _select_or_run_uncropped_fallback,
     _write_identity_xforms,
     init_pet_fit_wf,
     init_pet_native_wf,
 )
 from ..outputs import init_refmask_report_wf
+from ..registration import init_pet_reg_wf
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -573,6 +575,107 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     node_names = wf.list_node_names()
     assert any(name.endswith('.mri_coreg') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
+
+
+def test_pet_reg_no_crop_removes_robust_fov():
+    """Disabling anatomical cropping should bypass the robustfov node."""
+
+    wf = init_pet_reg_wf(
+        pet2anat_dof=6,
+        mem_gb=1,
+        omp_nthreads=1,
+        pet2anat_method='mri_coreg',
+        crop_anat=False,
+    )
+
+    node_names = wf.list_node_names()
+    assert 'robust_fov' not in node_names
+    assert 'convert_anat' in node_names
+    assert 'crop_anat_mask' in node_names
+
+
+def test_select_or_run_uncropped_fallback_keeps_good_cropped_score():
+    """Acceptable cropped registration should return before running fallback."""
+
+    selected = _select_or_run_uncropped_fallback(
+        'petref.nii.gz',
+        'anat.nii.gz',
+        'mask.nii.gz',
+        'cropped',
+        'cropped_inv',
+        'freesurfer',
+        -0.15,
+        -0.05,
+        6,
+        'mri_coreg',
+        1,
+        1,
+    )
+    assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.15)
+
+
+def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
+    """Explicitly disabling crop should re-run registration and propagate to the graph."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    deriv_root = tmp_path / 'derivs'
+    petref = deriv_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_desc-hmc_petref.nii.gz'
+    hmc_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-orig_to-petref_mode-image_xfm.txt'
+    )
+    petref2anat_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-petref_to-anat_mode-image_xfm.txt'
+    )
+
+    petref.parent.mkdir(parents=True)
+    img.to_filename(petref)
+    np.savetxt(hmc_xfm, np.eye(4))
+    np.savetxt(petref2anat_xfm, np.eye(4))
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    entities = bids.extract_entities(pet_series)
+    precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_crop = False
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf_template.mri_coreg' in node_names
+    assert 'pet_reg_wf_template.robust_fov' not in node_names
+    assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
+
+
+def test_pet_fit_adds_uncropped_fallback_selector(bids_root: Path, tmp_path: Path):
+    """Default cropped registration should include a lazy uncropped fallback selector."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert 'pet_reg_wf_template.robust_fov' in node_names
+    assert 'select_crop_fallback_template' in node_names
+    assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):

@@ -403,6 +403,16 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         '"ants" uses ANTs rigid registration (6 DoF only).',
     )
     g_conf.add_argument(
+        '--pet2anat-no-anat-crop',
+        dest='pet2anat_crop',
+        action='store_false',
+        default=True,
+        help=(
+            'Disable robust FOV cropping of the anatomical reference before '
+            'PET-to-T1w registration.'
+        ),
+    )
+    g_conf.add_argument(
         '--anatref',
         action='store',
         default='auto',

@@ -570,6 +570,12 @@ class workflow(_Config):
     """PET-to-anatomical registration method (mri_coreg, robust, ants, or auto)."""
     pet2anat_method_specified: bool = False
     """Flag indicating whether ``--pet2anat-method`` was explicitly provided."""
+    pet2anat_crop: bool = True
+    """Crop the anatomical reference before PET-to-anatomical registration."""
+    pet2anat_crop_fallback: bool = True
+    """Try uncropped anatomical registration when cropped registration scores poorly."""
+    pet2anat_crop_fallback_threshold: float = -0.05
+    """Similarity threshold for triggering uncropped anatomical registration fallback."""
     anatref: str = 'auto'
     """Anatomical reference for PET-to-T1w registration (``'t1w'``, ``'nu'``, or ``'auto'``)."""
     petref: str = 'auto'
