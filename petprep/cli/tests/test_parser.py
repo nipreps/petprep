@@ -598,6 +598,45 @@ def test_run_label_validation(tmp_path):
     _reset_config()
 
 
+def test_task_id_only_filters_pet(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--task-id',
+                'rest',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        filters = config.execution.bids_filters
+        assert filters.get('pet', {}).get('task') == 'rest'
+        assert 'task' not in filters.get('anat', {})
+    finally:
+        _reset_config()
+
+
 def test_pvc_argument_handling(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
