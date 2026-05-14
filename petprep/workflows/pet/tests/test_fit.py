@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import json
+from pathlib import Path
 
 import nibabel as nb
 import nitransforms as nt

@@ -300,6 +300,7 @@ def _select_or_run_uncropped_fallback(
     from nipype.interfaces import utility as niu
     from nipype.interfaces.io import DataSink
     from nipype.pipeline import engine as pe
+
     from petprep.workflows.pet.fit import _write_fallback_summary
     from petprep.workflows.pet.registration import init_pet_reg_wf
 
