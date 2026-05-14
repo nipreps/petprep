@@ -41,6 +41,7 @@ from niworkflows.utils.connections import listify
 
 from ... import config
 from ...interfaces import DerivativesDataSink, MotionPlot
+from ...interfaces.bids import BIDSURI
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
@@ -358,6 +359,71 @@ configured with cubic B-spline interpolation.
             ('outputnode.motion_xfm', 'inputnode.motion_xfm'),
         ]),
     ])  # fmt:skip
+
+    seg_pet_space = 'pet' if 'pet' in nonstd_spaces else 'petref'
+    if nonstd_spaces.intersection(('pet', 'petref')) and config.workflow.level == 'full':
+        petref_seg = pe.Node(
+            ApplyTransforms(
+                dimension=3,
+                default_value=0,
+                float=True,
+                invert_transform_flags=[True],
+                interpolation='NearestNeighbor',
+            ),
+            name='petref_seg',
+            mem_gb=1,
+        )
+        seg_sources = pe.Node(
+            BIDSURI(
+                numinputs=3,
+                dataset_links=config.execution.dataset_links,
+                out_dir=str(petprep_dir),
+            ),
+            name='seg_sources',
+            run_without_submitting=True,
+        )
+        ds_pet_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=petprep_dir,
+                desc='preproc',
+                datatype='pet',
+                seg=config.workflow.seg,
+                allowed_entities=('space', 'seg'),
+                suffix='dseg',
+                extension='.nii.gz',
+                compress=True,
+            ),
+            name='ds_pet_seg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_pet_seg.inputs.source_file = pet_file
+        ds_pet_seg.inputs.space = seg_pet_space
+        seg_sources.inputs.in1 = pet_file
+
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    petref_seg,
+                    [
+                        ('segmentation', 'input_image'),
+                    ],
+                ),
+                (
+                    pet_fit_wf,
+                    petref_seg,
+                    [
+                        ('outputnode.petref', 'reference_image'),
+                        ('outputnode.petref2anat_xfm', 'transforms'),
+                    ],
+                ),
+                (inputnode, seg_sources, [('segmentation', 'in2')]),
+                (pet_fit_wf, seg_sources, [('outputnode.petref2anat_xfm', 'in3')]),
+                (petref_seg, ds_pet_seg, [('output_image', 'in_file')]),
+                (seg_sources, ds_pet_seg, [('out', 'Sources')]),
+            ]
+        )
 
     pvc_tool = getattr(config.workflow, 'pvc_tool', None)
     pvc_method = getattr(config.workflow, 'pvc_method', None)

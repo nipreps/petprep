@@ -335,6 +335,11 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
                 'subject_id',
                 'template',
                 'std2anat_xfm',
+                'anat2std_xfm',
+                'std_t1w',
+                'std_space',
+                'std_resolution',
+                'std_cohort',
             ]
         ),
         name='inputnode',
@@ -534,5 +539,58 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
             (nodes['ds_dseg_tsv'], outputnode, [('out_file', 'dseg_tsv')]),
         ]
     )
+
+    if config.workflow.level == 'full' and config.workflow.spaces.cached.get_spaces(
+        nonstandard=False, dim=(3,)
+    ):
+        std_seg = pe.Node(
+            ApplyTransforms(
+                dimension=3,
+                default_value=0,
+                float=True,
+                interpolation='NearestNeighbor',
+            ),
+            name=f'{seg}_std_seg',
+        )
+        ds_std_seg = pe.Node(
+            DerivativesDataSink(
+                base_directory=config.execution.petprep_dir,
+                seg=seg,
+                allowed_entities=('space', 'cohort', 'resolution', 'seg'),
+                suffix='dseg',
+                extension='.nii.gz',
+                datatype='anat',
+                compress=True,
+            ),
+            name=f'ds_{seg}stdseg',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                (nodes['seg_source'], std_seg, [('out_file', 'input_image')]),
+                (
+                    inputnode,
+                    std_seg,
+                    [
+                        ('std_t1w', 'reference_image'),
+                        ('anat2std_xfm', 'transforms'),
+                    ],
+                ),
+                (
+                    inputnode,
+                    ds_std_seg,
+                    [
+                        ('t1w_preproc', 'source_file'),
+                        ('std_space', 'space'),
+                        ('std_resolution', 'resolution'),
+                        ('std_cohort', 'cohort'),
+                    ],
+                ),
+                (std_seg, ds_std_seg, [('output_image', 'in_file')]),
+                (nodes['sources'], ds_std_seg, [('out', 'Sources')]),
+            ]
+        )
 
     return workflow

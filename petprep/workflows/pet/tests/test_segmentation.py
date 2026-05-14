@@ -2,6 +2,7 @@ import nibabel as nb
 import numpy as np
 import pytest
 
+from .... import config
 from ...tests import mock_config
 from ..segmentation import _merge_ha_labels, init_segmentation_wf
 
@@ -65,6 +66,33 @@ def test_gtm_connections():
 
         assert ('out_file', 'seg_file') in edge_dseg['connect']
         assert ('out_file', 'seg_file') in edge_morph['connect']
+
+
+def test_gtm_standard_space_outputs():
+    """GTM segmentation volume should be resampled into requested standard spaces."""
+    with mock_config():
+        config.workflow.level = 'full'
+        config.execution.output_spaces = 'MNI152NLin2009cAsym'
+        config.init_spaces()
+
+        wf = init_segmentation_wf('gtm')
+
+        assert 'gtm_std_seg' in [n.name for n in wf._get_all_nodes()]
+        assert 'ds_gtmstdseg' in [n.name for n in wf._get_all_nodes()]
+
+        seg_source = wf.get_node('convert_gtmseg')
+        std_seg = wf.get_node('gtm_std_seg')
+        inputnode = wf.get_node('inputnode')
+        ds_std_seg = wf.get_node('ds_gtmstdseg')
+
+        edge_resample = wf._graph.get_edge_data(seg_source, std_seg)
+        edge_reference = wf._graph.get_edge_data(inputnode, std_seg)
+        edge_datasink = wf._graph.get_edge_data(inputnode, ds_std_seg)
+
+        assert ('out_file', 'input_image') in edge_resample['connect']
+        assert ('std_t1w', 'reference_image') in edge_reference['connect']
+        assert ('anat2std_xfm', 'transforms') in edge_reference['connect']
+        assert ('std_space', 'space') in edge_datasink['connect']
 
 
 def test_template_atlas_masking():

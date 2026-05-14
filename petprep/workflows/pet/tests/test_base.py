@@ -193,6 +193,31 @@ def test_std_space_connections_without_pvc(bids_root: Path):
     assert ('outputnode.petref2anat_xfm', 'inputnode.petref2anat_xfm') in edge_fit['connect']
 
 
+def test_pet_space_segmentation_output(bids_root: Path):
+    """PET-space output requests should write the selected segmentation in PET space."""
+    pet_series = _prep_pet_series(bids_root)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.level = 'full'
+        config.execution.output_spaces = 'petref'
+        config.init_spaces()
+
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert 'petref_seg' in wf.list_node_names()
+    assert 'ds_pet_seg' in wf.list_node_names()
+
+    edge_input = wf._graph.get_edge_data(wf.get_node('inputnode'), wf.get_node('petref_seg'))
+    edge_fit = wf._graph.get_edge_data(wf.get_node('pet_fit_wf'), wf.get_node('petref_seg'))
+    edge_ds = wf._graph.get_edge_data(wf.get_node('petref_seg'), wf.get_node('ds_pet_seg'))
+
+    assert ('segmentation', 'input_image') in edge_input['connect']
+    assert ('outputnode.petref', 'reference_image') in edge_fit['connect']
+    assert ('outputnode.petref2anat_xfm', 'transforms') in edge_fit['connect']
+    assert ('output_image', 'in_file') in edge_ds['connect']
+    assert wf.get_node('ds_pet_seg').inputs.space == 'petref'
+
+
 def test_pvc_receives_segmentation(bids_root: Path):
     """PVC workflow should receive segmentation from the fit workflow."""
     pet_series = _prep_pet_series(bids_root)

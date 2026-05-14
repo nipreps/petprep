@@ -638,6 +638,23 @@ It is released under the [CC0]\
         ]
     )
 
+    if config.workflow.level == 'full' and template_iterator_wf is not None:
+        workflow.connect(
+            [
+                (
+                    template_iterator_wf,
+                    segmentation_wf,
+                    [
+                        ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+                        ('outputnode.std_t1w', 'inputnode.std_t1w'),
+                        ('outputnode.space', 'inputnode.std_space'),
+                        ('outputnode.resolution', 'inputnode.std_resolution'),
+                        ('outputnode.cohort', 'inputnode.std_cohort'),
+                    ],
+                ),
+            ]
+        )
+
     if config.workflow.anat_only:
         return clean_datasinks(workflow)
 
