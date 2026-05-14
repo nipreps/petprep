@@ -10,8 +10,10 @@ That is achieved using the ``--output-spaces`` argument, where standard and
 nonstandard spaces can be inserted.
 
 .. important::
-   *PETPrep* will reduce the amount of output spaces to just spaces listed in ``--output-spaces``,
-   even if other options require resampling the preprocessed data into intermediary spaces.
+   *PETPrep* writes derivatives only for the output spaces listed in
+   ``--output-spaces``. Some options may add internal spaces required by the
+   workflow, but those spaces are not written as derivatives unless they are
+   also requested explicitly.
 
 
 .. _TemplateFlow:
@@ -32,22 +34,21 @@ For more general information about *TemplateFlow*, visit
 Standard spaces
 """""""""""""""
 When using *PETPrep* in a workflow that will investigate effects that span across
-analytical groupings, neuroimagers typically resample their data on to a standard,
+analytical groupings, neuroimagers typically resample their data onto a standard,
 stereotactic coordinate system.
 The most widely used standard space for PET analyses is generally referred to as MNI.
 For instance, to instruct *PETPrep* to use the MNI template brain distributed with
 FSL as coordinate reference the option will read as follows: ``--output-spaces MNI152NLin6Asym``.
-By default, *PETPrep* uses ``MNI152NLin2009cAsym`` as spatial-standardization reference.
+By default, *PETPrep* writes derivatives in ``MNI152NLin2009cAsym`` at native
+PET resolution and in the individual anatomical reference (``T1w``).
 Valid template identifiers (``MNI152NLin6Asym``, ``MNI152NLin2009cAsym``, etc.) come from
 the `TemplateFlow repository <https://github.com/templateflow/templateflow>`__.
 
-Therefore, *PETPrep* will run nonlinear registration processes against the template
-T1w image corresponding to all the standard spaces supplied with the argument
-``--output-spaces``.
-By default, *PETPrep* will resample the preprocessed data on those spaces (labeling the
-corresponding outputs with the `space-<template-identifier>` BIDS entity) but keeping
-the original resolution of the PET data to produce smaller files, more consistent with
-the original data gridding.
+For each requested standard output space, *PETPrep* will resample the
+preprocessed PET data into that space, labeling the corresponding outputs with
+the ``space-<template-identifier>`` BIDS entity. By default, the resampled
+outputs keep the original resolution of the PET data to produce smaller files,
+more consistent with the original data gridding.
 However, many users will be interested in utilizing a coarse gridding (typically 2mm isotropic)
 of the target template.
 Such a behavior can be achieved applying modifiers to the template identifier, separated by
@@ -63,11 +64,11 @@ This is equivalent to saying
 .. danger::
 
    Please remember that the ``resolution`` entity of *TemplateFlow* is an **index**,
-   and therefore, ``res-2`` does not necessarily mean 2mm\ :sup:`3` - although, it
+   and therefore, ``res-2`` does not necessarily mean 2mm isotropic - although, it
    coincidentally does in the example above.
    However, it may not be the case.
    For instance, ``MNI152NLin6Asym:res-3`` contains a template with
-   isotropic voxels of 0.5mm\ :sup:`3`.
+   0.5mm isotropic voxels.
 
 Other possible modifiers are, for instance, the ``cohort`` selector.
 For instance, ``--output-spaces MNIPediatricAsym:res-1:cohort-2`` selects
@@ -97,7 +98,7 @@ To make your custom templates visible by *PETPrep*, and usable via
 the ``--output-spaces`` argument, please store your template under
 *TemplateFlow*'s home directory.
 The default *TemplateFlow*'s home directory is ``$HOME/.cache/templateflow``
-and that can path can be arbitrarily changed by setting
+and that path can be changed by setting
 the ``$TEMPLATEFLOW_HOME`` environment variable.
 A minimal example of the necessary files for a template called
 ``MyCustom`` (and therefore callable via, e.g., ``--output-spaces MyCustom``)
@@ -127,26 +128,26 @@ that do not generate *standardized* coordinate spaces:
   including the ``fsnative`` space will instruct *PETPrep* to sample the
   original PET data onto FreeSurfer's reconstructed surfaces for this
   individual.
-* ``func``, ``pet``, ``run``, ``petref`` or ``sbref`` can be used to
-  generate PET data in their original grid, after slice-timing,
-  head-motion, and susceptibility-distortion corrections.
-  These keywords are experimental, and expected to change because
-  **additional nonstandard spaces** are currently being discussed
-  `here <https://github.com/nipreps/petprep/issues/1604>`__.
+* ``petref`` requests PET data in the PET reference grid. For multi-frame
+  PET series, the preprocessed PET output is resampled into this grid with
+  head-motion correction applied.
 
 Modifiers are not allowed when providing nonstandard spaces.
 
 Preprocessing blocks depending on standard templates
 """"""""""""""""""""""""""""""""""""""""""""""""""""
-Some modules of the pipeline (e.g., the generation of HCP compatible
-*grayordinates* files, or the *fieldmap-less* distortion correction)
-operate in specific template spaces.
-When selecting those modules to be included (using any of the following flags:
-``--cifti-outputs``, ``--use-syn-sdc``) will modify the list of
-*internal* spaces to include the space identifiers they require, should the
-identifier not be found within the ``--output-spaces`` list already.
-In other words, running *PETPrep* with ``--output-spaces MNI152NLin6Asym:res-2
---use-syn-sdc`` will expand the list of resampling spaces to be
-``MNI152NLin6Asym:res-2 MNI152NLin2009cAsym``.
-However, these spaces that are added implicitly will not be saved to
-the derivatives directory.
+Some modules of the pipeline operate in specific template spaces even when
+those spaces are not requested as derivatives. *PETPrep* always adds
+``MNI152NLin2009cAsym`` to the internal list of spaces because several
+workflows require that anatomical normalization. If CIFTI outputs are
+requested with ``--cifti-output``, *PETPrep* also adds
+``MNI152NLin6Asym`` internally at the resolution required by the selected
+grayordinates density.
+
+Atlas-based segmentation options selected with ``--seg`` may also add the
+corresponding atlas template to the list of spaces so that the atlas and its
+labels can be warped into anatomical space.
+
+Spaces added only to satisfy these workflow requirements are used internally.
+They are not written as PET derivatives unless the space was also explicitly
+requested with ``--output-spaces``.
