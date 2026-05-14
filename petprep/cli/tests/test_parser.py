@@ -107,9 +107,7 @@ def test_pet2anat_no_anat_crop_arg(tmp_path):
     datapath = tmp_path / 'data'
     datapath.mkdir(exist_ok=True)
 
-    opts = _build_parser().parse_args(
-        [str(datapath)] + MIN_ARGS[1:] + ['--pet2anat-no-anat-crop']
-    )
+    opts = _build_parser().parse_args([str(datapath)] + MIN_ARGS[1:] + ['--pet2anat-no-anat-crop'])
 
     assert opts.pet2anat_crop is False
 

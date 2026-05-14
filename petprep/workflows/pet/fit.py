@@ -359,9 +359,11 @@ def _select_or_run_uncropped_fallback(
         DataSink(base_directory=os.getcwd()),
         name='fallback_summary_sink',
     )
-    fallback_wf.connect([
-        (fallback_summary, fallback_sink, [('summary_file', 'fallback')]),
-    ])
+    fallback_wf.connect(
+        [
+            (fallback_summary, fallback_sink, [('summary_file', 'fallback')]),
+        ]
+    )
     execgraph = fallback_wf.run(plugin='Linear')
     summary_node = next(node for node in execgraph.nodes() if node.name == 'fallback_summary')
     with open(summary_node.result.outputs.summary_file) as fobj:

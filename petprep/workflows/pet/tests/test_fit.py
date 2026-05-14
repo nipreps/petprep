@@ -674,15 +674,11 @@ class _FakeFallbackWorkflow:
         return _FakeFallbackExecGraph(self.summary_file)
 
 
-def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(
-    monkeypatch, tmp_path
-):
+def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
     """Weak cropped registration should run uncropped fallback and keep better score."""
 
     calls = {}
-    summary_file = _make_fallback_summary(
-        tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.15
-    )
+    summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.15)
 
     def _fake_init_pet_reg_wf(**kwargs):
         calls['kwargs'] = kwargs
@@ -728,9 +724,7 @@ def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
 ):
     """Weak cropped registration should still win if uncropped score is worse."""
 
-    summary_file = _make_fallback_summary(
-        tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.005
-    )
+    summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.005)
 
     monkeypatch.setattr(
         'petprep.workflows.pet.registration.init_pet_reg_wf',
@@ -755,9 +749,7 @@ def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
     assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.01)
 
 
-def test_select_or_run_uncropped_fallback_reads_manual_registration_outputs(
-    monkeypatch, tmp_path
-):
+def test_select_or_run_uncropped_fallback_reads_manual_registration_outputs(monkeypatch, tmp_path):
     """Manual registration fallback outputs come from convert and score nodes."""
 
     summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', None, -0.15)
@@ -937,9 +929,7 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
 
-def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(
-    bids_root: Path, tmp_path: Path
-):
+def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path, tmp_path: Path):
     """Disabling the fallback should keep cropped registration as a simple graph."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
