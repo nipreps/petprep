@@ -536,14 +536,20 @@ def init_pet_fit_wf(
     petref_strategy = requested_petref_strategy
     petref_candidates = None
     petref_candidate_labels: list[str] = []
-    if requested_petref_strategy == 'auto':
+    if pet_tlen <= 1 and requested_petref_strategy == 'auto':
+        petref_strategy = 'template'
+        config.loggers.workflow.info(
+            '3D PET file detected; using the input image as the PET reference instead of '
+            'building multiple auto PET references.'
+        )
+    elif requested_petref_strategy == 'auto':
         petref_strategy = 'auto'
         petref_candidate_labels = ['template', 'twa', 'sum', 'first5min']
         petref_candidates = pe.Node(
             niu.IdentityInterface(fields=petref_candidate_labels), name='petref_candidates'
         )
 
-    if hmc_disabled and petref_strategy == 'template':
+    if pet_tlen > 1 and hmc_disabled and petref_strategy == 'template':
         config.loggers.workflow.warning(
             'Head motion correction disabled (--hmc-off); using a time-weighted average '
             'reference instead of the motion correction template.'
