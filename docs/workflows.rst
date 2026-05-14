@@ -442,10 +442,9 @@ using the method selected via :option:`--pet2anat-method`. The anatomical image
 is first cropped with FSL's ``robustfov`` and masked to focus the alignment on
 brain tissue (ANTs receives the unmasked cropped image together with its mask).
 Use :option:`--pet2anat-no-anat-crop` to bypass anatomical ``robustfov`` and
-register against the full anatomical field of view. When cropped registration
-scores poorly (similarity greater than ``-0.05``, where more negative is
-better), PETPrep then evaluates an uncropped fallback and keeps it when it
-improves the score.
+register against the full anatomical field of view. If both cropped ``auto``
+registration scores are weak for a PET reference, PETPrep evaluates an
+uncropped anatomical fallback and keeps it if the score improves.
 By default, the workflow runs ``auto`` mode (``--pet2anat-method auto``),
 which executes both FreeSurfer and ANTs registrations in parallel, applies the
 resulting transforms to the PET reference, computes a similarity score within

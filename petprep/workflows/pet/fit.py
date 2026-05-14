@@ -254,6 +254,26 @@ def _select_best_petref(labels, scores, transforms, inv_transforms, winners, pet
     )
 
 
+def _write_fallback_summary(xfm, inv_xfm, score, winner=None):
+    """Write fallback registration outputs to a JSON file."""
+
+    import json
+    import os
+
+    summary_file = os.path.abspath('fallback_summary.json')
+    with open(summary_file, 'w') as fobj:
+        json.dump(
+            {
+                'xfm': xfm,
+                'inv_xfm': inv_xfm,
+                'winner': winner,
+                'score': score,
+            },
+            fobj,
+        )
+    return summary_file
+
+
 def _select_or_run_uncropped_fallback(
     ref_pet_brain,
     anat_preproc,
@@ -274,8 +294,13 @@ def _select_or_run_uncropped_fallback(
     if cropped_score is not None and cropped_score <= fallback_threshold:
         return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
 
+    import json
     import os
 
+    from nipype.interfaces import utility as niu
+    from nipype.interfaces.io import DataSink
+    from nipype.pipeline import engine as pe
+    from petprep.workflows.pet.fit import _write_fallback_summary
     from petprep.workflows.pet.registration import init_pet_reg_wf
 
     fallback_wf = init_pet_reg_wf(
@@ -291,21 +316,60 @@ def _select_or_run_uncropped_fallback(
     fallback_wf.inputs.inputnode.ref_pet_brain = ref_pet_brain
     fallback_wf.inputs.inputnode.anat_preproc = anat_preproc
     fallback_wf.inputs.inputnode.anat_mask = anat_mask
-    fallback_wf.run(plugin='Linear')
 
     if pet2anat_method == 'auto':
-        select_best = fallback_wf.get_node('select_best')
-        uncropped_transform = select_best.result.outputs.best_xfm
-        uncropped_inv_transform = select_best.result.outputs.best_inv_xfm
-        uncropped_winner = select_best.result.outputs.winner
-        uncropped_score = select_best.result.outputs.best_score
+        fallback_summary = pe.Node(
+            niu.Function(
+                function=_write_fallback_summary,
+                input_names=['xfm', 'inv_xfm', 'winner', 'score'],
+                output_names=['summary_file'],
+            ),
+            name='fallback_summary',
+        )
+        fallback_wf.connect([
+            (fallback_wf.get_node('select_best'), fallback_summary, [
+                ('best_xfm', 'xfm'),
+                ('best_inv_xfm', 'inv_xfm'),
+                ('winner', 'winner'),
+                ('best_score', 'score'),
+            ]),
+        ])  # fmt:skip
     else:
-        convert_xfm = fallback_wf.get_node('convert_xfm')
-        score_registration = fallback_wf.get_node('score_registration')
-        uncropped_transform = convert_xfm.result.outputs.out_xfm
-        uncropped_inv_transform = convert_xfm.result.outputs.out_inv
-        uncropped_winner = None
-        uncropped_score = score_registration.result.outputs.similarity
+        fallback_summary = pe.Node(
+            niu.Function(
+                function=_write_fallback_summary,
+                input_names=['xfm', 'inv_xfm', 'winner', 'score'],
+                output_names=['summary_file'],
+            ),
+            name='fallback_summary',
+        )
+        fallback_summary.inputs.winner = None
+        fallback_wf.connect([
+            (fallback_wf.get_node('convert_xfm'), fallback_summary, [
+                ('out_xfm', 'xfm'),
+                ('out_inv', 'inv_xfm'),
+            ]),
+            (fallback_wf.get_node('score_registration'), fallback_summary, [
+                ('similarity', 'score'),
+            ]),
+        ])  # fmt:skip
+
+    fallback_sink = pe.Node(
+        DataSink(base_directory=os.getcwd()),
+        name='fallback_summary_sink',
+    )
+    fallback_wf.connect([
+        (fallback_summary, fallback_sink, [('summary_file', 'fallback')]),
+    ])
+    execgraph = fallback_wf.run(plugin='Linear')
+    summary_node = next(node for node in execgraph.nodes() if node.name == 'fallback_summary')
+    with open(summary_node.result.outputs.summary_file) as fobj:
+        summary = json.load(fobj)
+
+    uncropped_transform = summary['xfm']
+    uncropped_inv_transform = summary['inv_xfm']
+    uncropped_winner = summary['winner']
+    uncropped_score = summary['score']
 
     if uncropped_score is not None and (cropped_score is None or uncropped_score < cropped_score):
         return uncropped_transform, uncropped_inv_transform, uncropped_winner, uncropped_score
@@ -343,11 +407,9 @@ def _select_or_run_uncropped_auto_fallback(
             cropped_fs_score,
         )
     )
-    if (
-        cropped_ants_score is not None
-        and cropped_ants_score <= fallback_threshold
-        or cropped_fs_score is not None
-        and cropped_fs_score <= fallback_threshold
+    if any(
+        score is not None and score <= fallback_threshold
+        for score in (cropped_ants_score, cropped_fs_score)
     ):
         return cropped_transform, cropped_inv_transform, cropped_winner, cropped_score
 
