@@ -24,6 +24,7 @@ from ..fit import (
     _select_best_petref,
     _select_or_run_uncropped_auto_fallback,
     _select_or_run_uncropped_fallback,
+    _write_fallback_summary,
     _write_identity_xforms,
     init_pet_fit_wf,
     init_pet_native_wf,
@@ -616,6 +617,22 @@ def test_select_or_run_uncropped_fallback_keeps_good_cropped_score():
     assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.15)
 
 
+def test_write_fallback_summary(monkeypatch, tmp_path):
+    """Fallback summary writer should preserve selected registration outputs."""
+
+    monkeypatch.chdir(tmp_path)
+
+    summary_file = _write_fallback_summary('xfm.txt', 'inv.txt', -0.15, winner='ants')
+
+    assert summary_file == str(tmp_path / 'fallback_summary.json')
+    assert json.loads(Path(summary_file).read_text()) == {
+        'xfm': 'xfm.txt',
+        'inv_xfm': 'inv.txt',
+        'winner': 'ants',
+        'score': -0.15,
+    }
+
+
 def _make_fallback_summary(tmp_path, xfm, inv_xfm, winner, score):
     summary_file = tmp_path / 'fallback_summary.json'
     summary_file.write_text(
@@ -947,6 +964,34 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
     node_names = wf.list_node_names()
     assert 'pet_reg_wf_template.robust_fov' in node_names
     assert 'select_crop_fallback_template' not in node_names
+
+
+def test_pet_fit_adds_manual_uncropped_fallback_selector(bids_root: Path, tmp_path: Path):
+    """Manual PET-to-anatomical registration should wire the fallback selector."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'template'
+        config.workflow.pet2anat_method = 'mri_coreg'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
+
+    node_names = wf.list_node_names()
+    assert 'select_crop_fallback' in node_names
+    assert 'pet_reg_wf.robust_fov' in node_names
+
+    select_crop_fallback = wf.get_node('select_crop_fallback')
+    assert select_crop_fallback.inputs.fallback_threshold == -0.05
+    assert select_crop_fallback.inputs.pet2anat_dof == config.workflow.pet2anat_dof
+    assert select_crop_fallback.inputs.pet2anat_method == 'mri_coreg'
+    assert select_crop_fallback.inputs.omp_nthreads == 2
+    assert select_crop_fallback.inputs.sloppy is False
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
