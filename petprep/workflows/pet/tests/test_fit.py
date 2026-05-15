@@ -1073,18 +1073,26 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
     )
     assert any(name.startswith('select_crop_fallback') for name in node_names)
-    assert 'select_crop_fallback_provenance' in node_names
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
-    edge = wf._graph.get_edge_data(
-        wf.get_node('select_crop_fallback'),
-        wf.get_node('select_crop_fallback_provenance'),
-    )
-    assert ('best_inv_transform', 'best_inv_transform') in edge['connect']
-    assert ('best_score', 'best_score') in edge['connect']
-    assert ('registration_winner', 'registration_winner') in edge['connect']
-    assert ('registration_score', 'registration_score') in edge['connect']
-    assert ('fallback_scores', 'fallback_scores') in edge['connect']
+    provenance_nodes = [
+        name
+        for name in node_names
+        if name.startswith('select_crop_fallback') and name.endswith('_provenance')
+    ]
+    assert provenance_nodes
+    for provenance_name in provenance_nodes:
+        selector_name = provenance_name.removesuffix('_provenance')
+        assert selector_name in node_names
+        edge = wf._graph.get_edge_data(
+            wf.get_node(selector_name),
+            wf.get_node(provenance_name),
+        )
+        assert ('best_inv_transform', 'best_inv_transform') in edge['connect']
+        assert ('best_score', 'best_score') in edge['connect']
+        assert ('registration_winner', 'registration_winner') in edge['connect']
+        assert ('registration_score', 'registration_score') in edge['connect']
+        assert ('fallback_scores', 'fallback_scores') in edge['connect']
 
 
 def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path, tmp_path: Path):
