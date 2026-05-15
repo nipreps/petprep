@@ -709,7 +709,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     petsurfer_methods = sorted(pvc_config.get('petsurfer', {}).keys())
     all_pvc_methods = sorted(set(petpvc_methods + petsurfer_methods))
 
-    parser.add_argument(
+    g_pvc.add_argument(
         '--pvc-tool',
         choices=['petpvc', 'petsurfer'],
         help='Tool to use for partial volume correction',
@@ -904,6 +904,13 @@ def parse_args(args=None, namespace=None):
         config.execution.bids_filters['pet'] = {
             **config.execution.bids_filters.get('pet', {}),
             'run': config.execution.run_label,
+        }
+
+    if config.execution.task_id:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'task': config.execution.task_id,
         }
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
