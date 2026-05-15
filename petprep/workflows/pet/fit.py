@@ -1012,6 +1012,28 @@ def init_pet_fit_wf(
     pet_to_t1_source = None
     pet_to_t1_field = None
     use_crop_fallback = config.workflow.pet2anat_crop and config.workflow.pet2anat_crop_fallback
+    crop_fallback_output_fields = [
+        'best_transform',
+        'best_inv_transform',
+        'best_winner',
+        'best_score',
+        'fallback',
+        'anat_reference',
+        'registration_winner',
+        'registration_score',
+        'fallback_scores',
+    ]
+
+    def _retain_crop_fallback_outputs(source, name):
+        provenance = pe.Node(
+            niu.IdentityInterface(fields=crop_fallback_output_fields),
+            name=name,
+            run_without_submitting=True,
+        )
+        workflow.connect([
+            (source, provenance, [(field, field) for field in crop_fallback_output_fields]),
+        ])
+        return provenance
 
     if not petref2anat_xform:
         config.loggers.workflow.info('PET Stage 3: Adding co-registration workflow of PET to T1w')
@@ -1097,6 +1119,10 @@ def init_pet_fit_wf(
                             ]),
                         ])  # fmt:skip
                     reg_source = select_crop_fallback
+                    _retain_crop_fallback_outputs(
+                        select_crop_fallback,
+                        name=f'select_crop_fallback_{label}_provenance',
+                    )
 
                 label_src = pe.Node(niu.IdentityInterface(fields=['label']), name=f'label_{label}')
                 label_src.inputs.label = label
@@ -1248,6 +1274,10 @@ def init_pet_fit_wf(
                         ]),
                     ])  # fmt:skip
                 pet_reg_source = select_crop_fallback
+                _retain_crop_fallback_outputs(
+                    select_crop_fallback,
+                    name='select_crop_fallback_provenance',
+                )
 
             workflow.connect([
                 (inputnode, pet_reg_wf, [

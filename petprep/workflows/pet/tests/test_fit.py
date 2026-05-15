@@ -176,6 +176,9 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 
     for path in pet_series:
         img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
 
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
@@ -1070,7 +1073,18 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
     )
     assert any(name.startswith('select_crop_fallback') for name in node_names)
+    assert 'select_crop_fallback_provenance' in node_names
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
+
+    edge = wf._graph.get_edge_data(
+        wf.get_node('select_crop_fallback'),
+        wf.get_node('select_crop_fallback_provenance'),
+    )
+    assert ('best_inv_transform', 'best_inv_transform') in edge['connect']
+    assert ('best_score', 'best_score') in edge['connect']
+    assert ('registration_winner', 'registration_winner') in edge['connect']
+    assert ('registration_score', 'registration_score') in edge['connect']
+    assert ('fallback_scores', 'fallback_scores') in edge['connect']
 
 
 def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path, tmp_path: Path):
