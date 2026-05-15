@@ -34,12 +34,18 @@ What if I find some images have undergone some pre-processing already (e.g., my 
 ---------------------------------------------------------------------------------------------------------------------
 These images imply an unknown level of preprocessing (e.g. was it already bias-field corrected?),
 which makes it difficult to decide on best-practices for further processing.
-Hence, supporting such images was considered very low priority for *PETPrep*.
-For example, see `#707 <https://github.com/nipreps/smriprep/issues/12>`_ and an illustration of
-downstream consequences in `#939 <https://github.com/nipreps/petprep/issues/939>`_.
+*PETPrep* uses the anatomical image to support PET-to-anatomical registration,
+segmentation, optional partial volume correction, reference-region masks, and
+time-activity curve extraction.
+If the T1w image has already been skull-stripped or otherwise modified, these
+steps may become less reproducible because *PETPrep* can no longer control the
+full anatomical preprocessing workflow.
 
-So for OpenFMRI, we've been excluding these subjects, and for user-supplied data, we would recommend
-reverting to the original, defaced, T1w images to ensure more uniform preprocessing.
+For user-supplied data, we recommend reverting to the original, defaced T1w
+images whenever possible.
+If only preprocessed anatomical images are available, document the upstream
+processing carefully and inspect the PET-to-anatomical registration, segmentation,
+and derived TACs before including those subjects in group analyses.
 
 
 My *PETPrep* run is hanging...
@@ -124,21 +130,36 @@ In general, please be cautious of deleting files and mindful why a file may exis
 
 Running subjects in parallel
 ----------------------------
-When running several subjects in parallel, and depending on your settings, *PETPrep* may
-fall into race conditions.
-A symptomatic output looks like: ::
+The recommended way to parallelize *PETPrep* is to run one subject per container
+or batch job, with a shared read-only BIDS input directory and a unique working
+directory for each job.
+This keeps Nipype's intermediate files isolated and avoids multiple processes
+writing to the same workflow cache.
 
-  FileNotFoundError: [Errno 2] No such file or directory: '/scratch/03201/jbwexler/openneuro_petprep/data/ds000003_work/ds000003-download/derivatives/petprep-1.4.0/petprep/logs/CITATION.md'
-
-If you would like to run *PETPrep* in parallel on multiple subjects please use
-`this method <https://neurostars.org/t/updated-petprep-workaround-for-running-subjects-in-parallel/6677>`__.
+When running many subjects at the same time, make sure that each job either
+writes to a separate output directory that will be merged later, or that your
+execution environment prevents two jobs from processing the same subject into
+the same output tree at once.
+Shared FreeSurfer derivatives may be reused with ``--fs-subjects-dir``, but they
+should not be generated simultaneously by multiple jobs for the same subject.
 
 How much CPU time and RAM should I allocate for a typical *PETPrep* run?
 -------------------------------------------------------------------------
-The recommended way to run *PETPrep* is to process one subject per container instance. A typical preprocessing run
-without surface processing with FreeSurfer can be completed in about 2 hours with 4 CPUs or in about 1 hour with 16 CPUs.
-More than 16 CPUs do not translate into faster processing times for a single subject. About 8GB of memory should be
-available for a single subject preprocessing run.
+The recommended way to run *PETPrep* is to process one subject per container
+instance.
+A typical preprocessing run without surface processing with FreeSurfer can be
+completed in about 2 hours with 4 CPUs or in about 1 hour with 16 CPUs.
+More than 16 CPUs do not usually translate into faster processing times for a
+single subject.
+About 8GB of memory should be available for a single subject preprocessing run.
+
+Runtime and memory use depend on the number of PET frames, whether FreeSurfer is
+run or reused, whether surface or CIFTI outputs are requested, which
+segmentation is selected with ``--seg``, and whether partial volume correction or
+reference-region TAC extraction is enabled.
+For larger dynamic acquisitions, atlas segmentations, or PVC workflows, allocate
+additional memory and inspect the first few subjects before scaling out to the
+whole dataset.
 
 Below are some benchmark data that have been computed on a high performance cluster compute node with Intel E5-2683 v4
 CPUs and 64 GB of physical memory:
@@ -203,6 +224,8 @@ internally require the ``MNI152NLin2009cAsym`` template.
 If the ``--skull-strip-template`` option is not set, then ``OASIS30ANTs``
 will be used.
 Finally, the ``--cifti-output`` argument requires ``MNI152NLin6Asym``.
+Atlas-based segmentations selected with ``--seg`` may also add the corresponding
+atlas template to the workflow.
 To do so, follow the next steps.
 
 1. By default, a mirror of *TemplateFlow* to store the resources will be
@@ -231,7 +254,14 @@ If you are an Apptainer (formerly Singularity) user, please check out `TemplateF
 
 How do I select only certain files to be input to *PETPrep*?
 -------------------------------------------------------------
-Using the ``--bids-filter-file`` flag, you can pass *PETPrep* a JSON file that
+For common PET selections, start with the dedicated command-line options:
+``--participant-label``, ``--session-label``, ``--tracer-label``,
+``--rec-label``, ``--run-label``, and ``--task-id``.
+These options are usually enough when you want to process a subset of subjects,
+sessions, tracers, reconstructions, runs, or tasks.
+
+For more specific selections, use the ``--bids-filter-file`` flag.
+You can pass *PETPrep* a JSON file that
 describes a custom BIDS filter for selecting files with PyBIDS, with the syntax
 ``{<query>: {<entity>: <filter>, ...},...}``. For example::
 
@@ -267,25 +297,100 @@ in the PyBIDS
 To select images that do not have the entity set, use json value: ``null``.
 To select images that have any non-empty value for an entity use string: ``'*'``
 
+Which *PETPrep* options should I decide before processing my whole study?
+-------------------------------------------------------------------------
+Decide the analysis-defining options before running the full dataset, and keep
+them fixed across subjects whenever possible.
+In particular, choose the PET reference strategy (``--petref``), PET-to-anatomy
+registration backend and degrees of freedom (``--pet2anat-method`` and
+``--pet2anat-dof``), segmentation (``--seg``), reference-region mask options
+(``--ref-mask-name`` and ``--ref-mask-index``), partial volume correction
+settings (``--pvc-tool``, ``--pvc-method``, and ``--pvc-psf``), and output spaces
+(``--output-spaces`` and, if needed, CIFTI outputs).
+
+These choices determine the derivatives available for downstream analysis,
+including regional TACs, reference-region TACs, PVC-corrected data, and
+surface- or template-space outputs.
+Running a small pilot subset first is often the most efficient way to confirm
+registration quality, segmentation suitability, and model-ready outputs before
+committing compute time to a full study.
+
+Which *PETPrep* outputs do I need for kinetic modeling?
+-------------------------------------------------------
+*PETPrep* prepares PET data for downstream analysis; it does not estimate kinetic
+model parameters itself.
+For regional kinetic modeling, request the segmentation and reference-region
+outputs that match your analysis plan.
+The `segmentation <usage.html#segmentation>`__ options determine which regional
+time-activity curves (TACs) are extracted, and the
+`reference region mask <usage.html#reference-region-masks>`__ options can
+additionally write TACs for a reference region.
+The resulting ``*_desc-preproc_tacs.tsv`` files are documented in
+`Time activity curves <outputs.html#time-activity-curves>`__.
+
+When planning a modeling workflow, decide the segmentation, reference region,
+partial volume correction, and output spaces before processing the full dataset.
+Those choices affect which PET derivatives are produced and help keep the
+preprocessing and modeling stages reproducible across subjects.
+
+I have now processed my data using *PETPrep*. How do I perform kinetic modeling?
+--------------------------------------------------------------------------------
+For regional analyses, PETFit_ can ingest *PETPrep* outputs and use the regional
+TACs generated by *PETPrep* for kinetic modeling.
+This is the recommended next step when your model is defined over regions from a
+segmentation or atlas and you want to work with tabular TAC outputs.
+
+If you want to estimate parametric images or run surface-based analyses, consider
+PETSurfer-BIDS_.
+PETSurfer-BIDS is built on top of *PETPrep* and uses *PETPrep* for the
+preprocessing steps, while PETSurfer-BIDS handles voxel-wise smoothing, kinetic
+modeling, and group analysis in ROI, volume, and surface spaces.
+
+Can I use *PETPrep* outputs for parametric images or surface-based analyses?
+----------------------------------------------------------------------------
+Yes, but those analyses are usually run in a downstream tool rather than inside
+*PETPrep* itself.
+Use *PETPrep* to generate the motion-corrected, co-registered, optionally
+partial-volume-corrected PET derivatives and the anatomical or surface
+derivatives required by the downstream analysis.
+PETSurfer-BIDS_ is the closest fit when the next step is voxel-wise kinetic
+modeling, parametric imaging, or surface-based PET analysis.
+
 Can *PETPrep* continue to run after encountering an error?
 -----------------------------------------------------------
 (Context: `#1756 <https://github.com/nipreps/petprep/issues/1756>`__)
 Yes, although it requires access to previously computed intermediate results.
 *PETPrep* is built on top of Nipype_, which uses a temporary folder to store the interim
 results of the workflow.
-*PETPrep* provides the ``-w <PATH>`` command line argument to set a customized temporal
+*PETPrep* provides the ``-w <PATH>`` command line argument to set a customized temporary
 folder (the *working directory*, in the following) for the *Nipype* workflow engine.
 By default, *PETPrep* configures the *working directory* to be ``$PWD/work/``.
 Therefore, if your *PETPrep* process crashes and you attempt to re-run it reusing
 as much as it could from the previous run, you can either make sure that
 the default ``$PWD/work/`` points to a reasonable, reusable path in your environment or
-configure a better location on your with ``-w <PATH>``.
+configure a better location with ``-w <PATH>``.
+When rerunning, keep the same *PETPrep* version, command-line options, output
+directory, and working directory unless you intentionally want to recompute the
+workflow.
+Before restarting, inspect the crashfiles and logs under
+``<output dir>/sub-<participant_label>/log`` to identify whether the failure was
+caused by a data issue, missing dependency, resource limit, or interrupted job.
 
 Can I use *PETPrep* for longitudinal studies?
 ----------------------------------------------
-As partially indicated before, *PETPrep* assumes no substantial anatomical changes happen
-across sessions.
-When substantial changes are expected, special considerations must be taken.
+*PETPrep* can be used in longitudinal datasets, but the preprocessing strategy
+should match the biological and technical assumptions of the study.
+PET-to-anatomical registration, segmentation, PVC, and regional TAC extraction
+all depend on the anatomical reference and derived segmentations.
+If the same anatomical reference is reused across sessions, *PETPrep* implicitly
+assumes that no substantial anatomical changes affect those derivatives.
+
+Before processing the full dataset, decide whether sessions should share
+anatomical derivatives or be processed more independently.
+Also keep tracer, reconstruction, segmentation, reference-region, PVC, and output
+space choices consistent across comparable sessions.
+When substantial anatomical changes are expected, special considerations must be
+taken.
 Some examples follow:
 
 * Surgery: use only pre-operation sessions for the anatomical data. This will typically be done
@@ -294,7 +399,7 @@ Some examples follow:
   However, `as suggested by U. Tooley at NeuroStars.org
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__,
   it is theoretically possible to leverage the *anatomical fast-track* along with the
-  ``--bids-filters`` option to process sessions fully independently, or grouped by some study-design
+  ``--bids-filter-file`` option to process sessions fully independently, or grouped by some study-design
   criteria.
   Please check the `link
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__
@@ -305,8 +410,8 @@ How to decrease *PETPrep* runtime when working with large datasets?
 --------------------------------------------------------------------
 *PETPrep* leverages PyBIDS to produce a layout, which indexes the input BIDS dataset and facilitates file queries.
 Depending on the amount of files and metadata within the BIDS dataset, this process can be time-intensive.
-As of the 20.2.0 release, *PETPrep* supports the ``--bids-database-dir <database_dir>`` option,
-which can be used to pass in an already indexed BIDS layout.
+The ``--bids-database-dir <database_dir>`` option can be used to pass in an
+already indexed BIDS layout.
 
 The default *PETPrep* layout can be generated by running the following shell command (requires PyBIDS 0.13.2 or greater)::
 
@@ -322,3 +427,11 @@ Note that any discrepancies between the pre-indexed database and
 the BIDS dataset complicate the provenance of PETPrep derivatives.
 If ``--bids-database-dir`` is used, the referenced directory should be
 preserved for the sake of reporting and reproducibility.
+
+For large studies, also consider running one subject per job, reusing existing
+FreeSurfer outputs with ``--fs-subjects-dir`` when appropriate, and using
+``--derivatives`` to reuse valid precomputed derivatives.
+The ``--level`` option can reduce the number of derivatives written during early
+workflow stages, but make sure the selected level still produces the outputs
+needed for downstream kinetic modeling, PVC, surface analysis, or quality
+control.
