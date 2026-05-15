@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import nibabel as nb
@@ -692,6 +693,8 @@ def _fallback_interface(tmp_path, **inputs):
 def test_pet_coreg_fallback_keeps_good_cropped_score(monkeypatch, tmp_path):
     """Acceptable cropped registration should return before running fallback."""
 
+    monkeypatch.chdir(tmp_path)
+
     def _unexpected_fallback(*args, **kwargs):
         raise AssertionError('Fallback should not run when cropped score passes.')
 
@@ -718,6 +721,7 @@ def test_pet_coreg_fallback_keeps_good_cropped_score(monkeypatch, tmp_path):
 def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
     """Weak cropped registration should run uncropped fallback and keep better score."""
 
+    monkeypatch.chdir(tmp_path)
     calls = []
 
     def _fake_fallback(self, cwd):
@@ -784,25 +788,32 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
         'petprep.workflows.pet.registration.init_pet_reg_wf',
         _fake_init_pet_reg_wf,
     )
-    monkeypatch.setattr(
-        'nipype.utils.filemanip.loadpkl',
-        lambda path: type(
+    ants_xfm = _touch(tmp_path / 'uncropped_ants.txt')
+    ants_inv = _touch(tmp_path / 'uncropped_ants_inv.txt')
+    fs_xfm = _touch(tmp_path / 'uncropped_fs.txt')
+    fs_inv = _touch(tmp_path / 'uncropped_fs_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
             'result',
             (),
             {
-                'outputs': type(
-                    'outputs',
-                    (),
-                    {
-                        'best_xfm': 'uncropped.txt',
-                        'best_inv_xfm': 'uncropped_inv.txt',
-                        'winner': 'ants',
-                        'best_score': -0.15,
-                    },
-                )(),
+                'outputs': type('outputs', (), outputs)(),
             },
-        )(),
-    )
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm_ants' in path:
+            return _fake_result(out_xfm=ants_xfm, out_inv=ants_inv)
+        if 'convert_xfm_fs' in path:
+            return _fake_result(out_xfm=fs_xfm, out_inv=fs_inv)
+        if 'score_ants' in path:
+            return _fake_result(similarity=-0.15)
+        if 'score_fs' in path:
+            return _fake_result(similarity=-0.01)
+        raise AssertionError(f'Unexpected pickle path: {path}')
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
 
     interface = _fallback_interface(
         tmp_path,
@@ -819,8 +830,8 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
     )
 
     assert interface._run_uncropped_fallback(str(tmp_path)) == (
-        'uncropped.txt',
-        'uncropped_inv.txt',
+        ants_xfm,
+        ants_inv,
         'ants',
         -0.15,
     )
@@ -841,8 +852,98 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
     }
 
 
+def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(
+    monkeypatch, tmp_path
+):
+    """FreeSurfer fallback should report score and synthesize a missing inverse."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        lambda **kwargs: _FakeFallbackWorkflow({}),
+    )
+
+    ants_xfm = _touch(tmp_path / 'uncropped_ants.txt')
+    ants_inv = _touch(tmp_path / 'uncropped_ants_inv.txt')
+    fs_xfm = _touch(tmp_path / 'uncropped_fs.txt')
+    synthetic_inv = _touch(tmp_path / 'synth_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
+            'result',
+            (),
+            {
+                'outputs': type('outputs', (), outputs)(),
+            },
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm_ants' in path:
+            return _fake_result(out_xfm=ants_xfm, out_inv=ants_inv)
+        if 'convert_xfm_fs' in path:
+            return _fake_result(out_xfm=fs_xfm, out_inv=Undefined)
+        if 'score_ants' in path:
+            return _fake_result(similarity=-0.01)
+        if 'score_fs' in path:
+            return _fake_result(similarity=-0.2)
+        raise AssertionError(f'Unexpected pickle path: {path}')
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
+    monkeypatch.setattr(
+        PETCoregistrationFallback,
+        '_ensure_inverse_transform',
+        lambda self, xfm, inv_xfm: synthetic_inv,
+    )
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+    ).run()
+
+    assert Path(result.outputs.best_transform).name == 'best_transform.txt'
+    assert Path(result.outputs.best_inv_transform).name == 'best_inv_transform.txt'
+    assert Path(result.outputs.best_transform).read_text() == Path(fs_xfm).read_text()
+    assert Path(result.outputs.best_inv_transform).read_text() == Path(
+        synthetic_inv
+    ).read_text()
+    assert result.outputs.best_winner == 'freesurfer'
+    assert result.outputs.best_score == -0.2
+    assert result.outputs.registration_winner == 'freesurfer'
+    assert result.outputs.registration_score == -0.2
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+
+    scores = json.loads(Path(result.outputs.fallback_scores).read_text())
+    assert scores['cropped'] == {
+        'ants': -0.01,
+        'freesurfer': -0.02,
+        'score': -0.02,
+        'winner': 'freesurfer',
+    }
+    assert scores['uncropped'] == {
+        'ants': -0.01,
+        'freesurfer': -0.2,
+        'score': -0.2,
+        'winner': 'freesurfer',
+    }
+    assert scores['selected'] == {
+        'anat_reference': 'uncropped',
+        'fallback': True,
+        'score': -0.2,
+        'winner': 'freesurfer',
+    }
+
+
 def test_pet_coreg_fallback_keeps_cropped_when_uncropped_is_worse(monkeypatch, tmp_path):
     """Weak cropped registration should still win if uncropped score is worse."""
+
+    monkeypatch.chdir(tmp_path)
 
     def _fake_fallback(self, cwd):
         return (
@@ -881,6 +982,8 @@ def test_pet_coreg_auto_fallback_keeps_cropped_when_one_backend_passes(
     monkeypatch, tmp_path, ants_score, fs_score, expected_winner
 ):
     """Auto fallback should stop when either cropped backend score is acceptable."""
+
+    monkeypatch.chdir(tmp_path)
 
     def _unexpected_fallback(*args, **kwargs):
         raise AssertionError('Fallback should not run when one cropped backend passes.')
