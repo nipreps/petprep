@@ -136,10 +136,14 @@ class PETCoregistrationFallback(SimpleInterface):
         fallback_dir = Path(fallback_wf.base_dir) / fallback_wf.name
 
         if self.inputs.pet2anat_method == 'auto':
-            outputs = loadpkl(str(fallback_dir / 'select_best' / 'result_select_best.pklz')).outputs
+            outputs = loadpkl(
+                str(fallback_dir / 'select_best' / 'result_select_best.pklz')
+            ).outputs
             return outputs.best_xfm, outputs.best_inv_xfm, outputs.winner, outputs.best_score
 
-        xfm_outputs = loadpkl(str(fallback_dir / 'convert_xfm' / 'result_convert_xfm.pklz')).outputs
+        xfm_outputs = loadpkl(
+            str(fallback_dir / 'convert_xfm' / 'result_convert_xfm.pklz')
+        ).outputs
         score_outputs = loadpkl(
             str(fallback_dir / 'score_registration' / 'result_score_registration.pklz')
         ).outputs

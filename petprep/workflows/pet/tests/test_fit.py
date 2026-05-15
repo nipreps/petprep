@@ -943,7 +943,9 @@ def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert any(name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names)
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
+    )
     assert not any(
         name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
     )
@@ -965,7 +967,9 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert any(name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names)
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
     assert any(name.startswith('select_crop_fallback') for name in node_names)
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
@@ -986,7 +990,9 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert any(name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names)
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
     assert not any(name.startswith('select_crop_fallback') for name in node_names)
 
 
