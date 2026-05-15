@@ -852,9 +852,7 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
     }
 
 
-def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(
-    monkeypatch, tmp_path
-):
+def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeypatch, tmp_path):
     """FreeSurfer fallback should report score and synthesize a missing inverse."""
 
     monkeypatch.chdir(tmp_path)
@@ -909,9 +907,7 @@ def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(
     assert Path(result.outputs.best_transform).name == 'best_transform.txt'
     assert Path(result.outputs.best_inv_transform).name == 'best_inv_transform.txt'
     assert Path(result.outputs.best_transform).read_text() == Path(fs_xfm).read_text()
-    assert Path(result.outputs.best_inv_transform).read_text() == Path(
-        synthetic_inv
-    ).read_text()
+    assert Path(result.outputs.best_inv_transform).read_text() == Path(synthetic_inv).read_text()
     assert result.outputs.best_winner == 'freesurfer'
     assert result.outputs.best_score == -0.2
     assert result.outputs.registration_winner == 'freesurfer'
