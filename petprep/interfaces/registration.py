@@ -62,12 +62,7 @@ class PETCoregistrationFallback(SimpleInterface):
                 for score in (self.inputs.cropped_ants_score, self.inputs.cropped_fs_score)
             )
         else:
-            cropped = (
-                self.inputs.cropped_transform,
-                self.inputs.cropped_inv_transform,
-                self.inputs.cropped_winner,
-                self.inputs.cropped_score,
-            )
+            cropped = self._select_cropped_manual()
             should_fallback = not (
                 self.inputs.cropped_score is not None
                 and self.inputs.cropped_score <= self.inputs.fallback_threshold
@@ -77,6 +72,7 @@ class PETCoregistrationFallback(SimpleInterface):
             self._set_results(*cropped, fallback=False, anat_reference='cropped')
             return runtime
 
+        self._require_defined('ref_pet_brain', 'anat_preproc', 'anat_mask')
         uncropped = self._run_uncropped_fallback(runtime.cwd)
         if uncropped[3] is not None and (cropped[3] is None or uncropped[3] < cropped[3]):
             self._set_results(*uncropped, fallback=True, anat_reference='uncropped')
@@ -105,11 +101,20 @@ class PETCoregistrationFallback(SimpleInterface):
             self.inputs.cropped_fs_score,
         )
 
+    def _select_cropped_manual(self):
+        self._require_defined('cropped_transform', 'cropped_inv_transform', 'cropped_score')
+        return (
+            self.inputs.cropped_transform,
+            self.inputs.cropped_inv_transform,
+            self.inputs.cropped_winner,
+            self.inputs.cropped_score,
+        )
+
     def _run_uncropped_fallback(self, cwd):
         import os
+        from pathlib import Path
 
-        from nipype.interfaces import utility as niu
-        from nipype.pipeline import engine as pe
+        from nipype.utils.filemanip import loadpkl
 
         from petprep.workflows.pet.registration import init_pet_reg_wf
 
@@ -127,23 +132,18 @@ class PETCoregistrationFallback(SimpleInterface):
         fallback_wf.inputs.inputnode.anat_preproc = self.inputs.anat_preproc
         fallback_wf.inputs.inputnode.anat_mask = self.inputs.anat_mask
 
-        fallback_summary = pe.Node(
-            niu.IdentityInterface(fields=['xfm', 'inv_xfm', 'winner', 'score']),
-            name='fallback_summary',
-        )
-        fallback_wf.connect([
-            (fallback_wf.get_node('outputnode'), fallback_summary, [
-                ('itk_pet_to_t1', 'xfm'),
-                ('itk_t1_to_pet', 'inv_xfm'),
-                ('registration_winner', 'winner'),
-                ('registration_score', 'score'),
-            ]),
-        ])  # fmt:skip
+        fallback_wf.run(plugin='Linear')
+        fallback_dir = Path(fallback_wf.base_dir) / fallback_wf.name
 
-        execgraph = fallback_wf.run(plugin='Linear')
-        summary_node = next(node for node in execgraph.nodes() if node.name == 'fallback_summary')
-        outputs = summary_node.result.outputs
-        return outputs.xfm, outputs.inv_xfm, outputs.winner, outputs.score
+        if self.inputs.pet2anat_method == 'auto':
+            outputs = loadpkl(str(fallback_dir / 'select_best' / 'result_select_best.pklz')).outputs
+            return outputs.best_xfm, outputs.best_inv_xfm, outputs.winner, outputs.best_score
+
+        xfm_outputs = loadpkl(str(fallback_dir / 'convert_xfm' / 'result_convert_xfm.pklz')).outputs
+        score_outputs = loadpkl(
+            str(fallback_dir / 'score_registration' / 'result_score_registration.pklz')
+        ).outputs
+        return xfm_outputs.out_xfm, xfm_outputs.out_inv, None, score_outputs.similarity
 
     def _set_results(self, xfm, inv_xfm, winner, score, *, fallback, anat_reference):
         self._results['best_transform'] = xfm

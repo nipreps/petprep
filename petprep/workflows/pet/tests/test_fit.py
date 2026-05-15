@@ -752,41 +752,13 @@ def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_pat
     assert result.outputs.registration_score == -0.15
 
 
-class _FakeFallbackExecGraph:
-    def __init__(self):
-        self.summary_node = type('node', (), {})()
-        self.summary_node.name = 'fallback_summary'
-        self.summary_node.result = type('result', (), {})()
-        self.summary_node.result.outputs = type(
-            'outputs',
-            (),
-            {
-                'xfm': 'uncropped.txt',
-                'inv_xfm': 'uncropped_inv.txt',
-                'winner': 'ants',
-                'score': -0.15,
-            },
-        )()
-
-    def nodes(self):
-        return [self.summary_node]
-
-
 class _FakeFallbackWorkflow:
     def __init__(self, calls):
         self.inputs = type('inputs', (), {})()
         self.inputs.inputnode = type('inputnode', (), {})()
         self.calls = calls
         self.base_dir = None
-        self.outputnode = type('node', (), {})()
-
-    def connect(self, connections):
-        self.calls.setdefault('connections', []).extend(connections)
-
-    def get_node(self, name):
-        if name != 'outputnode':
-            raise KeyError(name)
-        return self.outputnode
+        self.name = 'pet_reg_uncropped_fallback_wf'
 
     def run(self, plugin):
         self.calls['plugin'] = plugin
@@ -796,7 +768,7 @@ class _FakeFallbackWorkflow:
             self.inputs.inputnode.anat_preproc,
             self.inputs.inputnode.anat_mask,
         )
-        return _FakeFallbackExecGraph()
+        return None
 
 
 def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_path):
@@ -811,6 +783,25 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
     monkeypatch.setattr(
         'petprep.workflows.pet.registration.init_pet_reg_wf',
         _fake_init_pet_reg_wf,
+    )
+    monkeypatch.setattr(
+        'nipype.utils.filemanip.loadpkl',
+        lambda path: type(
+            'result',
+            (),
+            {
+                'outputs': type(
+                    'outputs',
+                    (),
+                    {
+                        'best_xfm': 'uncropped.txt',
+                        'best_inv_xfm': 'uncropped_inv.txt',
+                        'winner': 'ants',
+                        'best_score': -0.15,
+                    },
+                )(),
+            },
+        )(),
     )
 
     interface = _fallback_interface(
@@ -952,8 +943,10 @@ def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_coreg' in node_names
-    assert 'pet_reg_wf.robust_fov' not in node_names
+    assert any(name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names)
+    assert not any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
@@ -972,8 +965,8 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.robust_fov' in node_names
-    assert 'select_crop_fallback' in node_names
+    assert any(name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names)
+    assert any(name.startswith('select_crop_fallback') for name in node_names)
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
 
@@ -993,8 +986,8 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.robust_fov' in node_names
-    assert 'select_crop_fallback' not in node_names
+    assert any(name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names)
+    assert not any(name.startswith('select_crop_fallback') for name in node_names)
 
 
 def test_pet_fit_adds_manual_uncropped_fallback_selector(bids_root: Path, tmp_path: Path):
