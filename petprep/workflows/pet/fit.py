@@ -1030,9 +1030,11 @@ def init_pet_fit_wf(
             name=name,
             run_without_submitting=True,
         )
-        workflow.connect([
-            (source, provenance, [(field, field) for field in crop_fallback_output_fields]),
-        ])
+        workflow.connect(
+            [
+                (source, provenance, [(field, field) for field in crop_fallback_output_fields]),
+            ]
+        )
         return provenance
 
     if not petref2anat_xform:
