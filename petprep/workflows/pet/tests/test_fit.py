@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 import nibabel as nb
@@ -11,6 +10,7 @@ from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from .... import config, data
+from ....interfaces.registration import PETCoregistrationFallback
 from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
@@ -22,9 +22,6 @@ from ..fit import (
     _extract_twa_image,
     _select_anatomical_reference,
     _select_best_petref,
-    _select_or_run_uncropped_auto_fallback,
-    _select_or_run_uncropped_fallback,
-    _write_fallback_summary,
     _write_identity_xforms,
     init_pet_fit_wf,
     init_pet_native_wf,
@@ -672,66 +669,103 @@ def test_pet_reg_no_crop_removes_robust_fov():
     assert 'crop_anat_mask' in node_names
 
 
-def test_select_or_run_uncropped_fallback_keeps_good_cropped_score():
+def _touch(path):
+    path.write_text('x')
+    return str(path)
+
+
+def _fallback_interface(tmp_path, **inputs):
+    base_inputs = {
+        'ref_pet_brain': _touch(tmp_path / 'petref.nii.gz'),
+        'anat_preproc': _touch(tmp_path / 'anat.nii.gz'),
+        'anat_mask': _touch(tmp_path / 'mask.nii.gz'),
+        'fallback_threshold': -0.05,
+        'pet2anat_dof': 6,
+        'pet2anat_method': 'mri_coreg',
+        'mem_gb': 1.0,
+        'omp_nthreads': 1,
+    }
+    base_inputs.update(inputs)
+    return PETCoregistrationFallback(**base_inputs)
+
+
+def test_pet_coreg_fallback_keeps_good_cropped_score(monkeypatch, tmp_path):
     """Acceptable cropped registration should return before running fallback."""
 
-    selected = _select_or_run_uncropped_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped',
-        'cropped_inv',
-        'freesurfer',
-        -0.15,
-        -0.05,
-        6,
-        'mri_coreg',
-        1,
-        1,
-    )
-    assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.15)
+    def _unexpected_fallback(*args, **kwargs):
+        raise AssertionError('Fallback should not run when cropped score passes.')
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _unexpected_fallback)
+
+    cropped = _touch(tmp_path / 'cropped.txt')
+    cropped_inv = _touch(tmp_path / 'cropped_inv.txt')
+    result = _fallback_interface(
+        tmp_path,
+        cropped_transform=cropped,
+        cropped_inv_transform=cropped_inv,
+        cropped_winner='freesurfer',
+        cropped_score=-0.15,
+    ).run()
+
+    assert result.outputs.best_transform == cropped
+    assert result.outputs.best_inv_transform == cropped_inv
+    assert result.outputs.best_winner == 'freesurfer'
+    assert result.outputs.best_score == -0.15
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
 
 
-def test_write_fallback_summary(monkeypatch, tmp_path):
-    """Fallback summary writer should preserve selected registration outputs."""
+def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
+    """Weak cropped registration should run uncropped fallback and keep better score."""
 
-    monkeypatch.chdir(tmp_path)
+    calls = []
 
-    summary_file = _write_fallback_summary('xfm.txt', 'inv.txt', -0.15, winner='ants')
-
-    assert summary_file == str(tmp_path / 'fallback_summary.json')
-    assert json.loads(Path(summary_file).read_text()) == {
-        'xfm': 'xfm.txt',
-        'inv_xfm': 'inv.txt',
-        'winner': 'ants',
-        'score': -0.15,
-    }
-
-
-def _make_fallback_summary(tmp_path, xfm, inv_xfm, winner, score):
-    summary_file = tmp_path / 'fallback_summary.json'
-    summary_file.write_text(
-        json.dumps(
-            {
-                'xfm': xfm,
-                'inv_xfm': inv_xfm,
-                'winner': winner,
-                'score': score,
-            }
+    def _fake_fallback(self, cwd):
+        calls.append((self.inputs.ref_pet_brain, self.inputs.anat_preproc, self.inputs.anat_mask))
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.15,
         )
-    )
-    return str(summary_file)
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+        sloppy=True,
+    ).run()
+
+    assert len(calls) == 1
+    assert result.outputs.best_winner == 'ants'
+    assert result.outputs.best_score == -0.15
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+    assert result.outputs.registration_winner == 'ants'
+    assert result.outputs.registration_score == -0.15
 
 
 class _FakeFallbackExecGraph:
-    def __init__(self, summary_file):
+    def __init__(self):
         self.summary_node = type('node', (), {})()
         self.summary_node.name = 'fallback_summary'
         self.summary_node.result = type('result', (), {})()
         self.summary_node.result.outputs = type(
             'outputs',
             (),
-            {'summary_file': summary_file},
+            {
+                'xfm': 'uncropped.txt',
+                'inv_xfm': 'uncropped_inv.txt',
+                'winner': 'ants',
+                'score': -0.15,
+            },
         )()
 
     def nodes(self):
@@ -739,67 +773,72 @@ class _FakeFallbackExecGraph:
 
 
 class _FakeFallbackWorkflow:
-    def __init__(self, summary_file, calls=None):
+    def __init__(self, calls):
         self.inputs = type('inputs', (), {})()
         self.inputs.inputnode = type('inputnode', (), {})()
-        self.summary_file = summary_file
-        self.calls = calls if calls is not None else {}
-        self.nodes = {
-            'select_best': type('node', (), {})(),
-            'convert_xfm': type('node', (), {})(),
-            'score_registration': type('node', (), {})(),
-        }
+        self.calls = calls
+        self.base_dir = None
+        self.outputnode = type('node', (), {})()
 
     def connect(self, connections):
         self.calls.setdefault('connections', []).extend(connections)
 
     def get_node(self, name):
-        return self.nodes[name]
+        if name != 'outputnode':
+            raise KeyError(name)
+        return self.outputnode
 
     def run(self, plugin):
         self.calls['plugin'] = plugin
+        self.calls['base_dir'] = self.base_dir
         self.calls['inputs'] = (
             self.inputs.inputnode.ref_pet_brain,
             self.inputs.inputnode.anat_preproc,
             self.inputs.inputnode.anat_mask,
         )
-        return _FakeFallbackExecGraph(self.summary_file)
+        return _FakeFallbackExecGraph()
 
 
-def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
-    """Weak cropped registration should run uncropped fallback and keep better score."""
+def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_path):
+    """Fallback interface should run an uncropped registration workflow lazily."""
 
     calls = {}
-    summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.15)
 
     def _fake_init_pet_reg_wf(**kwargs):
         calls['kwargs'] = kwargs
-        return _FakeFallbackWorkflow(summary_file, calls)
+        return _FakeFallbackWorkflow(calls)
 
     monkeypatch.setattr(
         'petprep.workflows.pet.registration.init_pet_reg_wf',
         _fake_init_pet_reg_wf,
     )
 
-    selected = _select_or_run_uncropped_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped',
-        'cropped_inv',
-        'freesurfer',
-        -0.01,
-        -0.05,
-        6,
-        'auto',
-        1.5,
-        2,
+    interface = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+        mem_gb=1.5,
+        omp_nthreads=2,
         sloppy=True,
     )
 
-    assert selected == ('uncropped', 'uncropped_inv', 'ants', -0.15)
+    assert interface._run_uncropped_fallback(str(tmp_path)) == (
+        'uncropped.txt',
+        'uncropped_inv.txt',
+        'ants',
+        -0.15,
+    )
     assert calls['plugin'] == 'Linear'
-    assert calls['inputs'] == ('petref.nii.gz', 'anat.nii.gz', 'mask.nii.gz')
+    assert calls['inputs'] == (
+        interface.inputs.ref_pet_brain,
+        interface.inputs.anat_preproc,
+        interface.inputs.anat_mask,
+    )
     assert calls['kwargs'] == {
         'pet2anat_dof': 6,
         'mem_gb': 1.5,
@@ -811,150 +850,67 @@ def test_select_or_run_uncropped_fallback_runs_when_cropped_score_is_weak(monkey
     }
 
 
-def test_select_or_run_uncropped_fallback_keeps_cropped_when_uncropped_is_worse(
-    monkeypatch, tmp_path
-):
+def test_pet_coreg_fallback_keeps_cropped_when_uncropped_is_worse(monkeypatch, tmp_path):
     """Weak cropped registration should still win if uncropped score is worse."""
 
-    summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', 'ants', -0.005)
+    def _fake_fallback(self, cwd):
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.005,
+        )
 
-    monkeypatch.setattr(
-        'petprep.workflows.pet.registration.init_pet_reg_wf',
-        lambda **kwargs: _FakeFallbackWorkflow(summary_file),
-    )
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
 
-    selected = _select_or_run_uncropped_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped',
-        'cropped_inv',
-        'freesurfer',
-        -0.01,
-        -0.05,
-        6,
-        'auto',
-        1.5,
-        2,
-    )
+    cropped = _touch(tmp_path / 'cropped.txt')
+    cropped_inv = _touch(tmp_path / 'cropped_inv.txt')
+    result = _fallback_interface(
+        tmp_path,
+        cropped_transform=cropped,
+        cropped_inv_transform=cropped_inv,
+        cropped_winner='freesurfer',
+        cropped_score=-0.01,
+    ).run()
 
-    assert selected == ('cropped', 'cropped_inv', 'freesurfer', -0.01)
-
-
-def test_select_or_run_uncropped_fallback_reads_manual_registration_outputs(monkeypatch, tmp_path):
-    """Manual registration fallback outputs come from convert and score nodes."""
-
-    summary_file = _make_fallback_summary(tmp_path, 'uncropped', 'uncropped_inv', None, -0.15)
-
-    monkeypatch.setattr(
-        'petprep.workflows.pet.registration.init_pet_reg_wf',
-        lambda **kwargs: _FakeFallbackWorkflow(summary_file),
-    )
-
-    selected = _select_or_run_uncropped_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped',
-        'cropped_inv',
-        None,
-        -0.01,
-        -0.05,
-        6,
-        'mri_coreg',
-        1.5,
-        2,
-    )
-
-    assert selected == ('uncropped', 'uncropped_inv', None, -0.15)
+    assert result.outputs.best_transform == cropped
+    assert result.outputs.best_inv_transform == cropped_inv
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
 
 
 @pytest.mark.parametrize(
-    ('ants_score', 'fs_score', 'expected'),
+    ('ants_score', 'fs_score', 'expected_winner'),
     [
-        (-0.15, -0.01, ('cropped_ants', 'cropped_ants_inv', 'ants', -0.15)),
-        (-0.01, -0.15, ('cropped_fs', 'cropped_fs_inv', 'freesurfer', -0.15)),
+        (-0.15, -0.01, 'ants'),
+        (-0.01, -0.15, 'freesurfer'),
     ],
 )
-def test_select_or_run_uncropped_auto_fallback_keeps_cropped_when_one_backend_passes(
-    monkeypatch, ants_score, fs_score, expected
+def test_pet_coreg_auto_fallback_keeps_cropped_when_one_backend_passes(
+    monkeypatch, tmp_path, ants_score, fs_score, expected_winner
 ):
     """Auto fallback should stop when either cropped backend score is acceptable."""
 
     def _unexpected_fallback(*args, **kwargs):
         raise AssertionError('Fallback should not run when one cropped backend passes.')
 
-    monkeypatch.setattr(
-        'petprep.workflows.pet.fit._select_or_run_uncropped_fallback',
-        _unexpected_fallback,
-    )
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _unexpected_fallback)
 
-    selected = _select_or_run_uncropped_auto_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped_ants',
-        'cropped_fs',
-        'cropped_ants_inv',
-        'cropped_fs_inv',
-        ants_score,
-        fs_score,
-        -0.05,
-        6,
-        1.5,
-        2,
-    )
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=ants_score,
+        cropped_fs_score=fs_score,
+    ).run()
 
-    assert selected == expected
-
-
-def test_select_or_run_uncropped_auto_fallback_runs_when_both_backends_fail(monkeypatch):
-    """Auto fallback should rerun uncropped auto only when both cropped scores are weak."""
-
-    calls = []
-
-    def _fake_fallback(*args, **kwargs):
-        calls.append(args)
-        return (
-            'uncropped_auto',
-            'uncropped_inv_auto',
-            'freesurfer',
-            -0.2,
-        )
-
-    monkeypatch.setattr(
-        'petprep.workflows.pet.fit._select_or_run_uncropped_fallback',
-        _fake_fallback,
-    )
-
-    selected = _select_or_run_uncropped_auto_fallback(
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped_ants',
-        'cropped_fs',
-        'cropped_ants_inv',
-        'cropped_fs_inv',
-        -0.01,
-        -0.02,
-        -0.05,
-        6,
-        1.5,
-        2,
-    )
-
-    assert len(calls) == 1
-    assert calls[0][:7] == (
-        'petref.nii.gz',
-        'anat.nii.gz',
-        'mask.nii.gz',
-        'cropped_fs',
-        'cropped_fs_inv',
-        'freesurfer',
-        -0.02,
-    )
-    assert calls[0][9] == 'auto'
-    assert selected == ('uncropped_auto', 'uncropped_inv_auto', 'freesurfer', -0.2)
+    assert result.outputs.best_winner == expected_winner
+    assert result.outputs.best_score == min(ants_score, fs_score)
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
 
 
 def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
@@ -996,8 +952,8 @@ def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf_template.mri_coreg' in node_names
-    assert 'pet_reg_wf_template.robust_fov' not in node_names
+    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert 'pet_reg_wf.robust_fov' not in node_names
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
@@ -1016,8 +972,8 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf_template.robust_fov' in node_names
-    assert 'select_crop_fallback_template' in node_names
+    assert 'pet_reg_wf.robust_fov' in node_names
+    assert 'select_crop_fallback' in node_names
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
 
 
@@ -1037,8 +993,8 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf_template.robust_fov' in node_names
-    assert 'select_crop_fallback_template' not in node_names
+    assert 'pet_reg_wf.robust_fov' in node_names
+    assert 'select_crop_fallback' not in node_names
 
 
 def test_pet_fit_adds_manual_uncropped_fallback_selector(bids_root: Path, tmp_path: Path):

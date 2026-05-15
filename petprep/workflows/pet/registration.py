@@ -140,6 +140,8 @@ def init_pet_reg_wf(
                 'itk_t1_to_pet',
                 'registration_winner',
                 'registration_score',
+                'fallback',
+                'anat_reference',
                 'itk_pet_to_t1_ants',
                 'itk_t1_to_pet_ants',
                 'registration_score_ants',
@@ -152,6 +154,8 @@ def init_pet_reg_wf(
     )
     outputnode.inputs.registration_winner = None
     outputnode.inputs.registration_score = None
+    outputnode.inputs.fallback = False
+    outputnode.inputs.anat_reference = 'cropped' if crop_anat else 'uncropped'
 
     convert_anat = pe.Node(MRIConvert(out_type='niigz'), name='convert_anat')
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
