@@ -15,7 +15,6 @@ from nipype.interfaces.base import (
 
 
 class PETCoregistrationFallbackInputSpec(BaseInterfaceInputSpec):
-    interface_version = traits.Str('6', usedefault=True)
     ref_pet_brain = File(exists=True, mandatory=True)
     anat_preproc = File(exists=True, mandatory=True)
     anat_mask = File(exists=True, mandatory=True)
