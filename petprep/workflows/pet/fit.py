@@ -518,6 +518,10 @@ def init_pet_fit_wf(
         niu.IdentityInterface(fields=['petref', 'pet_file']),
         name='petref_buffer',
     )
+    anatref_petref_buffer = pe.Node(
+        niu.IdentityInterface(fields=['petref']),
+        name='anatref_petref_buffer',
+    )
     hmc_buffer = pe.Node(niu.IdentityInterface(fields=['hmc_xforms']), name='hmc_buffer')
 
     timing_parameters = prepare_timing_parameters(metadata)
@@ -708,6 +712,7 @@ def init_pet_fit_wf(
         config.loggers.workflow.debug('3D PET file - motion correction not needed')
     if petref:
         petref_buffer.inputs.petref = petref
+        anatref_petref_buffer.inputs.petref = petref
         config.loggers.workflow.debug(f'(Re)using motion correction reference: {petref}')
     if hmc_xforms:
         hmc_buffer.inputs.hmc_xforms = hmc_xforms
@@ -820,9 +825,10 @@ def init_pet_fit_wf(
         ])  # fmt:skip
 
         if petref_strategy == 'auto':
-            workflow.connect(
-                [(pet_hmc_wf, petref_candidates, [('outputnode.petref', 'template')])]
-            )
+            workflow.connect([
+                (pet_hmc_wf, petref_candidates, [('outputnode.petref', 'template')]),
+                (pet_hmc_wf, anatref_petref_buffer, [('outputnode.petref', 'petref')]),
+            ])  # fmt:skip
         elif use_corrected_reference:
             workflow.connect([
                 (pet_hmc_wf, corrected_pet_for_report, [('outputnode.petref', 'ref_file')]),
@@ -830,9 +836,13 @@ def init_pet_fit_wf(
                 (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
                 (corrected_pet_for_report, corrected_reference, [('out_file', 'pet_file')]),
                 (corrected_reference, petref_buffer, [('out_file', 'petref')]),
+                (corrected_reference, anatref_petref_buffer, [('out_file', 'petref')]),
             ])  # fmt:skip
         else:
-            workflow.connect([(pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')])])
+            workflow.connect([
+                (pet_hmc_wf, petref_buffer, [('outputnode.petref', 'petref')]),
+                (pet_hmc_wf, anatref_petref_buffer, [('outputnode.petref', 'petref')]),
+            ])  # fmt:skip
 
         if petref_strategy == 'auto' and use_corrected_reference:
             workflow.connect([
@@ -888,10 +898,12 @@ def init_pet_fit_wf(
                     (hmc_buffer, corrected_pet_for_report, [('hmc_xforms', 'transforms')]),
                     (corrected_pet_for_report, corrected_reference, [('out_file', 'pet_file')]),
                     (corrected_reference, petref_buffer, [('out_file', 'petref')]),
+                    (corrected_reference, anatref_petref_buffer, [('out_file', 'petref')]),
                 ]
             )  # fmt:skip
         else:
             petref_buffer.inputs.petref = petref
+            anatref_petref_buffer.inputs.petref = petref
 
         if report_pet_reference:
             workflow.connect([
@@ -953,7 +965,7 @@ def init_pet_fit_wf(
 
     workflow.connect(
         [
-            (petref_buffer, petref_mask, [('petref', 'in_file')]),
+            (anatref_petref_buffer, petref_mask, [('petref', 'in_file')]),
             (petref_mask, detect_large_mask, [('out', 'pet_mask')]),
             (inputnode, detect_large_mask, [('t1w_mask', 't1w_mask')]),
             (inputnode, nu_path, [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')]),
@@ -1031,10 +1043,8 @@ def init_pet_fit_wf(
                 label_src.inputs.label = label
 
                 workflow.connect([
-                    (inputnode, reg_wf, [
-                        ('t1w_preproc', 'inputnode.anat_preproc'),
-                        ('t1w_mask', 'inputnode.anat_mask'),
-                    ]),
+                    (inputnode, reg_wf, [('t1w_mask', 'inputnode.anat_mask')]),
+                    (select_anat_ref, reg_wf, [('anat_preproc', 'inputnode.anat_preproc')]),
                     (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
                     (reg_wf, score_merge, [(
                         'outputnode.registration_score', f'in{idx + 1}'
@@ -1106,10 +1116,8 @@ def init_pet_fit_wf(
             )
 
             workflow.connect([
-                (inputnode, pet_reg_wf, [
-                    ('t1w_preproc', 'inputnode.anat_preproc'),
-                    ('t1w_mask', 'inputnode.anat_mask'),
-                ]),
+                (inputnode, pet_reg_wf, [('t1w_mask', 'inputnode.anat_mask')]),
+                (select_anat_ref, pet_reg_wf, [('anat_preproc', 'inputnode.anat_preproc')]),
                 (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),

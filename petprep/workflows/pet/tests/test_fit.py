@@ -26,6 +26,7 @@ from ..fit import (
     init_pet_native_wf,
 )
 from ..outputs import init_refmask_report_wf
+from ..registration import init_pet_reg_wf
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -979,6 +980,52 @@ def test_volume_ratio_forwarded_to_summary(bids_root: Path, tmp_path: Path):
     edge = wf._graph.get_edge_data(detect_large_mask, summary)
     assert ('volume_ratio', 'volume_ratio') in edge['connect']
     assert detect_large_mask.inputs.volume_ratio_threshold == 1.5
+
+
+def test_selected_anat_ref_feeds_coregistration(bids_root: Path, tmp_path: Path):
+    """The selected anatomical reference should feed the PET registration workflow."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'twa'
+        wf = init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={'transforms': {}},
+            omp_nthreads=1,
+        )
+
+    select_anat_ref = wf.get_node('select_anat_ref')
+    pet_reg_wf = wf.get_node('pet_reg_wf')
+    inputnode = wf.get_node('inputnode')
+
+    selected_edge = wf._graph.get_edge_data(select_anat_ref, pet_reg_wf)
+    assert ('anat_preproc', 'inputnode.anat_preproc') in selected_edge['connect']
+
+    input_edge = wf._graph.get_edge_data(inputnode, pet_reg_wf)
+    assert ('t1w_mask', 'inputnode.anat_mask') in input_edge['connect']
+    assert ('t1w_preproc', 'inputnode.anat_preproc') not in input_edge['connect']
+
+
+def test_pet_registration_converts_anat_to_ras():
+    """The anatomical registration reference should be RAS-oriented before cropping."""
+
+    wf = init_pet_reg_wf(
+        pet2anat_dof=6,
+        mem_gb=1,
+        omp_nthreads=1,
+        pet2anat_method='mri_coreg',
+    )
+
+    convert_anat = wf.get_node('convert_anat')
+    assert convert_anat.inputs.out_orientation == 'RAS'
 
 
 def test_init_refmask_report_wf(tmp_path: Path):
