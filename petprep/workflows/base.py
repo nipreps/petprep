@@ -264,12 +264,7 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
     from petprep.workflows.pet.base import init_pet_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
-    if session_id is None:
-        ses_str = None
-    elif isinstance(session_id, str):
-        ses_str = session_id.removeprefix('ses-')
-    else:
-        ses_str = '_'.join(session.removeprefix('ses-') for session in session_id)
+    ses_str = _stringify_sessions(session_id)
     workflow = Workflow(
         name='_'.join(['sub', subject_id, *(('ses', ses_str) if ses_str else ()), 'wf'])
     )

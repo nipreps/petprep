@@ -243,14 +243,14 @@ def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_
     assert any(name.startswith('sub_01_ses_02_wf.') for name in node_names)
     assert not any(name.startswith('sub_01_wf.') for name in node_names)
     assert [call.kwargs['session_id'] for call in collect_derivs.call_args_list] == ['01', '02']
-    for node in wf._get_all_nodes():
-        if 'sub_01_ses_01_wf' in node.fullname:
-            assert node.config['execution']['crashdump_dir'] == str(
-                petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid
-            )
-            break
-    else:
-        raise AssertionError('Could not find sub_01_ses_01_wf node')
+    session_node = next(
+        (node for node in wf._get_all_nodes() if 'sub_01_ses_01_wf' in node.fullname),
+        None,
+    )
+    assert session_node is not None
+    assert session_node.config['execution']['crashdump_dir'] == str(
+        petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid
+    )
 
 
 def test_subject_fs_id_evaluates_as_nipype_connection_function():
@@ -270,12 +270,21 @@ def test_fix_multi_source_name_keeps_session_only_when_requested():
         '/path/to/sub-976/ses-01/anat/sub-976_ses-01_run-2_T1w.nii.gz',
     ]
 
+    assert evaluate_connect_function(source, [None], t1w_files[0]) == t1w_files[0]
     assert evaluate_connect_function(source, [None], t1w_files) == (
         '/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz'
     )
     assert evaluate_connect_function(source, ['ses-01'], t1w_files) == (
         '/path/to/sub-976/ses-01/anat/sub-976_ses-01_T1w.nii.gz'
     )
+    assert evaluate_connect_function(source, [['ses-01', '02']], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_02_T1w.nii.gz'
+    )
+
+
+def test_fix_multi_source_name_rejects_non_bids_name():
+    with pytest.raises(AttributeError, match='Could not extract BIDS information'):
+        _fix_multi_source_name(['/path/to/anat/T1w.nii.gz'])
 
 
 def test_subject_id_helpers():
