@@ -17,6 +17,7 @@ from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _fix_multi_source_name,
     _fmt_group,
     _prefix,
     _session_bids_filters,
@@ -232,12 +233,24 @@ def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_
         config.execution.derivatives = {'petprep': tmp_path}
         with patch('smriprep.utils.bids.collect_derivatives', return_value={}) as collect_derivs:
             wf = init_petprep_wf()
+            petprep_dir = config.execution.petprep_dir
+            run_uuid = config.execution.run_uuid
+            assert (petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid / 'petprep.toml').exists()
+            assert (petprep_dir / 'sub-01' / 'ses-02' / 'log' / run_uuid / 'petprep.toml').exists()
 
     node_names = wf.list_node_names()
     assert any(name.startswith('sub_01_ses_01_wf.') for name in node_names)
     assert any(name.startswith('sub_01_ses_02_wf.') for name in node_names)
     assert not any(name.startswith('sub_01_wf.') for name in node_names)
     assert [call.kwargs['session_id'] for call in collect_derivs.call_args_list] == ['01', '02']
+    for node in wf._get_all_nodes():
+        if 'sub_01_ses_01_wf' in node.fullname:
+            assert node.config['execution']['crashdump_dir'] == str(
+                petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid
+            )
+            break
+    else:
+        raise AssertionError('Could not find sub_01_ses_01_wf node')
 
 
 def test_subject_fs_id_evaluates_as_nipype_connection_function():
@@ -247,6 +260,21 @@ def test_subject_fs_id_evaluates_as_nipype_connection_function():
     assert evaluate_connect_function(source, ['wave1'], '976') == 'sub-976_ses-wave1'
     assert evaluate_connect_function(source, [['ses-01', 'ses-02']], 'sub-976') == (
         'sub-976_ses-01_02'
+    )
+
+
+def test_fix_multi_source_name_keeps_session_only_when_requested():
+    source = inspect.getsource(_fix_multi_source_name)
+    t1w_files = [
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_run-1_T1w.nii.gz',
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_run-2_T1w.nii.gz',
+    ]
+
+    assert evaluate_connect_function(source, [None], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz'
+    )
+    assert evaluate_connect_function(source, ['ses-01'], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_T1w.nii.gz'
     )
 
 

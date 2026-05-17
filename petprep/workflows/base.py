@@ -188,9 +188,12 @@ def init_petprep_wf():
             session_id=session_id if sessionwise else None,
         )
 
-        single_subject_wf.config['execution']['crashdump_dir'] = str(
-            config.execution.petprep_dir / f'sub-{subject_id}' / 'log' / config.execution.run_uuid
-        )
+        log_dir = config.execution.petprep_dir / f'sub-{subject_id}'
+        if sessionwise and session_id is not None:
+            log_dir /= f'ses-{_stringify_sessions(session_id)}'
+        log_dir = log_dir / 'log' / config.execution.run_uuid
+
+        single_subject_wf.config['execution']['crashdump_dir'] = str(log_dir)
         for node in single_subject_wf._get_all_nodes():
             node.config = deepcopy(single_subject_wf.config)
         if freesurfer:
@@ -199,9 +202,6 @@ def init_petprep_wf():
             petprep_wf.add_nodes([single_subject_wf])
 
         # Dump a copy of the config file into the log directory
-        log_dir = (
-            config.execution.petprep_dir / f'sub-{subject_id}' / 'log' / config.execution.run_uuid
-        )
         log_dir.mkdir(exist_ok=True, parents=True)
         config.to_filename(log_dir / 'petprep.toml')
 
@@ -245,7 +245,6 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.interfaces.utility import KeySelect
     from niworkflows.utils.bids import collect_data
-    from niworkflows.utils.misc import fix_multi_T1w_source_name
     from niworkflows.utils.spaces import Reference
     from smriprep.workflows.anatomical import init_anat_fit_wf
     from smriprep.workflows.outputs import (
@@ -265,7 +264,12 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
     from petprep.workflows.pet.base import init_pet_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
-    ses_str = _stringify_sessions(session_id)
+    if session_id is None:
+        ses_str = None
+    elif isinstance(session_id, str):
+        ses_str = session_id.removeprefix('ses-')
+    else:
+        ses_str = '_'.join(session.removeprefix('ses-') for session in session_id)
     workflow = Workflow(
         name='_'.join(['sub', subject_id, *(('ses', ses_str) if ses_str else ()), 'wf'])
     )
@@ -439,17 +443,17 @@ It is released under the [CC0]\
             f'No T1w image found; using precomputed T1w image: {anatomical_cache["t1w_preproc"]}'
         )
         workflow.connect([
-            (bidssrc, bids_info, [(('pet', fix_multi_T1w_source_name), 'in_file')]),
+            (bidssrc, bids_info, [(('pet', _fix_multi_source_name, session_id), 'in_file')]),
             (anat_fit_wf, summary, [('outputnode.t1w_preproc', 't1w')]),
             (anat_fit_wf, ds_report_summary, [('outputnode.t1w_preproc', 'source_file')]),
             (anat_fit_wf, ds_report_about, [('outputnode.t1w_preproc', 'source_file')]),
         ])  # fmt:skip
     else:
         workflow.connect([
-            (bidssrc, bids_info, [(('t1w', fix_multi_T1w_source_name), 'in_file')]),
+            (bidssrc, bids_info, [(('t1w', _fix_multi_source_name, session_id), 'in_file')]),
             (bidssrc, summary, [('t1w', 't1w')]),
-            (bidssrc, ds_report_summary, [(('t1w', fix_multi_T1w_source_name), 'source_file')]),
-            (bidssrc, ds_report_about, [(('t1w', fix_multi_T1w_source_name), 'source_file')]),
+            (bidssrc, ds_report_summary, [(('t1w', _fix_multi_source_name, session_id), 'source_file')]),
+            (bidssrc, ds_report_about, [(('t1w', _fix_multi_source_name, session_id), 'source_file')]),
         ])  # fmt:skip
 
     workflow.connect([
@@ -786,6 +790,35 @@ def _stringify_sessions(session_id):
     if isinstance(session_id, str):
         return session_id.removeprefix('ses-')
     return '_'.join(session.removeprefix('ses-') for session in session_id)
+
+
+def _fix_multi_source_name(in_files, session_id=None):
+    """Create a representative source name, retaining session labels when appropriate."""
+    import re
+    from pathlib import Path
+
+    from nipype.utils.filemanip import filename_to_list
+
+    if not isinstance(in_files, tuple | list):
+        return in_files
+
+    p = Path(filename_to_list(in_files)[0])
+    subj = re.search(r'(?<=^sub-)[a-zA-Z0-9]+', p.name)
+    suffix = re.search(r'(?<=_)\w+(?=\.)', p.name)
+    if subj is None or suffix is None:
+        raise AttributeError('Could not extract BIDS information')
+
+    prefix = f'sub-{subj.group()}'
+    if session_id is None:
+        ses_str = None
+    elif isinstance(session_id, str):
+        ses_str = session_id.removeprefix('ses-')
+    else:
+        ses_str = '_'.join(session.removeprefix('ses-') for session in session_id)
+    if ses_str:
+        prefix += f'_ses-{ses_str}'
+
+    return str(p.parent / f'{prefix}_{suffix.group()}.nii.gz')
 
 
 def _subject_fs_id(subid, session_id=None):
