@@ -271,9 +271,7 @@ def test_fix_multi_source_name_keeps_session_only_when_requested():
     ]
 
     assert _fix_multi_source_name(t1w_files[0]) == t1w_files[0]
-    assert _fix_multi_source_name(t1w_files) == (
-        '/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz'
-    )
+    assert _fix_multi_source_name(t1w_files) == ('/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz')
     assert _fix_multi_source_name(t1w_files, 'ses-01') == (
         '/path/to/sub-976/ses-01/anat/sub-976_ses-01_T1w.nii.gz'
     )
