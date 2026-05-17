@@ -898,12 +898,30 @@ def test_select_anatomical_reference_prefers_nu(tmp_path: Path):
     nb.Nifti1Image(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(t1)
 
     nu = tmp_path / 'nu.mgz'
-    nb.MGHImage(np.ones((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(nu)
+    lia_affine = np.array(
+        [
+            [-1, 0, 0, 0],
+            [0, 0, 1, 0],
+            [0, -1, 0, 0],
+            [0, 0, 0, 1],
+        ],
+        dtype=float,
+    )
+    nb.MGHImage(np.ones((2, 2, 2), dtype=np.float32), lia_affine).to_filename(nu)
 
-    selected, label = _select_anatomical_reference('nu', str(t1), str(nu), False)
+    cwd = Path.cwd()
+    try:
+        import os
+
+        os.chdir(tmp_path)
+        selected, label = _select_anatomical_reference('nu', str(t1), str(nu), False)
+    finally:
+        os.chdir(cwd)
 
     assert label == 'nu'
-    assert selected == str(nu)
+    assert Path(selected).name == 'nu_ras.nii.gz'
+    assert nb.aff2axcodes(nb.load(nu).affine) == ('L', 'I', 'A')
+    assert nb.aff2axcodes(nb.load(selected).affine) == ('R', 'A', 'S')
 
 
 def test_select_anatomical_reference_fallback(tmp_path: Path):
@@ -1014,18 +1032,21 @@ def test_selected_anat_ref_feeds_coregistration(bids_root: Path, tmp_path: Path)
     assert ('t1w_preproc', 'inputnode.anat_preproc') not in input_edge['connect']
 
 
-def test_pet_registration_converts_anat_to_ras():
-    """The anatomical registration reference should be RAS-oriented before cropping."""
+def test_pet_auto_registration_crops_selected_anat_ref():
+    """Auto registration should crop the anatomical reference selected upstream."""
 
     wf = init_pet_reg_wf(
         pet2anat_dof=6,
         mem_gb=1,
         omp_nthreads=1,
-        pet2anat_method='mri_coreg',
+        pet2anat_method='auto',
     )
 
-    convert_anat = wf.get_node('convert_anat')
-    assert convert_anat.inputs.out_orientation == 'RAS'
+    inputnode = wf.get_node('inputnode')
+    robust_fov = wf.get_node('robust_fov')
+
+    input_edge = wf._graph.get_edge_data(inputnode, robust_fov)
+    assert ('anat_preproc', 'in_file') in input_edge['connect']
 
 
 def test_init_refmask_report_wf(tmp_path: Path):

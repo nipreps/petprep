@@ -334,7 +334,16 @@ def _select_anatomical_reference(
                 raise FileNotFoundError(message)
             log.warning(message + ' Falling back to the preprocessed T1w image.')
         else:
-            selected = str(nu_candidate)
+            import nibabel as nb
+
+            out_file = Path.cwd() / f'{nu_candidate.stem}_ras.nii.gz'
+            nu_img = nb.as_closest_canonical(nb.load(nu_candidate))
+            nb.Nifti1Image(
+                nu_img.get_fdata(dtype='float32'),
+                nu_img.affine,
+                nu_img.header,
+            ).to_filename(out_file)
+            selected = str(out_file)
             used_label = 'nu'
 
     log.info('Using %s as anatomical reference for PET-to-T1w registration.', used_label)
