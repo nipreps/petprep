@@ -364,7 +364,9 @@ class SegmentWM(SimpleInterface):
 class SegmentCCInputSpec(BaseInterfaceInputSpec):
     subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
     subject_id = traits.Str(mandatory=True, desc='Subject identifier')
-    aseg_file = traits.Str('aseg.mgz', usedefault=True, desc='Input aseg volume in subject mri dir')
+    aseg_file = traits.Str(
+        'aseg.mgz', usedefault=True, desc='Input aseg volume in subject mri dir'
+    )
     out_file = traits.Str(
         'aseg.auto_CCseg.mgz',
         usedefault=True,
