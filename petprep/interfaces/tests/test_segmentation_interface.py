@@ -92,12 +92,17 @@ def test_segmentwm_stdout_stderr(monkeypatch, tmp_path):
 
 
 def test_segmentcc_stdout_stderr_and_command(monkeypatch, tmp_path):
+    lta_file = tmp_path / 'cc.lta'
     seg = SegmentCC(
         subjects_dir=str(tmp_path),
         subject_id='sub-01',
+        lta_file=str(lta_file),
+        include_fornix=True,
         force=True,
         subdivisions=5,
         thickness=2,
+        skip=3,
+        max_rotation=4.5,
     )
     monkeypatch.setattr(SegmentCC, '_run_command', _fake_cc_run)
     res = seg.run()
@@ -105,6 +110,7 @@ def test_segmentcc_stdout_stderr_and_command(monkeypatch, tmp_path):
     assert res.outputs.stdout == 'cc out'
     assert res.outputs.stderr == 'cc err'
     assert Path(res.outputs.out_file) == tmp_path / 'sub-01' / 'mri' / 'aseg.auto_CCseg.mgz'
+    assert Path(res.outputs.lta_file) == lta_file
     assert seg._cmd == [
         'mri_cc',
         '-aseg',
@@ -113,13 +119,37 @@ def test_segmentcc_stdout_stderr_and_command(monkeypatch, tmp_path):
         'aseg.auto_CCseg.mgz',
         '-sdir',
         str(tmp_path),
+        '-lta',
+        str(lta_file),
+        '-f',
         '-force',
         '-d',
         '5',
         '-t',
         '2',
+        '-s',
+        '3',
+        '-m',
+        '4.5',
         'sub-01',
     ]
+
+
+def test_segmentcc_run_command(monkeypatch, tmp_path):
+    seg = SegmentCC(subjects_dir=str(tmp_path), subject_id='sub-01')
+
+    def _fake_subprocess_run(cmd, capture_output, text):
+        assert cmd == ['mri_cc', 'sub-01']
+        assert capture_output is True
+        assert text is True
+        return SimpleNamespace(stdout='cc out', stderr='cc err')
+
+    monkeypatch.setattr('subprocess.run', _fake_subprocess_run)
+
+    stdout, stderr = seg._run_command(['mri_cc', 'sub-01'])
+
+    assert stdout == 'cc out'
+    assert stderr == 'cc err'
 
 
 def test_set_freesurfer_seed_runtime():
@@ -229,16 +259,19 @@ def test_segmentcc_skips_when_output_exists(monkeypatch, tmp_path):
     subj_dir = tmp_path / 'sub-01' / 'mri'
     subj_dir.mkdir(parents=True)
     (subj_dir / 'aseg.auto_CCseg.mgz').write_text('')
+    calls = {'run': 0}
 
-    def _raise_if_called(*_args, **_kwargs):
-        raise AssertionError('Corpus callosum command should not run when output exists.')
+    def _record_call(*_args, **_kwargs):
+        calls['run'] += 1
+        return 'cc out', 'cc err'
 
-    monkeypatch.setattr(SegmentCC, '_run_command', _raise_if_called)
+    monkeypatch.setattr(SegmentCC, '_run_command', _record_call)
 
     seg = SegmentCC(subjects_dir=str(tmp_path), subject_id='sub-01')
     res = seg.run()
 
     assert res.runtime.returncode == 0
+    assert calls['run'] == 0
     assert Path(res.outputs.out_file) == subj_dir / 'aseg.auto_CCseg.mgz'
 
 
