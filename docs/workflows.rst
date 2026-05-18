@@ -537,10 +537,16 @@ Segmentation workflows
 *PETPrep* ships with optional segmentation routines that can be selected via
 the ``--seg`` command-line argument. Supported values include ``gtm`` (the
 default), ``brainstem``, ``thalamicNuclei``, ``hippocampusAmygdala``, ``wm``,
-``raphe`` and ``limbic``. Atlas-based segmentations may also be selected with
-``--seg``; these include ``HOCPA``, ``MASSP20`` and the
+``cc``, ``raphe`` and ``limbic``. Atlas-based segmentations may also be
+selected with ``--seg``; these include ``HOCPA``, ``MASSP20`` and the
 ``Schaefer2018<N>Parcels7Networks`` and
 ``Schaefer2018<N>Parcels17Networks`` variants described in :doc:`usage`.
+
+The ``cc`` workflow wraps FreeSurfer's ``mri_cc`` command. It reads the
+subject's ``aseg.mgz`` from the FreeSurfer ``mri/`` directory, writes an
+``aseg.auto_CCseg.mgz`` volume with the corpus callosum subdivisions, and then
+converts the result to the standard *PETPrep* segmentation derivatives. The
+five output labels correspond to the FreeSurfer corpus callosum labels 251-255.
 
 Tool-based segmentations rely on pretrained models distributed with
 ``petprep.data.segmentation``. The first time a particular model is requested it

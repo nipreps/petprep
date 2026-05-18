@@ -17,6 +17,7 @@ from ...interfaces.bids import BIDSURI
 from ...interfaces.segmentation import (
     MRISclimbicSeg,
     SegmentBS,
+    SegmentCC,
     SegmentGTM,
     SegmentHA_T1,
     SegmentThalamicNuclei,
@@ -95,6 +96,11 @@ SEGMENTATIONS = {
     'wm': {
         'interface': SegmentWM,
         'desc': 'whiteMatter',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
+    'cc': {
+        'interface': SegmentCC,
+        'desc': 'cc',
         'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
     },
     'raphe': {

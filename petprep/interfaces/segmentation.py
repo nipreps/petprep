@@ -361,6 +361,82 @@ class SegmentWM(SimpleInterface):
         return proc.stdout, proc.stderr
 
 
+class SegmentCCInputSpec(BaseInterfaceInputSpec):
+    subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
+    subject_id = traits.Str(mandatory=True, desc='Subject identifier')
+    aseg_file = traits.Str('aseg.mgz', usedefault=True, desc='Input aseg volume in subject mri dir')
+    out_file = traits.Str(
+        'aseg.auto_CCseg.mgz',
+        usedefault=True,
+        desc='Output aseg volume including corpus callosum labels',
+    )
+    lta_file = traits.Str(desc='Write rotation LTA to this filename')
+    include_fornix = traits.Bool(desc='Include fornix in segmentation')
+    force = traits.Bool(desc='Process regardless of existing CC labels in input')
+    subdivisions = traits.Int(desc='Number of corpus callosum segments')
+    thickness = traits.Int(desc='Distance in mm to extend CC off the midline')
+    skip = traits.Int(desc='Number of voxels to skip in rotational alignment')
+    max_rotation = traits.Float(desc='Maximum rotation search in degrees')
+
+
+class SegmentCCOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='Aseg volume including corpus callosum labels')
+    lta_file = File(desc='Rotation LTA written by mri_cc')
+    stdout = traits.Str(desc='Standard output')
+    stderr = traits.Str(desc='Standard error output')
+
+
+class SegmentCC(SimpleInterface):
+    """Run ``mri_cc`` unless the corpus callosum segmentation already exists."""
+
+    input_spec = SegmentCCInputSpec
+    output_spec = SegmentCCOutputSpec
+
+    def _run_interface(self, runtime):
+        subj_dir = Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri'
+        out_file = subj_dir / self.inputs.out_file
+
+        if not out_file.exists():
+            cmd = [
+                'mri_cc',
+                '-aseg',
+                self.inputs.aseg_file,
+                '-o',
+                self.inputs.out_file,
+                '-sdir',
+                str(self.inputs.subjects_dir),
+            ]
+
+            if isdefined(self.inputs.lta_file):
+                cmd += ['-lta', self.inputs.lta_file]
+            if self.inputs.include_fornix:
+                cmd.append('-f')
+            if self.inputs.force:
+                cmd.append('-force')
+            if isdefined(self.inputs.subdivisions):
+                cmd += ['-d', str(self.inputs.subdivisions)]
+            if isdefined(self.inputs.thickness):
+                cmd += ['-t', str(self.inputs.thickness)]
+            if isdefined(self.inputs.skip):
+                cmd += ['-s', str(self.inputs.skip)]
+            if isdefined(self.inputs.max_rotation):
+                cmd += ['-m', str(self.inputs.max_rotation)]
+
+            cmd.append(self.inputs.subject_id)
+            self._results['stdout'], self._results['stderr'] = self._run_command(cmd)
+        else:
+            runtime.returncode = 0
+
+        self._results['out_file'] = str(out_file)
+        if isdefined(self.inputs.lta_file):
+            self._results['lta_file'] = str(Path(self.inputs.lta_file).absolute())
+        return runtime
+
+    def _run_command(self, cmd):
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        return proc.stdout, proc.stderr
+
+
 class SegmentGTM(GTMSeg):
     """Run ``gtmseg`` unless outputs already exist."""
 

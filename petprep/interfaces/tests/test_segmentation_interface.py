@@ -5,6 +5,7 @@ from ... import config
 from ..segmentation import (
     MRISclimbicSeg,
     SegmentBS,
+    SegmentCC,
     SegmentGTM,
     SegmentHA_T1,
     SegmentThalamicNuclei,
@@ -62,6 +63,14 @@ def _fake_wm_run(self, cmd):
     return 'wm out', 'wm err'
 
 
+def _fake_cc_run(self, cmd):
+    subj_dir = Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri'
+    subj_dir.mkdir(parents=True, exist_ok=True)
+    (subj_dir / self.inputs.out_file).write_text('')
+    self._cmd = cmd
+    return 'cc out', 'cc err'
+
+
 def test_segmentbs_stdout_stderr(monkeypatch, tmp_path):
     seg = SegmentBS(subjects_dir=str(tmp_path), subject_id='sub-01')
     monkeypatch.setattr(SegmentBS, '_run_command', _fake_bs_run)
@@ -80,6 +89,37 @@ def test_segmentwm_stdout_stderr(monkeypatch, tmp_path):
     res = seg.run()
     assert res.outputs.stdout == 'wm out'
     assert res.outputs.stderr == 'wm err'
+
+
+def test_segmentcc_stdout_stderr_and_command(monkeypatch, tmp_path):
+    seg = SegmentCC(
+        subjects_dir=str(tmp_path),
+        subject_id='sub-01',
+        force=True,
+        subdivisions=5,
+        thickness=2,
+    )
+    monkeypatch.setattr(SegmentCC, '_run_command', _fake_cc_run)
+    res = seg.run()
+
+    assert res.outputs.stdout == 'cc out'
+    assert res.outputs.stderr == 'cc err'
+    assert Path(res.outputs.out_file) == tmp_path / 'sub-01' / 'mri' / 'aseg.auto_CCseg.mgz'
+    assert seg._cmd == [
+        'mri_cc',
+        '-aseg',
+        'aseg.mgz',
+        '-o',
+        'aseg.auto_CCseg.mgz',
+        '-sdir',
+        str(tmp_path),
+        '-force',
+        '-d',
+        '5',
+        '-t',
+        '2',
+        'sub-01',
+    ]
 
 
 def test_set_freesurfer_seed_runtime():
@@ -183,6 +223,23 @@ def test_segment_thalamic_skips_when_outputs_exist(monkeypatch, tmp_path):
     assert res.runtime.returncode == 0
     assert Path(res.outputs.out_file) == subj_dir / 'ThalamicNuclei.v13.T1.FSvoxelSpace.mgz'
     assert Path(res.outputs.volumes_file) == subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt'
+
+
+def test_segmentcc_skips_when_output_exists(monkeypatch, tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    (subj_dir / 'aseg.auto_CCseg.mgz').write_text('')
+
+    def _raise_if_called(*_args, **_kwargs):
+        raise AssertionError('Corpus callosum command should not run when output exists.')
+
+    monkeypatch.setattr(SegmentCC, '_run_command', _raise_if_called)
+
+    seg = SegmentCC(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert res.runtime.returncode == 0
+    assert Path(res.outputs.out_file) == subj_dir / 'aseg.auto_CCseg.mgz'
 
 
 def test_segmentha_t1_skip_and_filename(tmp_path):

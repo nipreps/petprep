@@ -649,6 +649,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         'thalamicNuclei',
         'hippocampusAmygdala',
         'wm',
+        'cc',
         'raphe',
         'limbic',
         *sorted(atlas_config.keys()),

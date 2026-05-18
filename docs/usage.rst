@@ -284,13 +284,21 @@ Segmentation
 ------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
+Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``cc`` (corpus callosum), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
+The ``cc`` segmentation runs FreeSurfer's ``mri_cc`` on the subject's
+``aseg.mgz`` and divides the corpus callosum into five labels:
+``CC_Posterior`` (251), ``CC_Mid_Posterior`` (252), ``CC_Central`` (253),
+``CC_Mid_Anterior`` (254), and ``CC_Anterior`` (255).
 
 To run the segmentation with the default ``gtm`` method, use: ::
 
     $ petprep /data/bids_root /out participant --seg gtm 
+
+To run corpus callosum segmentation, use: ::
+
+    $ petprep /data/bids_root /out participant --seg cc
 
 Atlas Segmentation
 ------------------
