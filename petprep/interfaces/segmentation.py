@@ -361,6 +361,35 @@ class SegmentWM(SimpleInterface):
         return proc.stdout, proc.stderr
 
 
+class SegmentAparcAsegInputSpec(BaseInterfaceInputSpec):
+    subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
+    subject_id = traits.Str(mandatory=True, desc='Subject identifier')
+
+
+class SegmentAparcAsegOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='FreeSurfer aparc+aseg segmentation')
+
+
+class SegmentAparcAseg(SimpleInterface):
+    """Expose the existing FreeSurfer ``aparc+aseg.mgz`` segmentation."""
+
+    input_spec = SegmentAparcAsegInputSpec
+    output_spec = SegmentAparcAsegOutputSpec
+
+    def _run_interface(self, runtime):
+        out_file = (
+            Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri' / 'aparc+aseg.mgz'
+        )
+        if not out_file.exists():
+            raise FileNotFoundError(
+                f'FreeSurfer aparc+aseg segmentation not found: {out_file}'
+            )
+
+        runtime.returncode = 0
+        self._results['out_file'] = str(out_file)
+        return runtime
+
+
 class SegmentGTM(GTMSeg):
     """Run ``gtmseg`` unless outputs already exist."""
 

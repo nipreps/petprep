@@ -5,6 +5,7 @@ import nibabel as nb
 import numpy as np
 from nipype.pipeline import engine as pe
 
+from ...data import load as load_data
 from ..reference_mask import ExtractRefRegion
 
 
@@ -147,3 +148,31 @@ def test_extract_refregion_gm_threshold(tmp_path):
     out = nb.load(res.outputs.refmask_file).get_fdata()
     assert out.sum() == 1
     assert out[2, 2, 2] == 1
+
+
+def test_extract_refregion_cc_from_aparcaseg_config(tmp_path):
+    data = np.zeros((5, 5, 5), dtype=np.uint8)
+    data[1, 1, 1] = 251
+    data[1, 1, 2] = 252
+    data[1, 1, 3] = 253
+    data[1, 2, 1] = 254
+    data[1, 2, 2] = 255
+    data[2, 2, 2] = 250
+    seg_file = tmp_path / 'aparc+aseg.nii.gz'
+    nb.Nifti1Image(data, np.eye(4)).to_filename(seg_file)
+
+    node = pe.Node(
+        ExtractRefRegion(
+            seg_file=str(seg_file),
+            config_file=str(load_data('reference_mask/config.json')),
+            segmentation_type='aparcaseg',
+            region_name='cc',
+        ),
+        name='er_cc',
+        base_dir=str(tmp_path),
+    )
+    res = node.run()
+    out = nb.load(res.outputs.refmask_file).get_fdata()
+
+    assert out.sum() == 5
+    assert out[2, 2, 2] == 0

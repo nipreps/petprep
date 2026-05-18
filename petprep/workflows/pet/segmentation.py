@@ -16,6 +16,7 @@ from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
 from ...interfaces.segmentation import (
     MRISclimbicSeg,
+    SegmentAparcAseg,
     SegmentBS,
     SegmentGTM,
     SegmentHA_T1,
@@ -95,6 +96,11 @@ SEGMENTATIONS = {
     'wm': {
         'interface': SegmentWM,
         'desc': 'whiteMatter',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
+    'aparcaseg': {
+        'interface': SegmentAparcAseg,
+        'desc': 'aparcaseg',
         'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
     },
     'raphe': {
