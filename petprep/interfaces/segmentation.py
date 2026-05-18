@@ -381,9 +381,7 @@ class SegmentAparcAseg(SimpleInterface):
             Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri' / 'aparc+aseg.mgz'
         )
         if not out_file.exists():
-            raise FileNotFoundError(
-                f'FreeSurfer aparc+aseg segmentation not found: {out_file}'
-            )
+            raise FileNotFoundError(f'FreeSurfer aparc+aseg segmentation not found: {out_file}')
 
         runtime.returncode = 0
         self._results['out_file'] = str(out_file)
