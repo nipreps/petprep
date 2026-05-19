@@ -68,7 +68,13 @@ def run_reports(
 
 
 def generate_reports(
-    subject_list, output_dir, run_uuid, session_list=None, bootstrap_file=None, work_dir=None
+    subject_list,
+    output_dir,
+    run_uuid,
+    session_list=None,
+    bootstrap_file=None,
+    work_dir=None,
+    sessionwise=False,
 ):
     """Generate reports for a list of subjects."""
     reportlets_dir = None
@@ -116,23 +122,25 @@ def generate_reports(
             bootstrap_file = data.load('reports-spec-anat.yml')
             html_report = f'sub-{subject_label}_anat.html'
 
-        report_error = run_reports(
-            output_dir,
-            subject_label,
-            run_uuid,
-            bootstrap_file=bootstrap_file,
-            out_filename=html_report,
-            reportlets_dir=subject_reportlets_dir,
-            errorname=f'report-{run_uuid}-{subject_label}.err',
-            subject=subject_label,
-        )
-        # If the report generation failed, append the subject label for which it failed
-        if report_error is not None:
-            errors.append(report_error)
+        if not sessionwise:
+            report_error = run_reports(
+                output_dir,
+                subject_label,
+                run_uuid,
+                bootstrap_file=bootstrap_file,
+                out_filename=html_report,
+                reportlets_dir=subject_reportlets_dir,
+                errorname=f'report-{run_uuid}-{subject_label}.err',
+                subject=subject_label,
+            )
+            # If the report generation failed, append the subject label for which it failed
+            if report_error is not None:
+                errors.append(report_error)
 
-        if n_ses > config.execution.aggr_ses_reports:
+        if (n_ses > config.execution.aggr_ses_reports) or sessionwise:
             # Beyond a certain number of sessions per subject,
-            # we separate the PET reports per session
+            # we separate the PET reports per session. If the anatomical
+            # preprocessing is sessionwise, include anatomical reportlets too.
             if session_list is None:
                 all_filters = config.execution.bids_filters or {}
                 filters = all_filters.get('pet', {})
@@ -140,11 +148,14 @@ def generate_reports(
                     config.execution.layout, subject=subject_label, **filters
                 )
 
-            session_list = [ses.removeprefix('ses-') for ses in session_list]
-
             for session_label in session_list:
-                bootstrap_file = data.load('reports-spec-pet.yml')
-                html_report = f'sub-{subject_label}_ses-{session_label}_pet.html'
+                session_label = session_label.removeprefix('ses-')
+                if sessionwise:
+                    bootstrap_file = data.load('reports-spec.yml')
+                    html_report = f'sub-{subject_label}_ses-{session_label}.html'
+                else:
+                    bootstrap_file = data.load('reports-spec-pet.yml')
+                    html_report = f'sub-{subject_label}_ses-{session_label}_pet.html'
 
                 report_error = run_reports(
                     output_dir,
@@ -158,23 +169,6 @@ def generate_reports(
                     session=session_label,
                 )
                 # If the report generation failed, append the subject label for which it failed
-                if report_error is not None:
-                    errors.append(report_error)
-
-                bootstrap_file = data.load('reports-spec-pet.yml')
-                html_report = f'sub-{subject_label}_ses-{session_label}_pet.html'
-
-                report_error = run_reports(
-                    output_dir,
-                    subject_label,
-                    run_uuid,
-                    bootstrap_file=bootstrap_file,
-                    out_filename=html_report,
-                    reportlets_dir=reportlets_dir,
-                    errorname=f'report-{run_uuid}-{subject_label}-pet.err',
-                    subject=subject_label,
-                    session=session_label,
-                )
                 if report_error is not None:
                     errors.append(report_error)
 

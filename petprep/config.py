@@ -232,6 +232,8 @@ class _Config:
                 else:
                     setattr(cls, k, Path(v).absolute())
             elif hasattr(cls, k):
+                if k == 'processing_groups':
+                    v = _deserialize_processing_groups(v)
                 setattr(cls, k, v)
 
         if init:
@@ -430,6 +432,8 @@ class execution(_Config):
     """Only build the reports, based on the reportlets found in a cached working directory."""
     run_uuid = f'{strftime("%Y%m%d-%H%M%S")}_{uuid4()}'
     """Unique identifier of this particular run."""
+    processing_groups = None
+    """List of subject/session groups to preprocess."""
     participant_label = None
     """List of participant identifiers that are to be preprocessed."""
     session_label = None
@@ -589,7 +593,7 @@ class workflow(_Config):
     level = None
     """Level of preprocessing to complete. One of ['minimal', 'resampling', 'full']."""
     longitudinal = False
-    """Run FreeSurfer ``recon-all`` with the ``-logitudinal`` flag."""
+    """Deprecated alias for ``subject_anatomical_reference == 'unbiased'``."""
     run_msmsulc = True
     """Run Multimodal Surface Matching surface registration."""
     medial_surface_nan = None
@@ -614,6 +618,8 @@ class workflow(_Config):
     spaces = None
     """Keeps the :py:class:`~niworkflows.utils.spaces.SpatialReferences`
     instance keeping standard and nonstandard spaces."""
+    subject_anatomical_reference = 'first-lex'
+    """Method to produce the subject anatomical reference."""
     hmc_fwhm: float = 10.0
     """FWHM for Gaussian smoothing prior to head-motion estimation."""
     hmc_start_time: float = 120.0
@@ -812,7 +818,11 @@ def dumps():
     """Format config into toml."""
     from toml import dumps
 
-    return dumps(get())
+    settings = get()
+    if groups := settings['execution'].get('processing_groups'):
+        settings['execution']['processing_groups'] = _serialize_processing_groups(groups)
+
+    return dumps(settings)
 
 
 def to_filename(filename):
@@ -849,3 +859,34 @@ def init_spaces(checkpoint=True):
 
     # Make the SpatialReferences object available
     workflow.spaces = spaces
+
+
+def _serialize_processing_groups(value):
+    """Serialize participant/session groups to TOML-friendly strings."""
+    serial = []
+    for subject_id, session_id in value:
+        if not subject_id.startswith('sub-'):
+            subject_id = f'sub-{subject_id}'
+        if session_id is None:
+            serial.append(subject_id)
+            continue
+        sessions = [session_id] if isinstance(session_id, str) else list(session_id)
+        sessions = [session.removeprefix('ses-') for session in sessions]
+        serial.append(f'{subject_id}_ses-{",".join(sessions)}')
+    return serial
+
+
+def _deserialize_processing_groups(value):
+    """Deserialize TOML-friendly participant/session groups."""
+    if value is None or not all(isinstance(group, str) for group in value):
+        return value
+
+    groups = []
+    for group in value:
+        subject_id, *session = group.split('_', 1)
+        subject_id = subject_id.removeprefix('sub-')
+        if not session:
+            groups.append((subject_id, None))
+            continue
+        groups.append((subject_id, session[0].removeprefix('ses-').split(',')))
+    return groups
