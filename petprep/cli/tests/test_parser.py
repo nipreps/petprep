@@ -798,6 +798,11 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch, capsys):
     assert config.workflow.ref_mask_name == 'semiovale'
     _reset_config()
 
+    parse_args(args=base_args + ['--seg', 'aparcaseg', '--ref-mask-name', 'cc'])
+    assert config.workflow.seg == 'aparcaseg'
+    assert config.workflow.ref_mask_name == 'cc'
+    _reset_config()
+
 
 def test_reference_mask_validation_edge_cases(tmp_path, minimal_bids, monkeypatch, capsys):
     """Cover parser errors for unsupported masks with and without segmentation mappings."""

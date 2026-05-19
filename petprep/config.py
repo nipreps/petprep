@@ -632,7 +632,7 @@ class workflow(_Config):
     """Disable head-motion correction and keep data uncorrected."""
     seg = 'gtm'
     """Segmentation approach ('gtm', 'brainstem', 'thalamicNuclei',
-    'hippocampusAmygdala', 'wm', 'raphe', 'limbic')."""
+    'hippocampusAmygdala', 'wm', 'aparcaseg', 'raphe', 'limbic')."""
 
     pvc_tool: str | None = None
     """Tool used for partial volume correction."""
