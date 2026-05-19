@@ -204,4 +204,43 @@ def test_generate_reports_uses_indexed_session_entities(tmp_path, monkeypatch):
     failed_reports = generate_reports(['01'], tmp_path, 'fake')
 
     assert not failed_reports
-    assert recorded_sessions == [None, '001', '001', '003', '003']
+    assert recorded_sessions == [None, '001', '003']
+
+
+def test_generate_reports_sessionwise_includes_anatomical_per_session(tmp_path, monkeypatch):
+    recorded_reports = []
+
+    def _record_report(*args, bootstrap_file=None, out_filename=None, session=None, **kwargs):
+        recorded_reports.append(
+            {
+                'bootstrap_file': Path(bootstrap_file).name,
+                'out_filename': out_filename,
+                'session': session,
+            }
+        )
+        return None
+
+    class _Layout:
+        def get_sessions(self, subject=None, **kwargs):
+            return ['ses-001', 'ses-003']
+
+    monkeypatch.setattr(core, 'run_reports', _record_report)
+    monkeypatch.setattr(config.execution, 'aggr_ses_reports', 4)
+    monkeypatch.setattr(config.execution, 'layout', _Layout())
+    monkeypatch.setattr(config.execution, 'bids_filters', {'pet': {'session': ['001', '003']}})
+
+    failed_reports = generate_reports(['01'], tmp_path, 'fake', sessionwise=True)
+
+    assert not failed_reports
+    assert recorded_reports == [
+        {
+            'bootstrap_file': 'reports-spec.yml',
+            'out_filename': 'sub-01_ses-001.html',
+            'session': '001',
+        },
+        {
+            'bootstrap_file': 'reports-spec.yml',
+            'out_filename': 'sub-01_ses-003.html',
+            'session': '003',
+        },
+    ]

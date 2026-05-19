@@ -237,8 +237,10 @@ nipype==1.11.0
     #   nireports
     #   niworkflows
     #   smriprep
-nireports==24.1.0
-    # via petprep (pyproject.toml)
+nireports==25.3.0
+    # via
+    #   petprep (pyproject.toml)
+    #   smriprep
 nitime==0.11
     # via petprep (pyproject.toml)
 nitransforms==24.1.1
@@ -443,7 +445,7 @@ six==1.17.0
     #   isodate
     #   osfclient
     #   python-dateutil
-smriprep==0.17.0
+smriprep==0.19.2
     # via petprep (pyproject.toml)
 sniffio==1.3.1
     # via

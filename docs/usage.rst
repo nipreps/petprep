@@ -289,7 +289,7 @@ Segmentation
 ------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
+Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``aparcaseg`` (FreeSurfer ``aparc+aseg.mgz``), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 
@@ -413,6 +413,7 @@ The available masks are and do not require ``--ref-mask-index`` to be specified:
 - ``semiovale``: White matter in the centrum semiovale (requires the ``--seg wm`` option).
 - ``neocortex``: Neocortical gray matter (requires the ``--seg gtm`` option).
 - ``thalamus``: Thalamic gray matter (requires the ``--seg gtm`` option).
+- ``cc``: Corpus callosum labels 251-255 (requires the ``--seg aparcaseg`` option).
 
 The presets are defined in ``petprep/data/reference_mask/config.json``.
 
