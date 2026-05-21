@@ -855,6 +855,49 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
     }
 
 
+def test_pet_coreg_fallback_interface_reads_manual_uncropped_outputs(monkeypatch, tmp_path):
+    """Manual fallback should load transform and score outputs from the uncropped workflow."""
+
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        lambda **kwargs: _FakeFallbackWorkflow({}),
+    )
+    xfm = _touch(tmp_path / 'uncropped.txt')
+    inv_xfm = _touch(tmp_path / 'uncropped_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
+            'result',
+            (),
+            {
+                'outputs': type('outputs', (), outputs)(),
+            },
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm' in path:
+            return _fake_result(out_xfm=xfm, out_inv=inv_xfm)
+        if 'score_registration' in path:
+            return _fake_result(similarity=-0.12)
+        raise AssertionError(f'Unexpected pickle path: {path}')
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
+
+    interface = _fallback_interface(
+        tmp_path,
+        cropped_transform=_touch(tmp_path / 'cropped.txt'),
+        cropped_inv_transform=_touch(tmp_path / 'cropped_inv.txt'),
+        cropped_score=-0.01,
+    )
+
+    assert interface._run_uncropped_fallback(str(tmp_path)) == (xfm, inv_xfm, None, -0.12)
+    assert interface._score_summary['uncropped'] == {
+        'mri_coreg': -0.12,
+        'winner': None,
+        'score': -0.12,
+    }
+
+
 def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeypatch, tmp_path):
     """FreeSurfer fallback should report score and synthesize a missing inverse."""
 
@@ -937,6 +980,37 @@ def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeyp
         'score': -0.2,
         'winner': 'freesurfer',
     }
+
+
+def test_pet_coreg_fallback_reuses_existing_inverse(tmp_path):
+    """Existing inverse transform outputs should be returned without synthesis."""
+
+    xfm = _touch(tmp_path / 'xfm.txt')
+    inv_xfm = _touch(tmp_path / 'inv_xfm.txt')
+
+    interface = _fallback_interface(tmp_path)
+
+    assert interface._ensure_inverse_transform(xfm, inv_xfm) == inv_xfm
+
+
+@pytest.mark.parametrize(
+    ('xfm', 'inv_xfm', 'score', 'message'),
+    [
+        (Undefined, 'inv_xfm.txt', -0.1, 'best_transform'),
+        ('xfm.txt', Undefined, -0.1, 'best_inv_transform'),
+        ('xfm.txt', 'inv_xfm.txt', None, 'best_score'),
+        (Undefined, Undefined, None, 'best_transform, best_inv_transform, best_score'),
+    ],
+)
+def test_pet_coreg_fallback_rejects_incomplete_selected_outputs(
+    tmp_path, xfm, inv_xfm, score, message
+):
+    """Fallback selection should fail loudly when the chosen result is incomplete."""
+
+    interface = _fallback_interface(tmp_path)
+
+    with pytest.raises(ValueError, match=message):
+        interface._require_selected_outputs(xfm, inv_xfm, score)
 
 
 def test_pet_coreg_fallback_keeps_cropped_when_uncropped_is_worse(monkeypatch, tmp_path):
