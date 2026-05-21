@@ -1241,12 +1241,12 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
         assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
         hmc_buffer = wf.get_node('hmc_buffer')
         assert str(hmc_buffer.inputs.hmc_xforms).endswith('idmat.tfm')
-        assert Path(hmc_buffer.inputs.hmc_xforms).read_text().count('#Transform') == data.shape[-1]
         hmc = nt.linear.load(hmc_buffer.inputs.hmc_xforms)
         matrices = np.asarray(hmc.matrix)
         if matrices.ndim == 2:
             matrices = matrices[np.newaxis, ...]
-        assert np.allclose(matrices, np.tile(np.eye(4), (matrices.shape[0], 1, 1)))
+        assert matrices.shape[0] == data.shape[-1]
+        assert np.allclose(matrices, np.tile(np.eye(4), (data.shape[-1], 1, 1)))
         petref_buffer = wf.get_node('petref_buffer')
         petref_name = Path(petref_buffer.inputs.petref).name
         assert petref_name.endswith('_timeavgref.nii.gz')
