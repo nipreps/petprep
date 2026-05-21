@@ -253,7 +253,7 @@ niworkflows==1.14.4
     #   smriprep
 num2words==0.5.14
     # via pybids
-numpy==1.26.4
+numpy==2.2.6
     # via
     #   petprep (pyproject.toml)
     #   bokeh
