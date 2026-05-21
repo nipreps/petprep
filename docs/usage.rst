@@ -270,11 +270,12 @@ Anatomical co-registration
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
 deriving downstream outputs. The anatomical image is first trimmed with
 FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration
-to brain voxels. Use :option:`--pet2anat-no-anat-crop` to disable the
-anatomical ``robustfov`` trim when testing datasets where non-brain uptake may
-help guide co-registration. If both cropped ``auto`` registration scores are
-weak for a PET reference, PETPrep evaluates an uncropped anatomical fallback
-and keeps it if the score improves. Choose the registration backend with
+to brain voxels. In ``auto`` mode, if all cropped registration scores are weak
+for a PET reference, PETPrep evaluates an uncropped anatomical fallback and keeps
+it if the score improves. Use :option:`--pet2anat-no-anat-crop` to disable both
+the anatomical ``robustfov`` trim and the uncropped fallback when testing
+datasets where non-brain uptake may help guide co-registration. Choose the
+registration backend with
 :option:`--pet2anat-method`: ``auto``
 (default; runs both FreeSurfer and ANTs and selects the better result),
 ``mri_coreg`` (FreeSurfer co-registration), ``robust`` (FreeSurfer

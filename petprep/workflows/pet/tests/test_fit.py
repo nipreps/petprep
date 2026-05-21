@@ -1191,8 +1191,10 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
     assert not any(name.startswith('select_crop_fallback') for name in node_names)
 
 
-def test_pet_fit_adds_manual_uncropped_fallback_selector(bids_root: Path, tmp_path: Path):
-    """Manual PET-to-anatomical registration should wire the fallback selector."""
+def test_pet_fit_omits_uncropped_fallback_selector_for_manual_method(
+    bids_root: Path, tmp_path: Path
+):
+    """Manual PET-to-anatomical registration should keep the requested cropped method."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
@@ -1208,15 +1210,11 @@ def test_pet_fit_adds_manual_uncropped_fallback_selector(bids_root: Path, tmp_pa
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
 
     node_names = wf.list_node_names()
-    assert 'select_crop_fallback' in node_names
+    assert 'select_crop_fallback' not in node_names
     assert 'pet_reg_wf.robust_fov' in node_names
-
-    select_crop_fallback = wf.get_node('select_crop_fallback')
-    assert select_crop_fallback.inputs.fallback_threshold == -0.05
-    assert select_crop_fallback.inputs.pet2anat_dof == config.workflow.pet2anat_dof
-    assert select_crop_fallback.inputs.pet2anat_method == 'mri_coreg'
-    assert select_crop_fallback.inputs.omp_nthreads == 2
-    assert select_crop_fallback.inputs.sloppy is False
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
+    )
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):

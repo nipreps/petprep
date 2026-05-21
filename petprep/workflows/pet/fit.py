@@ -1011,7 +1011,11 @@ def init_pet_fit_wf(
 
     pet_to_t1_source = None
     pet_to_t1_field = None
-    use_crop_fallback = config.workflow.pet2anat_crop and config.workflow.pet2anat_crop_fallback
+    use_crop_fallback = (
+        config.workflow.pet2anat_crop
+        and config.workflow.pet2anat_crop_fallback
+        and config.workflow.pet2anat_method == 'auto'
+    )
     crop_fallback_output_fields = [
         'best_transform',
         'best_inv_transform',
