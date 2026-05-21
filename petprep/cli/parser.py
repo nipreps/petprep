@@ -429,7 +429,8 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         default=True,
         help=(
             'Disable robust FOV cropping of the anatomical reference before '
-            'PET-to-T1w registration.'
+            'PET-to-T1w registration. This also disables the auto-mode '
+            'uncropped anatomical fallback.'
         ),
     )
     g_conf.add_argument(

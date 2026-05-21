@@ -437,6 +437,12 @@ def init_pet_fit_wf(
     petref2anat_xfm
         Affine transform mapping from PET reference space to the anatomical
         space.
+    registration_fallback
+        Whether the selected PET-to-anatomical registration used the uncropped
+        anatomical fallback.
+    registration_anat_reference
+        Anatomical reference used by the selected PET-to-anatomical transform
+        (``cropped`` or ``uncropped``).
 
     See Also
     --------

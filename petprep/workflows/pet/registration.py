@@ -117,6 +117,14 @@ def init_pet_reg_wf(
         Affine transform from anatomical space to PET space (ITK format)
     registration_winner
         Name of the registration backend selected when ``pet2anat_method='auto'``
+    registration_score
+        Similarity score for the selected registration transform.
+    fallback
+        Whether this workflow output came from an uncropped anatomical fallback
+        registration.
+    anat_reference
+        Anatomical reference used for registration (``cropped`` or
+        ``uncropped``).
 
     """
     from nipype.interfaces.ants import MeasureImageSimilarity, Registration
