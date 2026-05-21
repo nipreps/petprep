@@ -23,6 +23,7 @@
 """Miscellaneous utilities."""
 
 from functools import cache
+from pathlib import Path
 
 
 def check_deps(workflow):
@@ -49,8 +50,19 @@ def fips_enabled():
     return fips.exists() and fips.read_text()[0] != '0'
 
 
-@cache
 def estimate_pet_mem_usage(pet_fname: str) -> tuple[int, dict]:
+    """Estimate memory usage for a PET series."""
+    pet_path = Path(pet_fname)
+    stat = pet_path.stat()
+    return _estimate_pet_mem_usage_cached(str(pet_path), stat.st_mtime_ns, stat.st_size)
+
+
+@cache
+def _estimate_pet_mem_usage_cached(
+    pet_fname: str,
+    _mtime_ns: int,
+    _size: int,
+) -> tuple[int, dict]:
     """Estimate memory usage for a PET series."""
     import nibabel as nb
     import numpy as np
@@ -74,3 +86,7 @@ def estimate_pet_mem_usage(pet_fname: str) -> tuple[int, dict]:
     }
 
     return pet_tlen, mem_gb
+
+
+estimate_pet_mem_usage.cache_clear = _estimate_pet_mem_usage_cached.cache_clear
+estimate_pet_mem_usage.cache_info = _estimate_pet_mem_usage_cached.cache_info
