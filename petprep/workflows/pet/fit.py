@@ -1104,26 +1104,16 @@ def init_pet_fit_wf(
                         ]),
                     ])  # fmt:skip
 
-                    if config.workflow.pet2anat_method == 'auto':
-                        workflow.connect([
-                            (reg_wf, select_crop_fallback, [
-                                ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
-                                ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
-                                ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
-                                ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
-                                ('outputnode.registration_score_ants', 'cropped_ants_score'),
-                                ('outputnode.registration_score_fs', 'cropped_fs_score'),
-                            ]),
-                        ])  # fmt:skip
-                    else:
-                        workflow.connect([
-                            (reg_wf, select_crop_fallback, [
-                                ('outputnode.itk_pet_to_t1', 'cropped_transform'),
-                                ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
-                                ('outputnode.registration_winner', 'cropped_winner'),
-                                ('outputnode.registration_score', 'cropped_score'),
-                            ]),
-                        ])  # fmt:skip
+                    workflow.connect([
+                        (reg_wf, select_crop_fallback, [
+                            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                            ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                            ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                        ]),
+                    ])  # fmt:skip
                     reg_source = select_crop_fallback
                     _retain_crop_fallback_outputs(
                         select_crop_fallback,
@@ -1259,26 +1249,16 @@ def init_pet_fit_wf(
                     (petref_buffer, select_crop_fallback, [('petref', 'ref_pet_brain')]),
                 ])  # fmt:skip
 
-                if config.workflow.pet2anat_method == 'auto':
-                    workflow.connect([
-                        (pet_reg_wf, select_crop_fallback, [
-                            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
-                            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
-                            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
-                            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
-                            ('outputnode.registration_score_ants', 'cropped_ants_score'),
-                            ('outputnode.registration_score_fs', 'cropped_fs_score'),
-                        ]),
-                    ])  # fmt:skip
-                else:
-                    workflow.connect([
-                        (pet_reg_wf, select_crop_fallback, [
-                            ('outputnode.itk_pet_to_t1', 'cropped_transform'),
-                            ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
-                            ('outputnode.registration_winner', 'cropped_winner'),
-                            ('outputnode.registration_score', 'cropped_score'),
-                        ]),
-                    ])  # fmt:skip
+                workflow.connect([
+                    (pet_reg_wf, select_crop_fallback, [
+                        ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                        ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                        ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                        ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                        ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                        ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                    ]),
+                ])  # fmt:skip
                 pet_reg_source = select_crop_fallback
                 _retain_crop_fallback_outputs(
                     select_crop_fallback,

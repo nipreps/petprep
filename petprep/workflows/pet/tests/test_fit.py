@@ -815,7 +815,7 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
             return _fake_result(similarity=-0.15)
         if 'score_fs' in path:
             return _fake_result(similarity=-0.01)
-        raise AssertionError(f'Unexpected pickle path: {path}')
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
 
     monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
 
@@ -880,7 +880,7 @@ def test_pet_coreg_fallback_interface_reads_manual_uncropped_outputs(monkeypatch
             return _fake_result(out_xfm=xfm, out_inv=inv_xfm)
         if 'score_registration' in path:
             return _fake_result(similarity=-0.12)
-        raise AssertionError(f'Unexpected pickle path: {path}')
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
 
     monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
 
@@ -931,7 +931,7 @@ def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeyp
             return _fake_result(similarity=-0.01)
         if 'score_fs' in path:
             return _fake_result(similarity=-0.2)
-        raise AssertionError(f'Unexpected pickle path: {path}')
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
 
     monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
     monkeypatch.setattr(
@@ -992,6 +992,41 @@ def test_pet_coreg_fallback_reuses_existing_inverse(tmp_path):
     interface = _fallback_interface(tmp_path)
 
     assert interface._ensure_inverse_transform(xfm, inv_xfm) == inv_xfm
+
+
+def test_pet_coreg_fallback_synthesizes_missing_inverse(tmp_path):
+    """Missing inverse transform outputs should be generated from the forward transform."""
+
+    xfm = tmp_path / 'xfm.tfm'
+    nt.linear.Affine(
+        np.array(
+            [
+                [1.0, 0.0, 0.0, 2.0],
+                [0.0, 1.0, 0.0, 3.0],
+                [0.0, 0.0, 1.0, 4.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+    ).to_filename(xfm, fmt='itk')
+
+    interface = _fallback_interface(tmp_path)
+    interface._runtime_cwd = str(tmp_path)
+
+    inv_xfm = interface._ensure_inverse_transform(str(xfm), Undefined)
+
+    assert Path(inv_xfm) == tmp_path / 'out_inv.tfm'
+    assert Path(inv_xfm).exists()
+    assert np.allclose(
+        nt.linear.load(inv_xfm, fmt='itk').matrix,
+        np.array(
+            [
+                [1.0, 0.0, 0.0, -2.0],
+                [0.0, 1.0, 0.0, -3.0],
+                [0.0, 0.0, 1.0, -4.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -1216,6 +1251,30 @@ def test_pet_fit_omits_uncropped_fallback_selector_for_manual_method(
     assert any(
         name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
     )
+
+
+def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method(
+    bids_root: Path, tmp_path: Path
+):
+    """Manual PET-to-anatomical registration should not add fallback for auto PET refs."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.pet2anat_method = 'mri_coreg'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
+
+    node_names = wf.list_node_names()
+    assert not any(name.startswith('select_crop_fallback') for name in node_names)
+    for label in ('template', 'twa', 'sum', 'first5min'):
+        assert f'pet_reg_wf_{label}.mri_coreg' in node_names
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):
