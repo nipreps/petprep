@@ -9,6 +9,20 @@ def test_docker_get_parser():
     assert parser is not None
 
 
+def test_merge_help_strips_ansi_codes(monkeypatch, tmp_path):
+    monkeypatch.setenv('MPLCONFIGDIR', str(tmp_path / 'mplconfig'))
+
+    from petprep.cli.parser import _build_parser
+
+    wrapper_help = ppd.get_parser().format_help()
+    wrapper_help = wrapper_help.replace('[-h]', '[\x1b[1m-h\x1b[0m]', 1)
+    wrapper_help = wrapper_help.replace('[--version]', '[\x1b[1m--version\x1b[0m]', 1)
+
+    merged = ppd.merge_help(wrapper_help, _build_parser().format_help())
+
+    assert merged.startswith('usage:')
+
+
 def test_docker_main_help(monkeypatch, capsys):
     monkeypatch.setattr(ppd, 'check_docker', lambda: 1)
     monkeypatch.setattr(ppd, 'check_image', lambda img: True)
