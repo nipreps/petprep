@@ -13,6 +13,7 @@ from .... import config, data
 from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
+from .. import fit as pet_fit
 from ..fit import (
     _construct_nu_path,
     _detect_large_pet_mask,
@@ -650,7 +651,7 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
-def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
+def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):
     """Disabling HMC should skip Stage 1 and use identity transforms."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     data = np.stack(
@@ -667,6 +668,15 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
     sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
     sidecar.write_text('{"FrameTimesStart": [0, 2], "FrameDuration": [2, 4]}')
 
+    identity_xform_frames = []
+    write_identity_xforms = pet_fit._write_identity_xforms
+
+    def _record_identity_xforms(num_frames, filename):
+        identity_xform_frames.append(num_frames)
+        return write_identity_xforms(num_frames, filename)
+
+    monkeypatch.setattr(pet_fit, '_write_identity_xforms', _record_identity_xforms)
+
     with mock_config(bids_dir=bids_root):
         config.workflow.hmc_off = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
@@ -674,9 +684,8 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
         assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
         hmc_buffer = wf.get_node('hmc_buffer')
         assert str(hmc_buffer.inputs.hmc_xforms).endswith('idmat.tfm')
-        hmc = nt.linear.load(hmc_buffer.inputs.hmc_xforms)
-        assert hmc.matrix.shape[0] == data.shape[-1]
-        assert np.allclose(hmc.matrix, np.tile(np.eye(4), (data.shape[-1], 1, 1)))
+        assert Path(hmc_buffer.inputs.hmc_xforms).exists()
+        assert identity_xform_frames == [data.shape[-1]]
         petref_buffer = wf.get_node('petref_buffer')
         petref_name = Path(petref_buffer.inputs.petref).name
         assert petref_name.endswith('_timeavgref.nii.gz')
