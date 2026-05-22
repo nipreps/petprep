@@ -351,6 +351,41 @@ partial volume correction, and output spaces before processing the full dataset.
 Those choices affect which PET derivatives are produced and help keep the
 preprocessing and modeling stages reproducible across subjects.
 
+How should I choose ``--seg``, PVC, and reference masks for kinetic modeling?
+-----------------------------------------------------------------------------
+Choose these options together, starting from the model and regions you plan to
+fit.
+The ``--seg`` option determines the anatomical labels used for regional TAC
+extraction, reference-region masks, and, when requested, partial volume
+correction.
+The default ``gtm`` segmentation is the most general FreeSurfer-based choice,
+while atlas or region-specific segmentations should be selected when needed for
+the specific analysis.
+
+Reference masks should match the selected segmentation.
+Predefined masks such as ``cerebellum``, ``neocortex`` and ``thalamus`` are
+defined for ``--seg gtm``, while ``semiovale`` is defined for ``--seg wm``.
+For custom reference regions, provide both ``--ref-mask-name`` and
+``--ref-mask-index`` using label indices from the corresponding
+``*_seg-<segmentation>_morph.tsv`` file.
+This keeps the reference-region TAC tied to the same label space as the regional
+TACs.
+
+PVC choices should also be compatible with the segmentation.
+``petsurfer`` PVC requires ``--seg gtm``; ``petpvc`` can use any *PETPrep*
+segmentation.
+The ``--pvc-tool``, ``--pvc-method`` and ``--pvc-psf`` options must be supplied
+together, and the point spread function should be fixed across subjects and
+sessions that will be compared.
+When PVC is enabled, downstream PET derivatives and TACs are generated from the
+PVC-corrected series and include the ``pvc-<method>`` entity where applicable.
+
+In practice, run a small pilot subset with the planned segmentation, reference
+mask and PVC settings before processing the full cohort.
+Inspect registration, segmentation labels, reference masks, and TAC tables
+together; a technically valid segmentation is not necessarily the right one for
+the kinetic model.
+
 I have now processed my data using *PETPrep*. How do I perform kinetic modeling?
 --------------------------------------------------------------------------------
 For regional analyses, PETFit_ can ingest *PETPrep* outputs and use the regional
@@ -393,6 +428,41 @@ workflow.
 Before restarting, inspect the crashfiles and logs under
 ``<output dir>/sub-<participant_label>/log`` to identify whether the failure was
 caused by a data issue, missing dependency, resource limit, or interrupted job.
+
+How can I reuse derivatives safely across staged or session-split workflows?
+-----------------------------------------------------------------------------
+Use ``--derivatives`` for reusable BIDS Derivatives, and treat the derivative
+dataset as part of the analysis provenance.
+The raw BIDS dataset, *PETPrep* version or container build, anatomical-reference
+strategy, and analysis-defining options should match the workflow that generated
+the derivatives unless the difference is intentional and documented.
+
+For staged workflows, write each stage to a stable output directory and use a
+separate working directory for each run.
+For example, an anatomical or minimal-derivatives stage can be generated first,
+then supplied to later PET-processing runs with
+``--derivatives petprep-anat=/path/to/derivatives``.
+The text before ``=`` is a local nickname for that derivative source, recorded
+in the output metadata as a dataset link.
+It can refer to derivatives from an earlier *PETPrep* run or to another
+compatible BIDS Derivatives dataset, such as sMRIPrep outputs.
+If the nickname is omitted, *PETPrep* uses the directory name.
+Do not have multiple jobs generate or update the same subject/session outputs in
+the same derivative tree at the same time.
+Shared FreeSurfer outputs may be reused with ``--fs-subjects-dir``, but they
+should not be generated concurrently for the same subject.
+
+For session-split longitudinal workflows, make sure the reused derivatives match
+the anatomical strategy.
+Derivatives generated from a shared subject-level anatomical reference should
+not be mixed with a ``sessionwise`` workflow unless that is the intended design.
+When sessions are processed independently, use
+``--subject-anatomical-reference sessionwise`` for the common per-session case,
+or use matching ``pet`` and ``t1w`` filters with separate output and working
+directories for custom groupings.
+Afterward, merge derivative datasets only as a deliberate provenance step, and
+keep the original logs, configuration files, and ``dataset_description.json``
+records.
 
 Can I use *PETPrep* for longitudinal studies?
 ----------------------------------------------
