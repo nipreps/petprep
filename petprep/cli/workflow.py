@@ -98,6 +98,7 @@ def build_workflow(config_file, retval):
             config.execution.petprep_dir,
             config.execution.run_uuid,
             session_list=session_list,
+            sessionwise=config.workflow.subject_anatomical_reference == 'sessionwise',
         )
         if failed_reports:
             config.loggers.cli.error(

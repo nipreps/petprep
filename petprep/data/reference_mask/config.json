@@ -39,5 +39,11 @@
       "target_volume_ml": 40,
       "gm_prob_threshold": 0
     }
+  },
+  "aparcaseg": {
+    "cc":
+    {
+      "refmask_indices": [251, 252, 253, 254, 255]
+    }
   }
 }

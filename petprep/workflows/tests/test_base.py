@@ -7,7 +7,7 @@ from unittest.mock import patch
 import nibabel as nb
 import numpy as np
 import pytest
-from nipype.pipeline.engine.utils import generate_expanded_graph
+from nipype.pipeline.engine.utils import evaluate_connect_function, generate_expanded_graph
 from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 from niworkflows.utils.bids import collect_data as original_collect_data
 from niworkflows.utils.testing import generate_bids_skeleton
@@ -17,6 +17,12 @@ from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _fix_multi_source_name,
+    _fmt_group,
+    _prefix,
+    _session_bids_filters,
+    _stringify_sessions,
+    _subject_fs_id,
     init_petprep_wf,
     init_single_subject_wf,
 )
@@ -217,6 +223,113 @@ def test_init_petprep_wf_skips_subjects_missing_required_modalities(mixed_bids_r
     assert any(name.startswith('sub_01_wf.') for name in wf.list_node_names())
     assert not any(name.startswith('sub_02_wf.') for name in wf.list_node_names())
     assert not any(name.startswith('sub_03_wf.') for name in wf.list_node_names())
+
+
+def test_init_petprep_wf_sessionwise_builds_session_workflows(multisession_bids_root, tmp_path):
+    with mock_config(bids_dir=multisession_bids_root):
+        config.workflow.subject_anatomical_reference = 'sessionwise'
+        config.execution.bids_filters['pet'] = {'session': ['01', '02']}
+        config.execution.processing_groups = [('01', '01'), ('01', '02')]
+        config.execution.derivatives = {'petprep': tmp_path}
+        with patch('smriprep.utils.bids.collect_derivatives', return_value={}) as collect_derivs:
+            wf = init_petprep_wf()
+            petprep_dir = config.execution.petprep_dir
+            run_uuid = config.execution.run_uuid
+            assert (petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid / 'petprep.toml').exists()
+            assert (petprep_dir / 'sub-01' / 'ses-02' / 'log' / run_uuid / 'petprep.toml').exists()
+
+    node_names = wf.list_node_names()
+    assert any(name.startswith('sub_01_ses_01_wf.') for name in node_names)
+    assert any(name.startswith('sub_01_ses_02_wf.') for name in node_names)
+    assert not any(name.startswith('sub_01_wf.') for name in node_names)
+    assert [call.kwargs['session_id'] for call in collect_derivs.call_args_list] == ['01', '02']
+    session_node = next(
+        (node for node in wf._get_all_nodes() if 'sub_01_ses_01_wf' in node.fullname),
+        None,
+    )
+    assert session_node is not None
+    assert session_node.config['execution']['crashdump_dir'] == str(
+        petprep_dir / 'sub-01' / 'ses-01' / 'log' / run_uuid
+    )
+
+
+def test_subject_fs_id_evaluates_as_nipype_connection_function():
+    source = inspect.getsource(_subject_fs_id)
+
+    assert evaluate_connect_function(source, [None], 'sub-976') == 'sub-976'
+    assert evaluate_connect_function(source, ['wave1'], '976') == 'sub-976_ses-wave1'
+    assert evaluate_connect_function(source, [['ses-01', 'ses-02']], 'sub-976') == (
+        'sub-976_ses-01_02'
+    )
+
+
+def test_fix_multi_source_name_keeps_session_only_when_requested():
+    source = inspect.getsource(_fix_multi_source_name)
+    t1w_files = [
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_run-1_T1w.nii.gz',
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_run-2_T1w.nii.gz',
+    ]
+
+    assert _fix_multi_source_name(t1w_files[0]) == t1w_files[0]
+    assert _fix_multi_source_name(t1w_files) == ('/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz')
+    assert _fix_multi_source_name(t1w_files, 'ses-01') == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_T1w.nii.gz'
+    )
+    assert _fix_multi_source_name(t1w_files, ['ses-01', '02']) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_02_T1w.nii.gz'
+    )
+
+    assert evaluate_connect_function(source, [None], t1w_files[0]) == t1w_files[0]
+    assert evaluate_connect_function(source, [None], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_T1w.nii.gz'
+    )
+    assert evaluate_connect_function(source, ['ses-01'], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_T1w.nii.gz'
+    )
+    assert evaluate_connect_function(source, [['ses-01', '02']], t1w_files) == (
+        '/path/to/sub-976/ses-01/anat/sub-976_ses-01_02_T1w.nii.gz'
+    )
+
+
+def test_fix_multi_source_name_rejects_non_bids_name():
+    with pytest.raises(AttributeError, match='Could not extract BIDS information'):
+        _fix_multi_source_name(['/path/to/anat/T1w.nii.gz'])
+
+
+def test_subject_id_helpers():
+    assert _prefix('976') == 'sub-976'
+    assert _prefix('sub-976') == 'sub-976'
+
+    assert _subject_fs_id('976') == 'sub-976'
+    assert _subject_fs_id('sub-976', None) == 'sub-976'
+    assert _subject_fs_id('976', 'wave1') == 'sub-976_ses-wave1'
+    assert _subject_fs_id('976', 'ses-wave1') == 'sub-976_ses-wave1'
+    assert _subject_fs_id('sub-976', ['ses-01', 'ses-02']) == 'sub-976_ses-01_02'
+
+
+def test_session_helpers_format_groups_and_bids_filters(bids_root):
+    with mock_config(bids_dir=bids_root):
+        config.execution.bids_filters = {
+            'pet': {'task': 'rest'},
+            't1w': {'suffix': 'T1w'},
+            'dwi': {'session': 'keep'},
+        }
+
+        assert _stringify_sessions(None) is None
+        assert _fmt_group('01') == 'sub-01'
+        assert _fmt_group('01', ['ses-pre', 'ses-post']) == 'sub-01/ses-pre_post'
+        assert _session_bids_filters('ses-pre') == config.execution.bids_filters
+
+        config.workflow.subject_anatomical_reference = 'sessionwise'
+        filters = _session_bids_filters('ses-pre')
+
+    assert config.execution.bids_filters['pet'] == {'task': 'rest'}
+    assert filters['pet'] == {'task': 'rest', 'session': 'ses-pre'}
+    assert filters['t1w'] == {'suffix': 'T1w', 'session': 'ses-pre'}
+    assert filters['t2w'] == {'session': 'ses-pre'}
+    assert filters['flair'] == {'session': 'ses-pre'}
+    assert filters['roi'] == {'session': 'ses-pre'}
+    assert filters['dwi'] == {'session': 'keep'}
 
 
 def _make_params(
