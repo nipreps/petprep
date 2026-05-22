@@ -510,17 +510,18 @@ When substantial anatomical changes are expected, special considerations must be
 taken.
 Some examples follow:
 
-* Surgery: use only pre-operation sessions for the anatomical data, typically by
-  omitting post-operation T1w images from the inputs used to build the
-  anatomical reference.
-* Developing and elderly populations: there is currently no single standard
-  strategy. Process sessions independently when anatomical change is part of the
-  research question, or group sessions only when that choice is justified by the
-  study design.
-  As `suggested by U. Tooley at NeuroStars.org
+* Surgery: use only pre-operation sessions for the anatomical data. This will typically be done
+  by omitting post-operation sessions from the inputs to *PETPrep*.
+* Developing and elderly populations: ``--subject-anatomical-reference sessionwise``
+  will process each session independently. Additionally, `as suggested by U. Tooley
+  at NeuroStars.org
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__,
-  the anatomical fast-track can also be combined with ``--bids-filter-file`` to
-  process sessions fully independently, or grouped by study-design criteria.
+  it is theoretically possible to leverage the *anatomical fast-track* along with the
+  ``--bids-filters`` option to process sessions fully independently, or grouped by
+  some study-design criteria.
+  Please check the `link
+  <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__
+  for further information on this approach.
 
 
 How to decrease *PETPrep* runtime when working with large datasets?

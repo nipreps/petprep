@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from ... import config
 from ..segmentation import (
     MRISclimbicSeg,
+    SegmentAparcAseg,
     SegmentBS,
     SegmentGTM,
     SegmentHA_T1,
@@ -80,6 +81,19 @@ def test_segmentwm_stdout_stderr(monkeypatch, tmp_path):
     res = seg.run()
     assert res.outputs.stdout == 'wm out'
     assert res.outputs.stderr == 'wm err'
+
+
+def test_segment_aparcaseg_uses_existing_file(tmp_path):
+    subj_dir = tmp_path / 'sub-01' / 'mri'
+    subj_dir.mkdir(parents=True)
+    aparcaseg = subj_dir / 'aparc+aseg.mgz'
+    aparcaseg.write_text('')
+
+    seg = SegmentAparcAseg(subjects_dir=str(tmp_path), subject_id='sub-01')
+    res = seg.run()
+
+    assert res.runtime.returncode == 0
+    assert Path(res.outputs.out_file) == aparcaseg
 
 
 def test_set_freesurfer_seed_runtime():

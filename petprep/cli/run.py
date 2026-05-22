@@ -197,6 +197,7 @@ def main():
             config.execution.petprep_dir,
             config.execution.run_uuid,
             session_list=session_list,
+            sessionwise=config.workflow.subject_anatomical_reference == 'sessionwise',
         )
         write_derivative_description(
             config.execution.bids_dir,

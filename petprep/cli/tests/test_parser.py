@@ -32,7 +32,7 @@ from packaging.version import Version
 from ... import config
 from ...tests.test_config import _reset_config
 from .. import version as _version
-from ..parser import _build_parser, parse_args
+from ..parser import _build_parser, create_processing_groups, parse_args
 
 MIN_ARGS = ['data/', 'out/', 'participant']
 
@@ -157,7 +157,44 @@ def test_parse_args(tmp_path, minimal_bids):
         ]
     )
     assert config.execution.layout.root == str(minimal_bids)
+    assert config.execution.processing_groups == [('01', None)]
     _reset_config()
+
+
+def test_longitudinal_aliases_subject_anatomical_reference(tmp_path, minimal_bids, capsys):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+
+    try:
+        parse_args(
+            args=[
+                str(minimal_bids),
+                str(out_dir),
+                'participant',
+                '--longitudinal',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.workflow.subject_anatomical_reference == 'unbiased'
+        assert config.workflow.longitudinal is True
+        assert 'will be removed in 0.0.7' in capsys.readouterr().err
+    finally:
+        _reset_config()
+
+
+def test_deprecated_force_bbr_flag_is_removed_from_namespace(tmp_path, capsys):
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    opts = _build_parser().parse_args([str(datapath), 'out/', 'participant', '--force-bbr'])
+
+    assert not hasattr(opts, 'force_bbr')
+    err = capsys.readouterr().err
+    assert '--force-bbr' in err
+    assert 'will be removed in a later version' in err
 
 
 def test_parse_args_skips_subjects_missing_pet_or_t1w(tmp_path):
@@ -386,6 +423,34 @@ def test_session_label_validation_with_sessions_tsv(tmp_path):
         assert config.execution.bids_filters.get('pet', {}).get('session') == ['blocked']
     finally:
         _reset_config()
+
+
+def test_create_processing_groups_sessionwise(tmp_path):
+    from bids.layout import BIDSLayout
+
+    bids = tmp_path / 'bids'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+    for ses in ['01', '02']:
+        anat_path = bids / 'sub-01' / f'ses-{ses}' / 'anat' / f'sub-01_ses-{ses}_T1w.nii.gz'
+        anat_path.parent.mkdir(parents=True, exist_ok=True)
+        nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+        pet_path = bids / 'sub-01' / f'ses-{ses}' / 'pet' / f'sub-01_ses-{ses}_pet.nii.gz'
+        pet_path.parent.mkdir(parents=True, exist_ok=True)
+        nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+        (pet_path.with_suffix('').with_suffix('.json')).write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    layout = BIDSLayout(bids, validate=False)
+
+    assert create_processing_groups(layout, ['01'], None, 'first-lex') == [('01', ['01', '02'])]
+    assert create_processing_groups(layout, ['01'], None, 'sessionwise') == [
+        ('01', '01'),
+        ('01', '02'),
+    ]
+    assert create_processing_groups(layout, ['02'], ['01'], 'sessionwise') == [('02', None)]
 
 
 def test_tracer_label_only_filters_pet(tmp_path):
@@ -731,6 +796,11 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch, capsys):
     parse_args(args=base_args + ['--seg', 'wm', '--ref-mask-name', 'semiovale'])
     assert config.workflow.seg == 'wm'
     assert config.workflow.ref_mask_name == 'semiovale'
+    _reset_config()
+
+    parse_args(args=base_args + ['--seg', 'aparcaseg', '--ref-mask-name', 'cc'])
+    assert config.workflow.seg == 'aparcaseg'
+    assert config.workflow.ref_mask_name == 'cc'
     _reset_config()
 
 
