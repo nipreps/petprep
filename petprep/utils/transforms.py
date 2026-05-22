@@ -19,8 +19,12 @@ def load_transforms(xfm_paths: list[Path], inverse: list[bool]) -> nt.base.Trans
     for path, inv in zip(xfm_paths[::-1], inverse[::-1], strict=False):
         path = Path(path)
         if path.suffix == '.h5':
-            # Load as a TransformChain
-            xfm = nt.manip.load(path)
+            # Prefer X5, but BIDS derivatives also commonly store ANTs
+            # composite transforms with the same extension.
+            try:
+                xfm = nt.manip.load(path)
+            except (TypeError, nt.base.TransformError):
+                xfm = nt.manip.load(path, fmt=None)
         else:
             xfm = nt.linear.load(path)
         if inv:

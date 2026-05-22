@@ -243,7 +243,7 @@ nireports==25.3.0
     #   smriprep
 nitime==0.11
     # via petprep (pyproject.toml)
-nitransforms==24.1.1
+nitransforms==25.0.1
     # via
     #   petprep (pyproject.toml)
     #   niworkflows
@@ -253,7 +253,7 @@ niworkflows==1.14.4
     #   smriprep
 num2words==0.5.14
     # via pybids
-numpy==1.26.4
+numpy==2.2.6
     # via
     #   petprep (pyproject.toml)
     #   bokeh
