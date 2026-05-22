@@ -259,6 +259,9 @@ For common PET selections, start with the dedicated command-line options:
 ``--rec-label``, ``--run-label``, and ``--task-id``.
 These options are usually enough when you want to process a subset of subjects,
 sessions, tracers, reconstructions, runs, or tasks.
+They are also the safest first choice when selecting PET inputs for a
+longitudinal or multi-tracer study because the resulting command line remains
+easy to audit.
 
 For more specific selections, use the ``--bids-filter-file`` flag.
 You can pass *PETPrep* a JSON file that
@@ -297,6 +300,17 @@ in the PyBIDS
 To select images that do not have the entity set, use json value: ``null``.
 To select images that have any non-empty value for an entity use string: ``'*'``
 
+If the anatomical inputs also need to be restricted, for example to process each
+session in a longitudinal study with its own T1w image, include both the ``pet``
+and ``t1w`` queries in the filter file.
+This prevents a session-specific PET run from accidentally sharing anatomical
+inputs from other sessions.
+For longitudinal datasets where every selected session should be processed with
+its own anatomical reference, prefer
+``--subject-anatomical-reference sessionwise``.
+That option applies session-specific filtering to both PET and anatomical inputs
+without requiring a separate filter file for the common per-session case.
+
 Which *PETPrep* options should I decide before processing my whole study?
 -------------------------------------------------------------------------
 Decide the analysis-defining options before running the full dataset, and keep
@@ -307,6 +321,10 @@ registration backend and degrees of freedom (``--pet2anat-method`` and
 (``--ref-mask-name`` and ``--ref-mask-index``), partial volume correction
 settings (``--pvc-tool``, ``--pvc-method``, and ``--pvc-psf``), and output spaces
 (``--output-spaces`` and, if needed, CIFTI outputs).
+For longitudinal or multi-session studies, also decide whether sessions should
+share a subject-level anatomical reference, use an unbiased subject-level
+template, or be processed with session-specific anatomical references.
+This is controlled by ``--subject-anatomical-reference``.
 
 These choices determine the derivatives available for downstream analysis,
 including regional TACs, reference-region TACs, PVC-corrected data, and
@@ -378,32 +396,61 @@ caused by a data issue, missing dependency, resource limit, or interrupted job.
 
 Can I use *PETPrep* for longitudinal studies?
 ----------------------------------------------
-*PETPrep* can be used in longitudinal datasets, but the preprocessing strategy
-should match the biological and technical assumptions of the study.
-PET-to-anatomical registration, segmentation, PVC, and regional TAC extraction
-all depend on the anatomical reference and derived segmentations.
-If the same anatomical reference is reused across sessions, *PETPrep* implicitly
-assumes that no substantial anatomical changes affect those derivatives.
+Yes, but the preprocessing strategy should be chosen before the full dataset is
+run.
+PET-to-anatomical registration, segmentation, PVC, reference-region masks, and
+regional TAC extraction all depend on the anatomical reference and derived
+segmentations.
+Changing how anatomy is handled across visits can therefore change the PET
+derivatives that downstream models see.
 
-Before processing the full dataset, decide whether sessions should share
-anatomical derivatives or be processed more independently.
-Also keep tracer, reconstruction, segmentation, reference-region, PVC, and output
-space choices consistent across comparable sessions.
+When a subject has multiple T1w images, *PETPrep* builds a subject-level
+anatomical reference.
+The anatomical strategy is selected with ``--subject-anatomical-reference``:
+
+* ``first-lex``: build one subject-level anatomical reference aligned to the
+  first T1w image in lexicographic order.
+  This is the default and is usually appropriate when anatomy can be treated as
+  stable and the goal is to compare PET sessions in one subject space.
+* ``unbiased``: build one subject-level anatomical reference with FreeSurfer's
+  `mri_robust_template`_ so that the template is unbiased, or approximately
+  equidistant from all selected T1w images.
+  The deprecated ``--longitudinal`` flag is an alias for this mode.
+* ``sessionwise``: process each selected session independently.
+  PET and anatomical inputs are restricted to the same session, and each session
+  gets its own anatomical reference.
+  If a session contains multiple T1w images, they are combined within that
+  session using the ``first-lex`` strategy.
+
+Use ``sessionwise`` when visits should not share anatomical derivatives, for
+example when age, disease progression, surgery, treatment, or scanner/protocol
+changes make a shared anatomical reference questionable.
+Use ``--session-label`` to limit which sessions enter the sessionwise workflow.
+For custom groupings that are not one session at a time, use
+``--bids-filter-file`` with matching ``pet`` and ``t1w`` filters and run each
+group with separate output and working directories.
+If you intentionally want to run anatomy once and reuse it later, generate the
+anatomical derivatives first and provide them to subsequent PET runs with
+``--derivatives``.
+
+Keep tracer, reconstruction, PET reference, PET-to-anatomy registration,
+segmentation, reference-region, PVC, and output-space choices consistent across
+visits that will be compared directly.
 When substantial anatomical changes are expected, special considerations must be
 taken.
 Some examples follow:
 
-* Surgery: use only pre-operation sessions for the anatomical data. This will typically be done
-  by omitting post-operation sessions from the inputs to *PETPrep*.
-* Developing and elderly populations: there is currently no standard way of processing these.
-  However, `as suggested by U. Tooley at NeuroStars.org
+* Surgery: use only pre-operation sessions for the anatomical data, typically by
+  omitting post-operation T1w images from the inputs used to build the
+  anatomical reference.
+* Developing and elderly populations: there is currently no single standard
+  strategy. Process sessions independently when anatomical change is part of the
+  research question, or group sessions only when that choice is justified by the
+  study design.
+  As `suggested by U. Tooley at NeuroStars.org
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__,
-  it is theoretically possible to leverage the *anatomical fast-track* along with the
-  ``--bids-filter-file`` option to process sessions fully independently, or grouped by some study-design
-  criteria.
-  Please check the `link
-  <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__
-  for further information on this approach.
+  the anatomical fast-track can also be combined with ``--bids-filter-file`` to
+  process sessions fully independently, or grouped by study-design criteria.
 
 
 How to decrease *PETPrep* runtime when working with large datasets?
