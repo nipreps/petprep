@@ -230,7 +230,7 @@ def _ignore_run_pet_files(_, names):
     for name in names:
         if '_run-' not in name:
             continue
-        if name.endswith('_pet.nii.gz') or name.endswith('_pet.nii') or name.endswith('_pet.json'):
+        if name.endswith(('_pet.nii.gz', '_pet.nii', '_pet.json')):
             run_pet.append(name)
     return run_pet
 

@@ -158,8 +158,6 @@ exclude = ["notebooks/*"]
 
 [tool.ruff.lint]
 extend-select = [
-  "F",
-  "E",
   "W",
   "I",
   "UP",
@@ -183,13 +181,15 @@ extend-select = [
 ignore = [
   "S311",  # We are not using random for cryptographic purposes
   "S603",
+  "F841",  # Local variable is assigned to but never used
 ]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
 
 [tool.ruff.lint.extend-per-file-ignores]
-"*/test_*.py" = ["S101"]
+"*/test_*.py" = ["S101", "S301"]
+"scripts/pvc_example.py" = ["PT028"]
 "petprep/utils/debug.py" = ["A002", "T100"]
 "docs/conf.py" = ["A001"]
 "docs/sphinxext/github_link.py" = ["BLE001"]

@@ -14,9 +14,9 @@ class DerivativesDataSink(_DDSink):
 
 __all__ = (
     'DerivativesDataSink',
-    'GeneratePetCifti',
-    'ExtractTACs',
     'ExtractRefTAC',
+    'ExtractTACs',
+    'GeneratePetCifti',
     'MotionPlot',
     'AtlasROIsReport',
 )

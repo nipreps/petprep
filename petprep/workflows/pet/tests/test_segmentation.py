@@ -54,7 +54,7 @@ def test_merge_ha_labels_misaligned(tmp_path):
     nb.Nifti1Image(np.zeros((2, 2, 2)), np.eye(4)).to_filename(lh_file)
     nb.Nifti1Image(np.zeros((3, 3, 3)), np.eye(4)).to_filename(rh_file)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         _merge_ha_labels(str(lh_file), str(rh_file))
 
 

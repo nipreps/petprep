@@ -63,7 +63,7 @@ from .tacs import init_pet_tacs_wf
 def init_pet_wf(
     *,
     pet_series: list[str],
-    precomputed: dict = None,
+    precomputed: dict | None = None,
 ) -> pe.Workflow:
     """
     This workflow controls the PET preprocessing stages of *PETPrep*.

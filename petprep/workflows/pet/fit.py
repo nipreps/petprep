@@ -362,7 +362,7 @@ def _select_single_derivative(derivative: object, label: str):
 def init_pet_fit_wf(
     *,
     pet_series: list[str],
-    precomputed: dict = None,
+    precomputed: dict | None = None,
     omp_nthreads: int = 1,
     name: str = 'pet_fit_wf',
 ) -> pe.Workflow:
@@ -1375,7 +1375,7 @@ def init_pet_native_wf(
                 'metadata',
                 # Transforms
                 'motion_xfm',
-            ],  # fmt:skip
+            ],
         ),
         name='outputnode',
     )

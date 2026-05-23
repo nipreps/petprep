@@ -19,7 +19,6 @@ import bids
 import pandas as pd
 from datalad import api
 
-# fmt: skip
 readme_template = """# PETPrep Test Data Collection
 
 ## Overview
@@ -92,7 +91,6 @@ For questions about this test dataset or PETPrep:
 # Create dataset_description.json content
 def create_dataset_description():
     """Create BIDS dataset_description.json content."""
-    # fmt: skip
     return {
         'Name': 'PETPrep Test Data Collection',
         'BIDSVersion': '1.7.0',
@@ -156,7 +154,7 @@ OPENNEURO_TEMPLATE_STRING = 'https://github.com/OpenNeuroDatasets/{DATASET_ID}.g
 def download_test_data(
     working_directory: Path | None = None,
     output_directory: Path | None = None,
-    pet_datasets_json: dict = None,  # Default to None, not the dict
+    pet_datasets_json: dict | None = None,  # Default to None, not the dict
     derivatives: list[str] | None = None,
 ):
     # Use default datasets if no JSON file provided
