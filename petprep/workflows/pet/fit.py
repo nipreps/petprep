@@ -1208,7 +1208,10 @@ def init_pet_fit_wf(
                 ]),
                 (select_best_ref, t1w_mask_tfm, [('best_transform', 'transforms')]),
                 (select_best_ref, petref_buffer, [('best_petref', 'petref')]),
-                (select_best_ref, summary, [('best_winner', 'registration_winner')]),
+                (select_best_ref, summary, [
+                    ('best_winner', 'registration_winner'),
+                    ('best_score', 'registration_score'),
+                ]),
                 (select_best_ref, summary, [('best_label', 'petref_strategy')]),
             ])  # fmt:skip
 
@@ -1293,10 +1296,16 @@ def init_pet_fit_wf(
                     'best_transform' if use_crop_fallback else 'outputnode.itk_pet_to_t1',
                     'transforms',
                 )]),
-                (pet_reg_source, summary, [(
-                    'best_winner' if use_crop_fallback else 'outputnode.registration_winner',
-                    'registration_winner',
-                )]),
+                (pet_reg_source, summary, [
+                    (
+                        'best_winner' if use_crop_fallback else 'outputnode.registration_winner',
+                        'registration_winner',
+                    ),
+                    (
+                        'best_score' if use_crop_fallback else 'outputnode.registration_score',
+                        'registration_score',
+                    ),
+                ]),
             ])  # fmt:skip
 
             pet_to_t1_source = pet_reg_wf

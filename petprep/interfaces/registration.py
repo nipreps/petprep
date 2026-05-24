@@ -4,6 +4,8 @@
 
 from pathlib import Path
 
+import numpy as np
+
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
     File,
@@ -74,7 +76,7 @@ class PETCoregistrationFallback(SimpleInterface):
                 'score': cropped[3],
             }
             should_fallback = not any(
-                score is not None and score <= self.inputs.fallback_threshold
+                self._score_passes_threshold(score)
                 for score in (self.inputs.cropped_ants_score, self.inputs.cropped_fs_score)
             )
         else:
@@ -84,10 +86,7 @@ class PETCoregistrationFallback(SimpleInterface):
                 'winner': cropped[2],
                 'score': cropped[3],
             }
-            should_fallback = not (
-                self.inputs.cropped_score is not None
-                and self.inputs.cropped_score <= self.inputs.fallback_threshold
-            )
+            should_fallback = not self._score_passes_threshold(self.inputs.cropped_score)
 
         if not should_fallback:
             self._set_results(*cropped, fallback=False, anat_reference='cropped')
@@ -205,6 +204,20 @@ class PETCoregistrationFallback(SimpleInterface):
         }
         return xfm_outputs.out_xfm, inv_xfm, None, score_outputs.similarity
 
+    def _score_passes_threshold(self, score):
+        """Return whether a rounded score is strictly better than the threshold."""
+        score = self._round_score(score)
+        threshold = self._round_score(self.inputs.fallback_threshold)
+        return score is not None and score < threshold
+
+    def _round_score(self, score):
+        if score is None or not isdefined(score):
+            return None
+
+        precision = max(_decimal_places(self.inputs.fallback_threshold), 0)
+        rounded = float(np.round(float(score), decimals=precision))
+        return 0.0 if rounded == 0 else rounded
+
     def _ensure_inverse_transform(self, xfm, inv_xfm):
         if isdefined(inv_xfm) and Path(inv_xfm).exists():
             return inv_xfm
@@ -217,7 +230,7 @@ class PETCoregistrationFallback(SimpleInterface):
 
     def _set_results(self, xfm, inv_xfm, winner, score, *, fallback, anat_reference):
         self._require_selected_outputs(xfm, inv_xfm, score)
-        score = float(score)
+        score = self._round_score(score)
         winner = str(winner) if winner is not None and isdefined(winner) else None
         if fallback:
             xfm, inv_xfm = self._copy_selected_transforms(xfm, inv_xfm)
@@ -257,6 +270,11 @@ class PETCoregistrationFallback(SimpleInterface):
         import json
 
         summary_file = Path(self._runtime_cwd) / 'fallback_scores.json'
+        for section in ('cropped', 'uncropped'):
+            self._score_summary[section] = {
+                key: self._round_score(value) if key not in ('winner',) else value
+                for key, value in self._score_summary.get(section, {}).items()
+            }
         self._score_summary['selected'] = {
             'winner': winner,
             'score': score,
@@ -287,3 +305,9 @@ class PETCoregistrationFallback(SimpleInterface):
                 'Missing inputs required for automatic PET-to-anatomical fallback: '
                 + ', '.join(undefined)
             )
+
+
+def _decimal_places(value):
+    """Infer the meaningful decimal precision from a numeric threshold."""
+    value = str(float(value)).rstrip('0').rstrip('.')
+    return len(value.rpartition('.')[2]) if '.' in value else 0

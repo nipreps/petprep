@@ -760,6 +760,58 @@ def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_pat
     assert result.outputs.registration_score == -0.15
 
 
+@pytest.mark.parametrize('fs_score', [-0.0502957, -0.049])
+def test_pet_coreg_fallback_rounds_scores_before_threshold_check(
+    monkeypatch, tmp_path, fs_score
+):
+    """Scores that round to the threshold should trigger fallback."""
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def _fake_fallback(self, cwd):
+        calls.append(cwd)
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.12,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.036469,
+        cropped_fs_score=fs_score,
+    ).run()
+
+    assert calls == [str(tmp_path)]
+    assert result.outputs.best_winner == 'ants'
+    assert result.outputs.best_score == -0.12
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+
+    scores = json.loads(Path(result.outputs.fallback_scores).read_text())
+    assert scores['cropped'] == {
+        'ants': -0.04,
+        'freesurfer': -0.05,
+        'score': -0.05,
+        'winner': 'freesurfer',
+    }
+    assert scores['selected'] == {
+        'anat_reference': 'uncropped',
+        'fallback': True,
+        'score': -0.12,
+        'winner': 'ants',
+    }
+
+
 class _FakeFallbackWorkflow:
     def __init__(self, calls):
         self.inputs = type('inputs', (), {})()
