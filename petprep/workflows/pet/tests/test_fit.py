@@ -761,9 +761,7 @@ def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_pat
 
 
 @pytest.mark.parametrize('fs_score', [-0.0502957, -0.049])
-def test_pet_coreg_fallback_rounds_scores_before_threshold_check(
-    monkeypatch, tmp_path, fs_score
-):
+def test_pet_coreg_fallback_rounds_scores_before_threshold_check(monkeypatch, tmp_path, fs_score):
     """Scores that round to the threshold should trigger fallback."""
 
     monkeypatch.chdir(tmp_path)
