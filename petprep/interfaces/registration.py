@@ -5,7 +5,6 @@
 from pathlib import Path
 
 import numpy as np
-
 from nipype.interfaces.base import (
     BaseInterfaceInputSpec,
     File,
