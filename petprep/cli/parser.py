@@ -85,7 +85,7 @@ def _build_parser(**kwargs):
     class RandomSeedAction(Action):
         def __call__(self, parser, namespace, values, option_string=None):
             setattr(namespace, self.dest, values)
-            setattr(namespace, 'skull_strip_fixed_seed', True)
+            namespace.skull_strip_fixed_seed = True
 
     def _path_exists(path, parser):
         """Ensure a given path exists."""
