@@ -37,6 +37,15 @@ Example: ::
 Further information about BIDS and BIDS-Apps can be found at the
 `NiPreps portal <https://www.nipreps.org/apps/framework/>`__.
 
+Reproducible runs
+-----------------
+Use :option:`--random-seed` to initialize PETPrep's workflow-level random
+number generators. When this option is provided, PETPrep also enables
+:option:`--skull-strip-fixed-seed` so the ANTs skull-stripping step does not
+introduce an independent source of run-to-run randomness. For the most
+reproducible execution, pair :option:`--random-seed` with
+``--omp-nthreads 1`` and ``--nprocs 1``.
+
 Combining multiple PET runs within a session
 --------------------------------------------
 Some PET datasets include multiple ``run`` acquisitions for the same
