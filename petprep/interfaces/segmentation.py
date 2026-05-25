@@ -35,6 +35,35 @@ def _set_freesurfer_seed(runtime):
     return runtime
 
 
+def _ensure_mcr2019b(runtime_env: dict[str, str] | None = None) -> tuple[str, str]:
+    """Validate that MCR R2019b is available and return empty stdout/stderr."""
+    runtime_env = runtime_env or {}
+    fs_home = Path(
+        runtime_env.get('FREESURFER_HOME', os.getenv('FREESURFER_HOME', '/opt/freesurfer'))
+    )
+    mcr_root = fs_home / 'MCRv97'
+    if mcr_root.exists():
+        return '', ''
+
+    raise RuntimeError(
+        f'MCR R2019b is required but was not found at "{mcr_root}". '
+        'Use a PETPrep container/image that includes MCR installation.'
+    )
+
+
+def ensure_mcr2019b_available(runtime_env: dict[str, str] | None = None) -> None:
+    """Run a one-time MCR readiness check before workflow execution."""
+    _ensure_mcr2019b(runtime_env=runtime_env)
+
+
+def _ensure_mcr2019b_installed(runtime):
+    """Validate MCR R2019b availability for FreeSurfer segmentation tools."""
+    stdout, stderr = _ensure_mcr2019b(runtime_env=getattr(runtime, 'environ', {}) or {})
+    runtime.stdout = f'{getattr(runtime, "stdout", "")}{stdout}'
+    runtime.stderr = f'{getattr(runtime, "stderr", "")}{stderr}'
+    return runtime
+
+
 class SegmentBSInputSpec(BaseInterfaceInputSpec):
     subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
     subject_id = traits.Str(mandatory=True, desc='Subject identifier')
@@ -61,6 +90,7 @@ class SegmentBS(SimpleInterface):
         volumes = subj_dir / 'brainstemSsVolumes.v13.txt'
 
         if not (out_file.exists() and out_fsvox.exists() and volumes.exists()):
+            runtime = _ensure_mcr2019b_installed(runtime)
             cmd = [
                 'segmentBS.sh',
                 self.inputs.subject_id,
@@ -209,6 +239,7 @@ class SegmentHA_T1(FSCommand):
             runtime.returncode = 0
             return runtime
 
+        runtime = _ensure_mcr2019b_installed(runtime)
         cmd = CommandLine(
             command='segmentHA_T1.sh',
             args=self.inputs.subject_id,
@@ -265,6 +296,7 @@ class SegmentThalamicNuclei(SimpleInterface):
         volumes_file = subj_dir / 'ThalamicNuclei.v13.T1.volumes.txt'
 
         if not (out_file.exists() and volumes_file.exists()):
+            runtime = _ensure_mcr2019b_installed(runtime)
             cmd = [
                 'segmentThalamicNuclei.sh',
                 self.inputs.subject_id,
@@ -327,6 +359,33 @@ class SegmentWM(SimpleInterface):
     def _run_command(self, cmd):
         proc = subprocess.run(cmd, capture_output=True, text=True)
         return proc.stdout, proc.stderr
+
+
+class SegmentAparcAsegInputSpec(BaseInterfaceInputSpec):
+    subjects_dir = Directory(exists=True, mandatory=True, desc='FreeSurfer subjects directory')
+    subject_id = traits.Str(mandatory=True, desc='Subject identifier')
+
+
+class SegmentAparcAsegOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='FreeSurfer aparc+aseg segmentation')
+
+
+class SegmentAparcAseg(SimpleInterface):
+    """Expose the existing FreeSurfer ``aparc+aseg.mgz`` segmentation."""
+
+    input_spec = SegmentAparcAsegInputSpec
+    output_spec = SegmentAparcAsegOutputSpec
+
+    def _run_interface(self, runtime):
+        out_file = (
+            Path(self.inputs.subjects_dir) / self.inputs.subject_id / 'mri' / 'aparc+aseg.mgz'
+        )
+        if not out_file.exists():
+            raise FileNotFoundError(f'FreeSurfer aparc+aseg segmentation not found: {out_file}')
+
+        runtime.returncode = 0
+        self._results['out_file'] = str(out_file)
+        return runtime
 
 
 class SegmentGTM(GTMSeg):

@@ -30,6 +30,7 @@ Orchestrating the PET-preprocessing workflow
 
 """
 
+import sys
 from pathlib import Path
 
 from nipype.interfaces import utility as niu
@@ -47,7 +48,8 @@ from .apply import init_pet_volumetric_resample_wf
 from .confounds import init_carpetplot_wf, init_pet_confs_wf
 from .fit import init_pet_fit_wf, init_pet_native_wf
 from .outputs import (
-    build_psf_dict,
+    build_pvc_metadata_dict,
+    build_pvc_tacs_dict,
     init_ds_pet_native_wf,
     init_ds_volumes_wf,
     prepare_timing_parameters,
@@ -180,8 +182,7 @@ def init_pet_wf(
     workflow.__postdesc__ = """\
 All resamplings can be performed with *a single interpolation
 step* by composing all the pertinent transformations (i.e. head-motion
-transform matrices, susceptibility distortion correction when available,
-and co-registrations to anatomical and output spaces).
+transform matrices and co-registrations to anatomical and output spaces).
 Gridded (volumetric) resamplings were performed using `nitransforms`,
 configured with cubic B-spline interpolation.
 """
@@ -361,6 +362,9 @@ configured with cubic B-spline interpolation.
     pvc_method = getattr(config.workflow, 'pvc_method', None)
     pvc_psf = getattr(config.workflow, 'pvc_psf', None)
     run_pvc = pvc_tool is not None and pvc_method is not None and pvc_psf is not None
+    tacs_fwhm_x = None
+    tacs_fwhm_y = None
+    tacs_fwhm_z = None
 
     if run_pvc:
         try:
@@ -376,6 +380,7 @@ configured with cubic B-spline interpolation.
                 psf_vals = psf_vals * 3
             if len(psf_vals) != 3:
                 raise ValueError('PETPVC requires one or three PSF values (FWHM x/y/z).')
+            tacs_fwhm_x, tacs_fwhm_y, tacs_fwhm_z = psf_vals
             pvc_kwargs = {
                 'fwhm_x': psf_vals[0],
                 'fwhm_y': psf_vals[1],
@@ -383,6 +388,7 @@ configured with cubic B-spline interpolation.
             }
         else:
             # PETSurfer only accepts an isotropic PSF
+            tacs_fwhm_x = tacs_fwhm_y = tacs_fwhm_z = float(pvc_psf[0])
             pvc_kwargs = {'psf': float(pvc_psf[0])}
 
         pet_pvc_wf = init_pet_pvc_wf(
@@ -404,13 +410,23 @@ configured with cubic B-spline interpolation.
 
         psf_meta = pe.Node(
             niu.Function(
-                input_names=['fwhm_x', 'fwhm_y', 'fwhm_z'],
+                input_names=[
+                    'pvc_method',
+                    'fwhm_x',
+                    'fwhm_y',
+                    'fwhm_z',
+                    'software_name',
+                    'command_line',
+                ],
                 output_names=['meta_dict'],
-                function=build_psf_dict,
+                function=build_pvc_metadata_dict,
             ),
             name='pvc_psf_meta',
             run_without_submitting=True,
         )
+        psf_meta.inputs.pvc_method = pvc_method
+        psf_meta.inputs.software_name = pvc_tool
+        psf_meta.inputs.command_line = ' '.join(sys.argv)
 
         merge_cifti_meta = pe.Node(
             DictMerge(), name='merge_cifti_meta', run_without_submitting=True
@@ -460,6 +476,8 @@ configured with cubic B-spline interpolation.
             output_dir=petprep_dir,
             metadata=all_metadata[0],
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='ds_pet_t1_wf',
         )
         ds_pet_t1_wf.inputs.inputnode.source_files = pet_file
@@ -524,6 +542,8 @@ configured with cubic B-spline interpolation.
             output_dir=petprep_dir,
             metadata=all_metadata[0],
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='ds_pet_std_wf',
         )  # downstream datasink gets PVC method
         ds_pet_std_wf.inputs.inputnode.source_files = pet_series
@@ -596,6 +616,8 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             metadata=all_metadata[0],
             output_dir=petprep_dir,
             pvc_method=pvc_method if run_pvc else None,
+            pvc_software_name=pvc_tool if run_pvc else None,
+            pvc_command_line=' '.join(sys.argv) if run_pvc else None,
             name='pet_surf_wf',
         )
         pet_surf_wf.inputs.inputnode.source_file = pet_file
@@ -742,6 +764,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
     ds_pet_tacs.inputs.source_file = pet_file
     if pvc_method is not None:
         ds_pet_tacs.inputs.pvc = pvc_method
+        ds_pet_tacs.inputs.meta_dict = build_pvc_tacs_dict(
+            pvc_method=pvc_method,
+            fwhm_x=tacs_fwhm_x,
+            fwhm_y=tacs_fwhm_y,
+            fwhm_z=tacs_fwhm_z,
+            software_name=pvc_tool,
+            command_line=' '.join(sys.argv),
+        )
 
     workflow.connect([
         (pet_t1w_src, pet_tacs_wf, [(pet_t1w_field, 'inputnode.pet_anat')]),
@@ -776,6 +806,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
         ds_ref_tacs.inputs.source_file = pet_file
         if pvc_method is not None:
             ds_ref_tacs.inputs.pvc = pvc_method
+            ds_ref_tacs.inputs.meta_dict = build_pvc_tacs_dict(
+                pvc_method=pvc_method,
+                fwhm_x=tacs_fwhm_x,
+                fwhm_y=tacs_fwhm_y,
+                fwhm_z=tacs_fwhm_z,
+                software_name=pvc_tool,
+                command_line=' '.join(sys.argv),
+            )
 
         workflow.connect([
             (pet_t1w_src, pet_ref_tacs_wf, [(pet_t1w_field, 'inputnode.pet_anat')]),

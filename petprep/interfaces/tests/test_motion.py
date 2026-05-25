@@ -19,12 +19,14 @@ def test_motion_plot_builds_svg(tmp_path, monkeypatch):
     corr_path = _write_image(tmp_path / 'corr.nii.gz', (4, 4, 4, 2))
 
     call_count = {'count': 0}
+    plot_calls = []
 
     def fake_plot_epi(img, **kwargs):
         height = 10 if call_count['count'] % 2 == 0 else 6
         array = np.ones((height, 8, 3), dtype=np.uint8) * 255
         from imageio import v2 as imageio
 
+        plot_calls.append(kwargs.copy())
         imageio.imwrite(kwargs['output_file'], array)
         call_count['count'] += 1
 
@@ -42,6 +44,10 @@ def test_motion_plot_builds_svg(tmp_path, monkeypatch):
     assert 'frame-0' in content
     assert 'animation-delay: 0.05s' in content
     assert call_count['count'] == 4
+    assert plot_calls[0]['vmin'] == plot_calls[1]['vmin']
+    assert plot_calls[0]['vmax'] == plot_calls[1]['vmax']
+    assert plot_calls[2]['vmin'] == plot_calls[3]['vmin']
+    assert plot_calls[2]['vmax'] == plot_calls[3]['vmax']
 
 
 def test_compute_display_params_handles_single_frame(tmp_path):
@@ -138,3 +144,31 @@ def test_crop_img_adjusts_affine():
     cropped = motion._crop_img(img, (slice(1, 3), slice(0, 2), slice(2, 4)))
 
     assert np.allclose(cropped.affine[:3, 3], [2.0, 0.0, 8.0])
+
+
+def test_crop_img_adjusts_affine_for_oriented_image():
+    motion = MotionPlot()
+    data = np.ones((4, 4, 4), dtype=float)
+    affine = np.array(
+        [
+            [0.0, -2.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    img = nb.Nifti1Image(data, affine)
+
+    cropped = motion._crop_img(img, (slice(1, 3), slice(0, 2), slice(2, 4)))
+
+    assert np.allclose(cropped.affine[:3, 3], [0.0, 2.0, 6.0])
+
+
+def test_merge_crop_slices_uses_union():
+    motion = MotionPlot()
+    merged = motion._merge_crop_slices(
+        (slice(2, 8), slice(4, 9), slice(1, 5)),
+        (slice(1, 6), slice(5, 10), slice(0, 7)),
+    )
+
+    assert merged == (slice(1, 8), slice(4, 10), slice(0, 7))

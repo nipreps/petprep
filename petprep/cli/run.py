@@ -190,15 +190,14 @@ def main():
         from petprep.reports.core import generate_reports
 
         # Generate reports phase
-        session_list = (
-            config.execution.get().get('bids_filters', {}).get('bold', {}).get('session')
-        )
+        session_list = config.execution.get().get('bids_filters', {}).get('pet', {}).get('session')
 
         failed_reports = generate_reports(
             config.execution.participant_label,
             config.execution.petprep_dir,
             config.execution.run_uuid,
             session_list=session_list,
+            sessionwise=config.workflow.subject_anatomical_reference == 'sessionwise',
         )
         write_derivative_description(
             config.execution.bids_dir,

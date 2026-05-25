@@ -31,7 +31,7 @@ from niworkflows.utils.images import dseg_label
 
 from petprep import config
 from petprep.config import DEFAULT_MEMORY_MIN_GB
-from petprep.interfaces import DerivativesDataSink
+from petprep.interfaces import AtlasROIsReport, DerivativesDataSink
 from petprep.interfaces.bids import BIDSURI
 from petprep.interfaces.maths import CropAroundMask
 
@@ -66,24 +66,43 @@ def prepare_timing_parameters(metadata: dict):
     return timing_parameters
 
 
-def build_psf_dict(fwhm_x=None, fwhm_y=None, fwhm_z=None):
-    """Construct a metadata dictionary for PSF parameters."""
+def build_pvc_metadata_dict(
+    *,
+    pvc_method: str | None = None,
+    fwhm_x=None,
+    fwhm_y=None,
+    fwhm_z=None,
+    software_name: str | None = None,
+    software_version: str | None = None,
+    command_line: str | None = None,
+):
+    """Construct a metadata dictionary for PVC parameters."""
     from nipype.interfaces.base import Undefined as _Undefined
 
-    if (
-        fwhm_x is None
-        or fwhm_y is None
-        or fwhm_z is None
-        or fwhm_x is _Undefined
-        or fwhm_y is _Undefined
-        or fwhm_z is _Undefined
-    ):
+    if pvc_method is None:
         return {}
-    return {
-        'fwhm_x': float(fwhm_x),
-        'fwhm_y': float(fwhm_y),
-        'fwhm_z': float(fwhm_z),
-    }
+
+    meta = {'PVCMethod': str(pvc_method)}
+
+    if fwhm_x is not None and fwhm_x is not _Undefined:
+        meta['FWHM_x'] = float(fwhm_x)
+    if fwhm_y is not None and fwhm_y is not _Undefined:
+        meta['FWHM_y'] = float(fwhm_y)
+    if fwhm_z is not None and fwhm_z is not _Undefined:
+        meta['FWHM_z'] = float(fwhm_z)
+    if software_name:
+        meta['SoftwareName'] = str(software_name).lower()
+    if software_version:
+        meta['SoftwareVersion'] = str(software_version)
+    if command_line:
+        meta['CommandLine'] = str(command_line)
+
+    return meta
+
+
+def build_pvc_tacs_dict(**kwargs):
+    """Construct PVC metadata for TAC sidecars."""
+    return build_pvc_metadata_dict(**kwargs)
 
 
 def init_func_fit_reports_wf(
@@ -91,6 +110,7 @@ def init_func_fit_reports_wf(
     freesurfer: bool,
     output_dir: str,
     ref_name: str,
+    atlas_name: str | None = None,
     name='func_fit_reports_wf',
 ) -> pe.Workflow:
     """
@@ -104,6 +124,9 @@ def init_func_fit_reports_wf(
         Directory in which to save derivatives
     name : :obj:`str`
         Workflow name (default: anat_reports_wf)
+    atlas_name : :obj:`str`, optional
+        Atlas identifier used for TAC computation. When provided, an additional atlas
+        overlay reportlet is generated.
 
     Inputs
     ------
@@ -162,6 +185,8 @@ def init_func_fit_reports_wf(
         'summary_report',
         'validation_report',
     ]
+    if atlas_name:
+        inputfields.extend(['segmentation', 'dseg_tsv'])
     if ref_name:
         inputfields.append('refmask_report')
     inputnode = pe.Node(niu.IdentityInterface(fields=inputfields), name='inputnode')
@@ -236,6 +261,18 @@ def init_func_fit_reports_wf(
     crop_petref = pe.Node(CropAroundMask(), name='crop_petref', mem_gb=0.1)
     crop_t1w_petref = pe.Node(CropAroundMask(), name='crop_t1w_petref', mem_gb=0.1)
     crop_petref_wm = pe.Node(CropAroundMask(), name='crop_petref_wm', mem_gb=0.1)
+    if atlas_name:
+        petref_atlas_seg = pe.Node(
+            ApplyTransforms(
+                dimension=3,
+                default_value=0,
+                invert_transform_flags=[True],
+                interpolation='NearestNeighbor',
+            ),
+            name='petref_atlas_seg',
+            mem_gb=1,
+        )
+        crop_petref_atlas = pe.Node(CropAroundMask(), name='crop_petref_atlas', mem_gb=0.1)
 
     if ref_name:
         petref_refmask = pe.Node(
@@ -291,6 +328,16 @@ def init_func_fit_reports_wf(
             (petref_refmask, crop_petref_refmask, [('output_image', 'in_file')]),
             (inputnode, crop_petref_refmask, [('pet_mask', 'mask_file')]),
         ])
+    if atlas_name:
+        workflow.connect([
+            (inputnode, petref_atlas_seg, [
+                ('segmentation', 'input_image'),
+                ('petref', 'reference_image'),
+                ('petref2anat_xfm', 'transforms'),
+            ]),
+            (petref_atlas_seg, crop_petref_atlas, [('output_image', 'in_file')]),
+            (inputnode, crop_petref_atlas, [('pet_mask', 'mask_file')]),
+        ])
     # fmt:on
 
     # EPI-T1 registration
@@ -338,6 +385,25 @@ def init_func_fit_reports_wf(
             ),
             name='ds_pet_t1_refmask_report',
         )
+    if atlas_name:
+        atlas_overlay_report = pe.Node(
+            AtlasROIsReport(atlas_name=atlas_name),
+            name='atlas_overlay_report',
+            mem_gb=0.1,
+        )
+        ds_atlas_overlay = pe.Node(
+            DerivativesDataSink(
+                base_directory=output_dir,
+                desc='atlasrois',
+                seg=atlas_name,
+                suffix='pet',
+                datatype='figures',
+                allowed_entities=('seg',),
+            ),
+            name='ds_atlas_overlay',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
 
     # fmt:off
     workflow.connect([
@@ -354,6 +420,15 @@ def init_func_fit_reports_wf(
             (crop_petref_refmask, pet_t1_refmask_report, [('out_file', 'wm_seg')]),
             (inputnode, ds_pet_t1_refmask_report, [('source_file', 'source_file')]),
             (pet_t1_refmask_report, ds_pet_t1_refmask_report, [('out_report', 'in_file')]),
+        ])
+    if atlas_name:
+        workflow.connect([
+            (crop_t1w_petref, atlas_overlay_report, [('out_file', 't1w_image')]),
+            (crop_petref, atlas_overlay_report, [('out_file', 'petref_image')]),
+            (crop_petref_atlas, atlas_overlay_report, [('out_file', 'segmentation')]),
+            (inputnode, atlas_overlay_report, [('dseg_tsv', 'dseg_tsv')]),
+            (inputnode, ds_atlas_overlay, [('source_file', 'source_file')]),
+            (atlas_overlay_report, ds_atlas_overlay, [('out_file', 'in_file')]),
         ])
     # fmt:on
 
@@ -711,6 +786,8 @@ def init_ds_volumes_wf(
     output_dir: str,
     metadata: list[dict],
     pvc_method: str | None = None,
+    pvc_software_name: str | None = None,
+    pvc_command_line: str | None = None,
     name='ds_volumes_wf',
 ) -> pe.Workflow:
     timing_parameters = prepare_timing_parameters(metadata)
@@ -757,14 +834,24 @@ def init_ds_volumes_wf(
 
     psf_meta = pe.Node(
         niu.Function(
-            input_names=['fwhm_x', 'fwhm_y', 'fwhm_z'],
+            input_names=[
+                'pvc_method',
+                'fwhm_x',
+                'fwhm_y',
+                'fwhm_z',
+                'software_name',
+                'command_line',
+            ],
             output_names=['meta_dict'],
-            function=build_psf_dict,
+            function=build_pvc_metadata_dict,
         ),
         name='psf_meta',
         run_without_submitting=True,
         mem_gb=DEFAULT_MEMORY_MIN_GB,
     )
+    psf_meta.inputs.pvc_method = pvc_method
+    psf_meta.inputs.software_name = pvc_software_name
+    psf_meta.inputs.command_line = pvc_command_line
 
     # PET is pre-resampled
     ds_pet = pe.Node(

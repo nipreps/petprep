@@ -242,10 +242,10 @@ describes a custom BIDS filter for selecting files with PyBIDS, with the syntax
           "acquisition": null,
           "suffix": "T1w"
       },
-      "bold": {
-          "datatype": "func",
+      "pet": {
+          "datatype": "pet",
           "session": "02",
-          "suffix": "bold"
+          "suffix": "pet"
       }
   }
 
@@ -253,7 +253,7 @@ PETPrep uses the following queries, by default::
 
   {
     "fmap": {"datatype": "fmap"},
-    "bold": {"datatype": "func", "suffix": "bold"},
+    "pet": {"datatype": "pet", "suffix": "pet"},
     "sbref": {"datatype": "func", "suffix": "sbref"},
     "flair": {"datatype": "anat", "suffix": "FLAIR"},
     "t2w": {"datatype": "anat", "suffix": "T2w"},
@@ -290,12 +290,13 @@ Some examples follow:
 
 * Surgery: use only pre-operation sessions for the anatomical data. This will typically be done
   by omitting post-operation sessions from the inputs to *PETPrep*.
-* Developing and elderly populations: there is currently no standard way of processing these.
-  However, `as suggested by U. Tooley at NeuroStars.org
+* Developing and elderly populations: ``--subject-anatomical-reference sessionwise``
+  will process each session independently. Additionally, `as suggested by U. Tooley
+  at NeuroStars.org
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__,
   it is theoretically possible to leverage the *anatomical fast-track* along with the
-  ``--bids-filters`` option to process sessions fully independently, or grouped by some study-design
-  criteria.
+  ``--bids-filters`` option to process sessions fully independently, or grouped by
+  some study-design criteria.
   Please check the `link
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__
   for further information on this approach.

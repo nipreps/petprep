@@ -1,0 +1,520 @@
+{
+  "HOCPA": {
+    "template": "MNI152NLin6Asym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Harvard-Oxford cortical and subcortical probabilistic atlas (thresholded).",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "HOCPA",
+        "desc": "th25",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "HOCPA",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018100Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 100 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018100Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 100 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "100Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018200Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 200 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "200Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "200Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018200Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 200 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "200Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "200Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018300Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 300 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "300Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "300Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018300Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 300 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "300Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "300Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018400Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 400 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "400Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "400Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018400Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 400 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "400Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "400Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018500Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 500 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "500Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "500Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018500Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 500 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "500Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "500Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018600Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 600 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "600Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "600Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018600Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 600 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "600Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "600Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018800Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 800 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "800Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "800Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer2018800Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 800 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "800Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "800Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer20181000Parcels7Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 1000 parcels and 7 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "1000Parcels7Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "1000Parcels7Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Schaefer20181000Parcels17Networks": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Schaefer 2018 cortical atlas with 1000 parcels and 17 networks.",
+    "mask": "ribbon",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "1000Parcels17Networks",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Schaefer2018",
+        "desc": "1000Parcels17Networks",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "MASSP20": {
+    "template": "MNI152NLin2009cAsym",
+    "reference": {
+      "res": 1
+    },
+    "description": "MASSP20 subcortical atlas.",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "MASSP20",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "MASSP20",
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  }
+}

@@ -25,6 +25,8 @@
 import sys
 
 from .. import config
+from ..utils.atlas import load_atlas_config
+from ..utils.bids import get_sessions
 
 
 def _build_parser(**kwargs):
@@ -41,9 +43,14 @@ def _build_parser(**kwargs):
 
     from .version import check_latest, is_flagged
 
-    deprecations = {}
+    deprecations = {
+        'longitudinal': ('--subject-anatomical-reference unbiased', '0.0.7'),
+    }
 
     class DeprecatedAction(Action):
+        def __init__(self, option_strings, dest, **kwargs):
+            super().__init__(option_strings, dest, nargs=0, **kwargs)
+
         def __call__(self, parser, namespace, values, option_string=None):
             new_opt, rem_vers = deprecations.get(self.dest, (None, None))
             msg = (
@@ -53,7 +60,10 @@ def _build_parser(**kwargs):
             if new_opt:
                 msg += f' Please use `{new_opt}` instead.'
             print(msg, file=sys.stderr)
-            delattr(namespace, self.dest)
+            if self.dest == 'longitudinal':
+                setattr(namespace, self.dest, True)
+            elif hasattr(namespace, self.dest):
+                delattr(namespace, self.dest)
 
     class ToDict(Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -208,6 +218,13 @@ def _build_parser(**kwargs):
         'identifier (the trc- prefix can be removed)',
     )
     g_bids.add_argument(
+        '--rec-label',
+        nargs='+',
+        type=lambda label: label.removeprefix('rec-'),
+        help='A space delimited list of reconstruction identifiers or a single '
+        'identifier (the rec- prefix can be removed)',
+    )
+    g_bids.add_argument(
         '--run-label',
         nargs='+',
         type=_run_label,
@@ -219,6 +236,17 @@ def _build_parser(**kwargs):
         action='store_true',
         help='Concatenate PET runs within each session before preprocessing. '
         'Combined files omit the run entity.',
+    )
+    g_bids.add_argument(
+        '--subject-anatomical-reference',
+        choices=['first-lex', 'unbiased', 'sessionwise'],
+        default='first-lex',
+        help='Method to produce the reference anatomical space: '
+        '"first-lex" uses the first T1w image in lexicographical order; '
+        '"unbiased" constructs an unbiased template from all T1w images '
+        '(previously "--longitudinal"); '
+        '"sessionwise" independently processes each session, with multiple runs '
+        'within a session handled similarly to "first-lex".',
     )
     # Re-enable when option is actually implemented
     # g_bids.add_argument('-r', '--run-id', action='store', default='single_run',
@@ -370,8 +398,9 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     )
     g_conf.add_argument(
         '--longitudinal',
-        action='store_true',
-        help='Treat dataset as longitudinal - may increase runtime',
+        action=DeprecatedAction,
+        default=False,
+        help='Deprecated - use `--subject-anatomical-reference unbiased` instead',
     )
     g_conf.add_argument(
         '--pet2anat-dof',
@@ -385,13 +414,13 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_conf.add_argument(
         '--pet2anat-method',
         action='store',
-        default='mri_coreg',
+        default='auto',
         choices=['mri_coreg', 'robust', 'ants', 'auto'],
         help='Method for PET-to-anatomical registration. '
-        '"mri_coreg" (default) uses FreeSurfer mri_coreg. '
+        '"auto" runs both FreeSurfer and ANTs and selects the best. '
+        '"mri_coreg" uses FreeSurfer mri_coreg. '
         '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
-        '"ants" uses ANTs rigid registration (6 DoF only). '
-        '"auto" runs both FreeSurfer and ANTs and selects the best.',
+        '"ants" uses ANTs rigid registration (6 DoF only).',
     )
     g_conf.add_argument(
         '--anatref',
@@ -622,32 +651,36 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     )
     g_hmc.add_argument(
         '--petref',
-        default='template',
+        default='auto',
         choices=['template', 'twa', 'sum', 'first5min', 'auto'],
         help=(
-            "Strategy for generating the PET reference. 'template' uses the "
+            "Strategy for generating the PET reference. 'auto' (default) evaluates multiple strategies to select the best reference. 'template' uses the "
             "motion correction template, while 'twa' computes a time-weighted "
             "average, 'sum' produces a summed image of the motion-corrected "
             "series, and 'first5min' averages the early (0-5 minute) portion "
-            "of the acquisition. 'auto' evaluates multiple strategies to "
-            'select the best reference.'
+            'of the acquisition.'
         ),
     )
+
+    atlas_config = load_atlas_config()
+    seg_choices = [
+        'gtm',
+        'brainstem',
+        'thalamicNuclei',
+        'hippocampusAmygdala',
+        'wm',
+        'aparcaseg',
+        'raphe',
+        'limbic',
+        *sorted(atlas_config.keys()),
+    ]
 
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
         '--seg',
         action='store',
         default='gtm',
-        choices=[
-            'gtm',
-            'brainstem',
-            'thalamicNuclei',
-            'hippocampusAmygdala',
-            'wm',
-            'raphe',
-            'limbic',
-        ],
+        choices=seg_choices,
         help='Segmentation method to use.',
     )
 
@@ -677,7 +710,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     petsurfer_methods = sorted(pvc_config.get('petsurfer', {}).keys())
     all_pvc_methods = sorted(set(petpvc_methods + petsurfer_methods))
 
-    parser.add_argument(
+    g_pvc.add_argument(
         '--pvc-tool',
         choices=['petpvc', 'petsurfer'],
         help='Tool to use for partial volume correction',
@@ -810,8 +843,14 @@ discourage its usage.""",
 def parse_args(args=None, namespace=None):
     """Parse args and run further checks on the command line."""
     import logging
+    from json import load
 
     from niworkflows.utils.spaces import Reference, SpatialReferences
+
+    try:
+        from importlib.resources import files as ir_files
+    except ImportError:  # PY<3.9
+        from importlib_resources import files as ir_files
 
     argv = list(args) if args is not None else sys.argv[1:]
     parser = _build_parser()
@@ -826,8 +865,16 @@ def parse_args(args=None, namespace=None):
         config.load(opts.config_file, skip=skip, init=False)
         config.loggers.cli.info(f'Loaded previous configuration file {opts.config_file}')
 
+    if opts.longitudinal:
+        opts.subject_anatomical_reference = 'unbiased'
+        config.loggers.cli.warning(
+            'The `--longitudinal` flag is deprecated - use '
+            '`--subject-anatomical-reference unbiased` instead.'
+        )
+
     config.execution.log_level = int(max(25 - 5 * opts.verbose_count, logging.DEBUG))
     config.from_dict(vars(opts), init=['nipype'])
+    config.workflow.longitudinal = config.workflow.subject_anatomical_reference == 'unbiased'
 
     config.workflow.petref_specified = '--petref' in argv
     config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
@@ -846,11 +893,25 @@ def parse_args(args=None, namespace=None):
             'tracer': config.execution.tracer_label,
         }
 
+    if config.execution.rec_label:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'reconstruction': config.execution.rec_label,
+        }
+
     if config.execution.run_label:
         config.execution.bids_filters = config.execution.bids_filters or {}
         config.execution.bids_filters['pet'] = {
             **config.execution.bids_filters.get('pet', {}),
             'run': config.execution.run_label,
+        }
+
+    if config.execution.task_id:
+        config.execution.bids_filters = config.execution.bids_filters or {}
+        config.execution.bids_filters['pet'] = {
+            **config.execution.bids_filters.get('pet', {}),
+            'task': config.execution.task_id,
         }
 
     pvc_vals = (opts.pvc_tool, opts.pvc_method, opts.pvc_psf)
@@ -859,6 +920,33 @@ def parse_args(args=None, namespace=None):
 
     if opts.ref_mask_index is not None and opts.ref_mask_name is None:
         parser.error('Option --ref-mask-index requires --ref-mask-name.')
+
+    if opts.ref_mask_name is not None and opts.ref_mask_index is None:
+        with open(ir_files('petprep.data.reference_mask') / 'config.json') as f:
+            refmask_config = load(f)
+
+        seg_refmask_config = refmask_config.get(config.workflow.seg, {})
+        if opts.ref_mask_name not in seg_refmask_config:
+            supported_segs = sorted(
+                seg_name
+                for seg_name, seg_config in refmask_config.items()
+                if opts.ref_mask_name in seg_config
+            )
+            allowed_regions = sorted(seg_refmask_config.keys())
+            seg_hint = ''
+            if supported_segs:
+                seg_hint = f', but only for --seg {", ".join(supported_segs)}'
+            if allowed_regions:
+                parser.error(
+                    f"--ref-mask-name '{opts.ref_mask_name}' is not available for "
+                    f'--seg {config.workflow.seg}{seg_hint}. '
+                    f'Choose one of: {", ".join(allowed_regions)} for --seg {config.workflow.seg}.'
+                )
+            parser.error(
+                f'--seg {config.workflow.seg} does not define any predefined reference masks. '
+                'Either select a compatible segmentation or provide --ref-mask-index '
+                'for custom labels.'
+            )
 
     if opts.ref_mask_name is not None:
         config.workflow.ref_mask_name = opts.ref_mask_name
@@ -892,6 +980,18 @@ def parse_args(args=None, namespace=None):
                 Reference('T1w'),
             ],
         )
+
+    atlas_config = load_atlas_config()
+    if config.workflow.seg in atlas_config:
+        atlas_spec = atlas_config[config.workflow.seg]
+        atlas_reference = atlas_spec.get('reference') or {'res': 'native'}
+        spaces = config.execution.output_spaces or SpatialReferences()
+        if not isinstance(spaces, SpatialReferences):
+            spaces = SpatialReferences(
+                [ref for s in spaces.split(' ') for ref in Reference.from_string(s)]
+            )
+        spaces.add(Reference(atlas_spec['template'], atlas_reference))
+        config.execution.output_spaces = spaces
 
     # Retrieve logging level
     build_log = config.loggers.cli
@@ -1014,7 +1114,7 @@ applied."""
 
     if config.execution.session_label:
         available_sessions = set(
-            config.execution.layout.get_sessions(subject=list(participant_label) or None)
+            get_sessions(config.execution.layout, subject=list(participant_label))
         )
         missing_sessions = set(config.execution.session_label) - available_sessions
         if missing_sessions:
@@ -1043,6 +1143,26 @@ applied."""
                 f'{", ".join(sorted(missing_tracers))}.'
             )
 
+    if config.execution.rec_label:
+        rec_filters = (
+            config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
+        )
+        rec_filters = {key: value for key, value in rec_filters.items() if key != 'reconstruction'}
+        available_recs = set(
+            config.execution.layout.get(
+                target='reconstruction',
+                return_type='id',
+                subject=list(participant_label) or None,
+                **rec_filters,
+            )
+        )
+        missing_recs = set(config.execution.rec_label) - available_recs
+        if missing_recs:
+            parser.error(
+                'One or more reconstruction labels were not found in the BIDS directory: '
+                f'{", ".join(sorted(missing_recs))}.'
+            )
+
     if config.execution.run_label:
         run_filters = (
             config.execution.bids_filters.get('pet', {}) if config.execution.bids_filters else {}
@@ -1065,7 +1185,37 @@ applied."""
         config.execution.run_label = sorted(set(config.execution.run_label))
         config.execution.bids_filters['pet']['run'] = config.execution.run_label
 
-    config.execution.participant_label = sorted(participant_label)
+    from ..utils.bids import get_subject_modality_status
+
+    valid_subjects = []
+    for subject_id in sorted(participant_label):
+        status = get_subject_modality_status(
+            bids_dir=config.execution.bids_dir,
+            subject_id=subject_id,
+            bids_filters=config.execution.bids_filters,
+            derivatives=config.execution.derivatives,
+            anat_only=config.workflow.anat_only,
+        )
+        missing = [
+            modality
+            for modality, present in (('PET', status['pet']), ('T1w', status['t1w']))
+            if not present
+        ]
+        if missing:
+            build_log.warning(
+                f'Skipping subject {subject_id}: missing required {" and ".join(missing)} data.'
+            )
+            continue
+        valid_subjects.append(subject_id)
+
+    if not valid_subjects:
+        parser.error(
+            'None of the selected participants have the required input data after applying the '
+            'current filters. All selected subjects were skipped because they were missing PET '
+            'and/or T1w data.'
+        )
+
+    config.execution.participant_label = valid_subjects
     config.workflow.skull_strip_template = config.workflow.skull_strip_template[0]
 
     if config.execution.combine_runs:
@@ -1095,3 +1245,31 @@ applied."""
         if config.execution.bids_filters and 'pet' in config.execution.bids_filters:
             config.execution.bids_filters['pet'].pop('run', None)
         config.execution.run_label = None
+
+    config.execution.processing_groups = create_processing_groups(
+        config.execution.layout,
+        config.execution.participant_label,
+        config.execution.session_label,
+        config.workflow.subject_anatomical_reference,
+    )
+
+
+def create_processing_groups(layout, subject_list, session_list, subject_anatomical_reference):
+    """Generate subject/session groups to be processed."""
+    from bids.layout import Query
+
+    groups = []
+    for subject_id in subject_list:
+        sessions = (
+            get_sessions(
+                layout,
+                subject=subject_id,
+                session=session_list or Query.OPTIONAL,
+            )
+            or None
+        )
+        if subject_anatomical_reference == 'sessionwise' and sessions:
+            groups.extend((subject_id, session) for session in sessions)
+        else:
+            groups.append((subject_id, sessions))
+    return groups

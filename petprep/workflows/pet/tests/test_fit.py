@@ -13,6 +13,7 @@ from .... import config, data
 from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
+from .. import fit as pet_fit
 from ..fit import (
     _construct_nu_path,
     _detect_large_pet_mask,
@@ -169,7 +170,7 @@ def test_pet_native_precomputes(
 def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
     """Ensure the PET mask is generated and connected correctly."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
 
     for path in pet_series:
         img.to_filename(path)
@@ -273,6 +274,81 @@ def test_petref_default_twa_when_hmc_disabled(bids_root: Path, tmp_path: Path):
     assert summary.inputs.hmc_disabled is True
 
 
+def test_petref_auto_uses_template_for_3d_pet(bids_root: Path, tmp_path: Path):
+    """3D PET data should not fan out into redundant auto reference candidates."""
+    from ....utils.misc import estimate_pet_mem_usage
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    estimate_pet_mem_usage.cache_clear()
+    try:
+        with mock_config(bids_dir=bids_root):
+            config.workflow.petref = 'auto'
+            wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+    finally:
+        estimate_pet_mem_usage.cache_clear()
+
+    node_names = wf.list_node_names()
+    assert 'petref_candidates' not in node_names
+    assert 'select_best_petref' not in node_names
+    assert 'auto_twa_reference' not in node_names
+    assert 'auto_sum_reference' not in node_names
+    assert 'auto_first5min_reference' not in node_names
+    assert any(name.startswith('pet_reg_wf.') for name in node_names)
+    assert not any(name.startswith('pet_reg_wf_') for name in node_names)
+
+    petref_buffer = wf.get_node('petref_buffer')
+    assert petref_buffer.inputs.petref == pet_series[0]
+
+    summary = wf.get_node('summary')
+    assert summary.inputs.petref_strategy == 'template'
+    assert summary.inputs.requested_petref_strategy == 'auto'
+
+
+def test_petref_auto_mixed_3d_and_4d_pet_runs(bids_root: Path, tmp_path: Path):
+    """The 3D auto shortcut is decided per PET workflow, not globally."""
+    from ....utils.misc import estimate_pet_mem_usage
+
+    pet_dir = bids_root / 'sub-01' / 'pet'
+    pet_3d = pet_dir / 'sub-01_task-rest_run-1_pet.nii.gz'
+    pet_4d = pet_dir / 'sub-01_task-rest_run-2_pet.nii.gz'
+
+    nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(pet_3d)
+    nb.Nifti1Image(np.zeros((2, 2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(pet_4d)
+    pet_3d.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+    pet_4d.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+    )
+
+    estimate_pet_mem_usage.cache_clear()
+    try:
+        with mock_config(bids_dir=bids_root):
+            config.workflow.petref = 'auto'
+            wf_3d = init_pet_fit_wf(pet_series=[str(pet_3d)], precomputed={}, omp_nthreads=1)
+            wf_4d = init_pet_fit_wf(pet_series=[str(pet_4d)], precomputed={}, omp_nthreads=1)
+    finally:
+        estimate_pet_mem_usage.cache_clear()
+
+    node_names_3d = wf_3d.list_node_names()
+    node_names_4d = wf_4d.list_node_names()
+
+    assert 'petref_candidates' not in node_names_3d
+    assert 'select_best_petref' not in node_names_3d
+    assert 'petref_candidates' in node_names_4d
+    assert 'select_best_petref' in node_names_4d
+
+    assert wf_3d.get_node('summary').inputs.petref_strategy == 'template'
+    assert wf_4d.get_node('summary').inputs.petref_strategy == 'auto'
+
+
 def test_pet_reference_utilities(tmp_path: Path):
     labels = ['template', 'twa', 'sum']
     scores = [0.5, None, 0.25]
@@ -300,7 +376,7 @@ def test_pet_reference_utilities(tmp_path: Path):
 def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method):
     """Ensure the reference mask report is passed to the reports workflow."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
 
@@ -371,11 +447,16 @@ def test_refmask_report_connections(bids_root: Path, tmp_path: Path, pvc_method)
 def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     """Stage 1 should run only when HMC derivatives are missing."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = False
+        config.workflow.petref = 'template'
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     assert any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
@@ -387,6 +468,8 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     precomputed = {'petref': str(ref_file), 'transforms': {'hmc': str(dummy_affine)}}
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = False
+        config.workflow.petref = 'template'
         wf2 = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
@@ -408,9 +491,9 @@ def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_robust_register' in node_names
-    assert 'pet_reg_wf.mri_coreg' not in node_names
-    assert 'pet_reg_wf.ants_registration' not in node_names
+    assert any(name.endswith('.mri_robust_register') for name in node_names)
+    assert not any(name.endswith('.mri_coreg') for name in node_names)
+    assert not any(name.endswith('.ants_registration') for name in node_names)
 
 
 def test_init_pet_fit_wf_ants_registration(bids_root: Path, tmp_path: Path):
@@ -429,9 +512,9 @@ def test_init_pet_fit_wf_ants_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.ants_registration' in node_names
-    assert 'pet_reg_wf.mri_coreg' not in node_names
-    assert 'pet_reg_wf.mri_robust_register' not in node_names
+    assert any(name.endswith('.ants_registration') for name in node_names)
+    assert not any(name.endswith('.mri_coreg') for name in node_names)
+    assert not any(name.endswith('.mri_robust_register') for name in node_names)
 
 
 def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
@@ -450,13 +533,13 @@ def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.ants_registration' in node_names
-    assert 'pet_reg_wf.mri_coreg' in node_names
-    assert 'pet_reg_wf.select_best' in node_names
-    assert 'pet_reg_wf.score_ants' in node_names
-    assert 'pet_reg_wf.score_fs' in node_names
-    assert 'pet_reg_wf.warp_pet_ants' in node_names
-    assert 'pet_reg_wf.warp_pet_fs' in node_names
+    assert any(name.endswith('.ants_registration') for name in node_names)
+    assert any(name.endswith('.mri_coreg') for name in node_names)
+    assert any(name.endswith('.select_best') for name in node_names)
+    assert any(name.endswith('.score_ants') for name in node_names)
+    assert any(name.endswith('.score_fs') for name in node_names)
+    assert any(name.endswith('.warp_pet_ants') for name in node_names)
+    assert any(name.endswith('.warp_pet_fs') for name in node_names)
 
 
 def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
@@ -557,16 +640,18 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
 
     with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.pet2anat_method = 'mri_coreg'
         config.workflow.petref_specified = True
         config.workflow.pet2anat_method_specified = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert 'pet_reg_wf.mri_coreg' in node_names
+    assert any(name.endswith('.mri_coreg') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
-def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
+def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):
     """Disabling HMC should skip Stage 1 and use identity transforms."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     data = np.stack(
@@ -583,6 +668,15 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
     sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
     sidecar.write_text('{"FrameTimesStart": [0, 2], "FrameDuration": [2, 4]}')
 
+    identity_xform_frames = []
+    write_identity_xforms = pet_fit._write_identity_xforms
+
+    def _record_identity_xforms(num_frames, filename):
+        identity_xform_frames.append(num_frames)
+        return write_identity_xforms(num_frames, filename)
+
+    monkeypatch.setattr(pet_fit, '_write_identity_xforms', _record_identity_xforms)
+
     with mock_config(bids_dir=bids_root):
         config.workflow.hmc_off = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
@@ -590,9 +684,8 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path):
         assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
         hmc_buffer = wf.get_node('hmc_buffer')
         assert str(hmc_buffer.inputs.hmc_xforms).endswith('idmat.tfm')
-        hmc = nt.linear.load(hmc_buffer.inputs.hmc_xforms)
-        assert hmc.matrix.shape[0] == data.shape[-1]
-        assert np.allclose(hmc.matrix, np.tile(np.eye(4), (data.shape[-1], 1, 1)))
+        assert Path(hmc_buffer.inputs.hmc_xforms).exists()
+        assert identity_xform_frames == [data.shape[-1]]
         petref_buffer = wf.get_node('petref_buffer')
         petref_name = Path(petref_buffer.inputs.petref).name
         assert petref_name.endswith('_timeavgref.nii.gz')

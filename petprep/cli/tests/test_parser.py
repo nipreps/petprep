@@ -32,7 +32,7 @@ from packaging.version import Version
 from ... import config
 from ...tests.test_config import _reset_config
 from .. import version as _version
-from ..parser import _build_parser, parse_args
+from ..parser import _build_parser, create_processing_groups, parse_args
 
 MIN_ARGS = ['data/', 'out/', 'participant']
 
@@ -157,6 +157,118 @@ def test_parse_args(tmp_path, minimal_bids):
         ]
     )
     assert config.execution.layout.root == str(minimal_bids)
+    assert config.execution.processing_groups == [('01', None)]
+    _reset_config()
+
+
+def test_longitudinal_aliases_subject_anatomical_reference(tmp_path, minimal_bids, capsys):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+
+    try:
+        parse_args(
+            args=[
+                str(minimal_bids),
+                str(out_dir),
+                'participant',
+                '--longitudinal',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.workflow.subject_anatomical_reference == 'unbiased'
+        assert config.workflow.longitudinal is True
+        assert 'will be removed in 0.0.7' in capsys.readouterr().err
+    finally:
+        _reset_config()
+
+
+def test_deprecated_force_bbr_flag_is_removed_from_namespace(tmp_path, capsys):
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    opts = _build_parser().parse_args([str(datapath), 'out/', 'participant', '--force-bbr'])
+
+    assert not hasattr(opts, 'force_bbr')
+    err = capsys.readouterr().err
+    assert '--force-bbr' in err
+    assert 'will be removed in a later version' in err
+
+
+def test_parse_args_skips_subjects_missing_pet_or_t1w(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    img4d = nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4))
+
+    t1w_01 = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    t1w_01.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_01)
+    pet_01 = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
+    pet_01.parent.mkdir(parents=True, exist_ok=True)
+    img4d.to_filename(pet_01)
+    (pet_01.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    pet_02 = bids / 'sub-02' / 'pet' / 'sub-02_pet.nii.gz'
+    pet_02.parent.mkdir(parents=True, exist_ok=True)
+    img4d.to_filename(pet_02)
+    (pet_02.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    t1w_03 = bids / 'sub-03' / 'anat' / 'sub-03_T1w.nii.gz'
+    t1w_03.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_03)
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.execution.participant_label == ['01']
+    finally:
+        _reset_config()
+
+
+def test_parse_args_errors_when_all_subjects_missing_required_modalities(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    t1w_01 = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    t1w_01.parent.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(t1w_01)
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
     _reset_config()
 
 
@@ -266,6 +378,81 @@ def test_session_label_only_filters_pet(tmp_path):
         _reset_config()
 
 
+def test_session_label_validation_with_sessions_tsv(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+    (bids / 'participants.tsv').write_text('participant_id\nsub-01\n')
+
+    sessions_tsv = bids / 'sub-01' / 'sub-01_sessions.tsv'
+    sessions_tsv.parent.mkdir(parents=True, exist_ok=True)
+    sessions_tsv.write_text('session_id\tbody_weight\nses-blocked\t80\n')
+    (bids / 'sub-01' / 'sub-01_sessions.json').write_text(
+        '{"body_weight": {"Description": "body weight", "Units": "kg"}}'
+    )
+
+    anat_path = bids / 'sub-01' / 'ses-blocked' / 'anat' / 'sub-01_ses-blocked_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'ses-blocked' / 'pet' / 'sub-01_ses-blocked_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--participant-label',
+                '01',
+                '--session-label',
+                'blocked',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.execution.bids_filters.get('pet', {}).get('session') == ['blocked']
+    finally:
+        _reset_config()
+
+
+def test_create_processing_groups_sessionwise(tmp_path):
+    from bids.layout import BIDSLayout
+
+    bids = tmp_path / 'bids'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+    for ses in ['01', '02']:
+        anat_path = bids / 'sub-01' / f'ses-{ses}' / 'anat' / f'sub-01_ses-{ses}_T1w.nii.gz'
+        anat_path.parent.mkdir(parents=True, exist_ok=True)
+        nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+        pet_path = bids / 'sub-01' / f'ses-{ses}' / 'pet' / f'sub-01_ses-{ses}_pet.nii.gz'
+        pet_path.parent.mkdir(parents=True, exist_ok=True)
+        nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+        (pet_path.with_suffix('').with_suffix('.json')).write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    layout = BIDSLayout(bids, validate=False)
+
+    assert create_processing_groups(layout, ['01'], None, 'first-lex') == [('01', ['01', '02'])]
+    assert create_processing_groups(layout, ['01'], None, 'sessionwise') == [
+        ('01', '01'),
+        ('01', '02'),
+    ]
+    assert create_processing_groups(layout, ['02'], ['01'], 'sessionwise') == [('02', None)]
+
+
 def test_tracer_label_only_filters_pet(tmp_path):
     bids = tmp_path / 'bids'
     out_dir = tmp_path / 'out'
@@ -327,6 +514,76 @@ def test_tracer_label_validation(tmp_path):
                 'participant',
                 '--tracer-label',
                 'dasb',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+    _reset_config()
+
+
+def test_rec_label_only_filters_pet(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_rec-acdyn_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--rec-label',
+                'acdyn',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        filters = config.execution.bids_filters
+        assert filters.get('pet', {}).get('reconstruction') == ['acdyn']
+        assert 'reconstruction' not in filters.get('anat', {})
+    finally:
+        _reset_config()
+
+
+def test_rec_label_validation(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_rec-acdyn_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    with pytest.raises(SystemExit):
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--rec-label',
+                'wrongrec',
                 '--skip-bids-validation',
                 '-w',
                 str(work_dir),
@@ -406,6 +663,45 @@ def test_run_label_validation(tmp_path):
     _reset_config()
 
 
+def test_task_id_only_filters_pet(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    anat_path = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
+    anat_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(anat_path)
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--task-id',
+                'rest',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        filters = config.execution.bids_filters
+        assert filters.get('pet', {}).get('task') == 'rest'
+        assert 'task' not in filters.get('anat', {})
+    finally:
+        _reset_config()
+
+
 def test_pvc_argument_handling(tmp_path, minimal_bids):
     out_dir = tmp_path / 'out'
     work_dir = tmp_path / 'work'
@@ -466,7 +762,7 @@ def test_pvc_invalid_method(tmp_path, minimal_bids):
     _reset_config()
 
 
-def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
+def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch, capsys):
     work_dir = tmp_path / 'work'
     base_args = [
         str(minimal_bids),
@@ -485,6 +781,73 @@ def test_reference_mask_options(tmp_path, minimal_bids, monkeypatch):
     parse_args(args=base_args + ['--ref-mask-name', 'cerebellum', '--ref-mask-index', '3', '4'])
     assert config.workflow.ref_mask_name == 'cerebellum'
     assert config.workflow.ref_mask_index == (3, 4)
+    _reset_config()
+
+    # Default segmentation is GTM; semiovale is only defined for WM segmentation
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--ref-mask-name', 'semiovale'])
+    err = capsys.readouterr().err
+    assert (
+        "--ref-mask-name 'semiovale' is not available for --seg gtm, but only for --seg wm. "
+        'Choose one of: cerebellum, neocortex, thalamus for --seg gtm.' in err
+    )
+    _reset_config()
+
+    parse_args(args=base_args + ['--seg', 'wm', '--ref-mask-name', 'semiovale'])
+    assert config.workflow.seg == 'wm'
+    assert config.workflow.ref_mask_name == 'semiovale'
+    _reset_config()
+
+    parse_args(args=base_args + ['--seg', 'aparcaseg', '--ref-mask-name', 'cc'])
+    assert config.workflow.seg == 'aparcaseg'
+    assert config.workflow.ref_mask_name == 'cc'
+    _reset_config()
+
+
+def test_reference_mask_validation_edge_cases(tmp_path, minimal_bids, monkeypatch, capsys):
+    """Cover parser errors for unsupported masks with and without segmentation mappings."""
+    from importlib import resources
+    from importlib.resources import files as ir_files
+
+    work_dir = tmp_path / 'work'
+    base_args = [
+        str(minimal_bids),
+        str(tmp_path / 'out'),
+        'participant',
+        '-w',
+        str(work_dir),
+        '--skip-bids-validation',
+    ]
+
+    # Force a ref-mask config where default GTM has known regions, but the queried
+    # mask is unavailable in every segmentation -> supported_segs is empty.
+    refmask_dir = tmp_path / 'fake_refmask'
+    refmask_dir.mkdir()
+    (refmask_dir / 'config.json').write_text(
+        '{"gtm": {"cerebellum": {"refmask_indices": [47, 8]}}, "wm": {"semiovale": {"refmask_indices": [5001, 5002]}}}'
+    )
+
+    def _mock_files(pkg_name):
+        if pkg_name == 'petprep.data.reference_mask':
+            return refmask_dir
+        return ir_files(pkg_name)
+
+    monkeypatch.setattr(resources, 'files', _mock_files)
+
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--ref-mask-name', 'not-a-region'])
+    err = capsys.readouterr().err
+    assert (
+        "--ref-mask-name 'not-a-region' is not available for --seg gtm. "
+        'Choose one of: cerebellum for --seg gtm.' in err
+    )
+    _reset_config()
+
+    # Segmentation choices can include entries not present in refmask config.
+    with pytest.raises(SystemExit):
+        parse_args(args=base_args + ['--seg', 'brainstem', '--ref-mask-name', 'cerebellum'])
+    err = capsys.readouterr().err
+    assert '--seg brainstem does not define any predefined reference masks.' in err
     _reset_config()
 
 

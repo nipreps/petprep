@@ -87,7 +87,7 @@ def build_workflow(config_file, retval):
         build_log.log(25, f'Running --reports-only on participants {", ".join(subject_list)}')
         session_list = (
             config.execution.bids_filters.get(
-                'pet', config.execution.bids_filters.get('bold', {})
+                'pet', config.execution.bids_filters.get('pet', {})
             ).get('session')
             if config.execution.bids_filters
             else None
@@ -98,6 +98,7 @@ def build_workflow(config_file, retval):
             config.execution.petprep_dir,
             config.execution.run_uuid,
             session_list=session_list,
+            sessionwise=config.workflow.subject_anatomical_reference == 'sessionwise',
         )
         if failed_reports:
             config.loggers.cli.error(

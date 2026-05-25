@@ -6,6 +6,9 @@ from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
 from nipype.pipeline import engine as pe
 from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+from niworkflows.interfaces.fixes import FixHeaderApplyTransforms as ApplyTransforms
+from niworkflows.interfaces.nibabel import ApplyMask
+from niworkflows.interfaces.utility import KeySelect
 
 from ... import config
 from ...data import load as load_data
@@ -13,6 +16,7 @@ from ...interfaces import DerivativesDataSink
 from ...interfaces.bids import BIDSURI
 from ...interfaces.segmentation import (
     MRISclimbicSeg,
+    SegmentAparcAseg,
     SegmentBS,
     SegmentGTM,
     SegmentHA_T1,
@@ -20,7 +24,9 @@ from ...interfaces.segmentation import (
     SegmentWM,
     SegStats,
 )
+from ...utils.atlas import get_atlas_files, load_atlas_config
 from ...utils.segmentation import (
+    atlas_segmentation_to_morph,
     ctab_to_dsegtsv,
     gtm_stats_to_stats,
     gtm_to_dsegtsv,
@@ -33,6 +39,7 @@ except Exception:  # pragma: no cover - Py<3.9 fallback
     from importlib_resources import files as ir_files
 
 SEG_DATA = ir_files('petprep.data.segmentation')
+ATLAS_CONFIG = load_atlas_config()
 
 
 def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
@@ -91,6 +98,11 @@ SEGMENTATIONS = {
         'desc': 'whiteMatter',
         'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
     },
+    'aparcaseg': {
+        'interface': SegmentAparcAseg,
+        'desc': 'aparcaseg',
+        'inputs': [('subjects_dir', 'subjects_dir'), ('subject_id', 'subject_id')],
+    },
     'raphe': {
         'interface': MRISclimbicSeg,
         'interface_kwargs': {
@@ -120,6 +132,13 @@ SEGMENTATIONS = {
         'color_table': str(load_data('segmentation/sclimbic_cleaned.ctab')),
     },
 }
+
+for atlas_name, atlas_spec in ATLAS_CONFIG.items():
+    SEGMENTATIONS[atlas_name] = {
+        'desc': atlas_spec.get('description', atlas_name),
+        'segstats': False,
+        'template_atlas': atlas_spec,
+    }
 
 
 def _build_nodes(
@@ -248,13 +267,82 @@ def _build_nodes(
     return nodes
 
 
+def _build_template_atlas_nodes(seg: str):
+    nodes = {}
+    nodes['seg_source'] = pe.Node(
+        niu.IdentityInterface(fields=['segmentation']), name=f'{seg}_seg_source'
+    )
+    nodes['sources'] = pe.Node(
+        BIDSURI(
+            numinputs=1,
+            dataset_links=config.execution.dataset_links,
+            out_dir=str(config.execution.petprep_dir),
+        ),
+        name='sources',
+    )
+
+    nodes['ds_seg'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='dseg',
+            extension='.nii.gz',
+            compress=True,
+        ),
+        name=f'ds_{seg}seg',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+
+    nodes['ds_dseg_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='dseg',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}dsegtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    nodes['ds_morph_tsv'] = pe.Node(
+        DerivativesDataSink(
+            base_directory=config.execution.petprep_dir,
+            seg=seg,
+            allowed_entities=('seg',),
+            suffix='morph',
+            extension='.tsv',
+            datatype='anat',
+            check_hdr=False,
+        ),
+        name=f'ds_{seg}morphtsv',
+        run_without_submitting=True,
+        mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+    )
+    return nodes
+
+
 def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     """Return a minimal segmentation workflow selecting a FreeSurfer command."""
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['t1w_preproc', 'subjects_dir', 'subject_id']),
+        niu.IdentityInterface(
+            fields=[
+                't1w_preproc',
+                't1w_mask',
+                'anat_ribbon',
+                'subjects_dir',
+                'subject_id',
+                'template',
+                'std2anat_xfm',
+            ]
+        ),
         name='inputnode',
     )
     outputnode = pe.Node(
@@ -266,6 +354,100 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
     if spec is None:
         seg_node = pe.Node(niu.IdentityInterface(fields=['segmentation']), name=f'run_{seg}')
         workflow.connect([(seg_node, outputnode, [('segmentation', 'segmentation')])])
+        return workflow
+
+    if 'template_atlas' in spec:
+        atlas_spec = spec['template_atlas']
+        atlas_nodes = _build_template_atlas_nodes(seg)
+
+        atlas_files = pe.Node(
+            niu.Function(
+                function=get_atlas_files,
+                input_names=['atlas_name'],
+                output_names=['seg_file', 'label_file'],
+            ),
+            name=f'load_{seg}_atlas',
+        )
+        atlas_files.inputs.atlas_name = seg
+
+        select_xfm = pe.Node(
+            KeySelect(fields=['std2anat_xfm'], key=atlas_spec['template']),
+            name=f'select_{seg}_xfm',
+            run_without_submitting=True,
+        )
+
+        apply_atlas = pe.Node(
+            ApplyTransforms(dimension=3, interpolation='NearestNeighbor', float=True),
+            name=f'warp_{seg}_atlas',
+        )
+
+        atlas_masking = atlas_spec.get('mask')
+        mask_node = None
+        if atlas_masking:
+            atlas_masking = atlas_masking.lower()
+            if atlas_masking not in {'brain', 'ribbon'}:
+                raise ValueError(
+                    f"Unknown atlas masking option '{atlas_masking}' for atlas '{seg}'"
+                )
+            mask_node = pe.Node(ApplyMask(), name=f'mask_{seg}_atlas')
+
+        atlas_morph = pe.Node(
+            niu.Function(
+                function=atlas_segmentation_to_morph,
+                input_names=['seg_file', 'label_file'],
+                output_names=['out_file', 'meta_dict'],
+            ),
+            name=f'make_{seg}_morph',
+        )
+
+        workflow.connect(
+            [
+                (inputnode, select_xfm, [('template', 'keys'), ('std2anat_xfm', 'std2anat_xfm')]),
+                (atlas_files, apply_atlas, [('seg_file', 'input_image')]),
+                (inputnode, apply_atlas, [('t1w_preproc', 'reference_image')]),
+                (select_xfm, apply_atlas, [('std2anat_xfm', 'transforms')]),
+                (inputnode, atlas_nodes['sources'], [('t1w_preproc', 'in1')]),
+                (atlas_files, atlas_nodes['ds_dseg_tsv'], [('label_file', 'in_file')]),
+                (inputnode, atlas_nodes['ds_dseg_tsv'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_dseg_tsv'], [('out', 'Sources')]),
+                (atlas_nodes['ds_dseg_tsv'], outputnode, [('out_file', 'dseg_tsv')]),
+                (atlas_nodes['seg_source'], atlas_morph, [('segmentation', 'seg_file')]),
+                (atlas_files, atlas_morph, [('label_file', 'label_file')]),
+                (atlas_morph, atlas_nodes['ds_morph_tsv'], [('out_file', 'in_file')]),
+                (atlas_morph, atlas_nodes['ds_morph_tsv'], [('meta_dict', 'meta_dict')]),
+                (inputnode, atlas_nodes['ds_morph_tsv'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_morph_tsv'], [('out', 'Sources')]),
+            ]
+        )
+
+        atlas_source_node = apply_atlas
+        atlas_source_output = 'output_image'
+
+        if mask_node:
+            workflow.connect([(apply_atlas, mask_node, [('output_image', 'in_file')])])
+            if atlas_masking == 'brain':
+                # Use the anatomical desc-brain_mask to constrain atlas coverage
+                workflow.connect([(inputnode, mask_node, [('t1w_mask', 'in_mask')])])
+            else:
+                # Use the anatomical desc-ribbon_mask to keep cortical-only atlases
+                workflow.connect([(inputnode, mask_node, [('anat_ribbon', 'in_mask')])])
+            atlas_source_node = mask_node
+            atlas_source_output = 'out_file'
+
+        workflow.connect(
+            [
+                (
+                    atlas_source_node,
+                    atlas_nodes['seg_source'],
+                    [(atlas_source_output, 'segmentation')],
+                ),
+                (atlas_nodes['seg_source'], atlas_nodes['ds_seg'], [('segmentation', 'in_file')]),
+                (inputnode, atlas_nodes['ds_seg'], [('t1w_preproc', 'source_file')]),
+                (atlas_nodes['sources'], atlas_nodes['ds_seg'], [('out', 'Sources')]),
+                (atlas_nodes['ds_seg'], outputnode, [('out_file', 'segmentation')]),
+            ]
+        )
+
         return workflow
 
     interface = spec['interface']

@@ -47,4 +47,11 @@ def minimal_bids(tmp_path):
     T1w = bids / 'sub-01' / 'anat' / 'sub-01_T1w.nii.gz'
     T1w.parent.mkdir(parents=True)
     nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4)).to_filename(T1w)
+    pet = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
+    pet.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet)
+    Path.write_text(
+        pet.with_suffix('').with_suffix('.json'),
+        json.dumps({'FrameTimesStart': [0], 'FrameDuration': [1]}),
+    )
     return bids

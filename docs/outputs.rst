@@ -41,7 +41,7 @@ Assuming PETPrep is invoked with::
 
     petprep <input_dir>/ <output_dir>/ participant [OPTIONS]
 
-The outputs will be a `BIDS Derivatives`_ dataset of the form::
+The default ``bids`` output layout is a `BIDS Derivatives`_ dataset of the form::
 
     <output_dir>/
       logs/
@@ -57,10 +57,10 @@ The log directory contains `citation boilerplate`_ text.
 ``dataset_description.json`` is a metadata file in which PETPrep
 records metadata recommended by the BIDS standard.
 
-This default layout, may be explicitly specified with the
+This default layout may be explicitly specified with the
 ``--output-layout bids`` command-line option.
-For compatibility with versions of fMRIPrep prior to 21.0, the
-`legacy layout`_ is available via ``--output-layout legacy``.
+For compatibility with earlier PETPrep output organization, the `legacy layout`_
+is available via ``--output-layout legacy``.
 
 Processing level
 ----------------
@@ -75,14 +75,17 @@ As of version 0.0.1, PETPrep supports three levels of derivatives:
 * ``--level resampling``: This processing mode aims to produce additional
   derivatives that enable third-party resampling, resampling PET data
   in the working directory as needed, but these are not saved to the output
-  directory.
+  directory. Confounds, carpetplots, CIFTI files, and time-activity curves are
+  not generated at this level.
 * ``--level full``: This processing mode aims to produce all derivatives
   that have previously been a part of the PETPrep output dataset.
   This is the default processing level.
 
-Visual Reports
+Visual reports
 --------------
-*PETPrep* outputs summary reports, written to ``<output dir>/petprep/sub-<subject_label>.html``.
+*PETPrep* outputs summary reports, written to ``<output dir>/sub-<subject_label>.html``
+in the default ``bids`` layout and to
+``<output dir>/petprep/sub-<subject_label>.html`` in the ``legacy`` layout.
 These reports provide a quick way to make visual inspection of the results easy.
 `View a sample report. <_static/sample_report/sample_report.html>`_
 
@@ -203,17 +206,29 @@ the ``sourcedata/`` directory or passed via the ``--fs-subjects-dir`` flag;
 if PETPrep runs FreeSurfer, then there is a mutual dependency.
 
 PET derivatives
-~~~~~~~~~~~~~~~~~~~~~~
-PET derivatives are stored in the ``pet/`` subfolder.
+~~~~~~~~~~~~~~~
+PET derivatives are stored in each subject's ``pet/`` subfolder::
 
   sub-<subject_label>/
-    func/
-      sub-<subject_label>_space-<space_label>_desc-brain_mask.nii.gz
-      sub-<subject_label>_space-<space_label>_desc-preproc_pet.nii.gz
+    pet/
+      sub-<subject_label>_[specifiers][_space-<space_label>][_res-<resolution>]_desc-brain_mask.nii.gz
+      sub-<subject_label>_[specifiers][_space-<space_label>][_res-<resolution>][_pvc-<method>]_desc-preproc_pet.nii.gz
+
+**PET references and masks**.
+PETPrep writes the reference images and masks that anchor later resampling steps::
+
+  sub-<subject_label>/
+    pet/
+      sub-<subject_label>_[specifiers]_desc-hmc_petref.nii.gz
+      sub-<subject_label>_[specifiers]_desc-brain_mask.nii.gz
+
+For full outputs in requested volumetric spaces, the corresponding reference and
+brain mask are written with the same ``space-`` and ``res-`` entities as the
+preprocessed PET series.
 
 .. note::
 
-   The mask file is part of the *minimal* processing level. The PET series
+   The mask file is part of the *minimal* processing level. The resampled PET series
    is only generated at the *full* processing level.
 
 **Motion correction outputs**.
@@ -223,7 +238,7 @@ are aligned, and a corresponding transform that maps the original PET series
 to the reference image::
 
   sub-<subject_label>/
-    func/
+    pet/
       sub-<subject_label>_[specifiers]_desc-hmc_petref.nii.gz
       sub-<subject_label>_[specifiers]_from-orig_to_petref_mode-image_desc-hmc_xfm.txt
 
@@ -237,7 +252,7 @@ Registration of the PET series to the T1w image generates a further reference
 image and affine transform::
 
   sub-<subject_label>/
-    func/
+    pet/
       sub-<subject_label>_[specifiers]_desc-coreg_petref.nii.gz
       sub-<subject_label>_[specifiers]_from-petref_to-T1w_mode-image_desc-coreg_xfm.txt
 
@@ -245,9 +260,27 @@ image and affine transform::
 
    Coregistration outputs are part of the *minimal* processing level.
 
+When atlas-based time-activity curve computation is requested, PETPrep additionally
+stores the atlas overlay report that is rendered in the ``Additional PET Visualizations``
+section of the HTML report::
+
+  sub-<subject_label>/
+    figures/
+      sub-<subject_label>_[specifiers]_desc-atlasrois_seg-<atlas_label>_pet.svg
+
+When a reference mask is requested, the derived anatomical reference-region mask
+and its reportlet are also saved::
+
+  sub-<subject_label>/
+    anat/
+      sub-<subject_label>_label-<label>_desc-ref_mask.nii.gz
+    figures/
+      sub-<subject_label>_[specifiers]_label-<label>_desc-ref_pet.svg
+
 **Regularly gridded outputs (images)**.
-Volumetric output spaces labels (``<space_label>`` above, and in the following) include
-``T1w`` and ``MNI152NLin2009cAsym`` (default).
+Volumetric output space labels (``<space_label>`` above, and in the following)
+include ``T1w`` and ``MNI152NLin2009cAsym`` by default, and may include other
+spaces selected with ``--output-spaces``.
 
 **Surfaces, segmentations and parcellations from FreeSurfer**.
 If FreeSurfer reconstructions are used, the ``(aparc+)aseg`` segmentations are aligned to the
@@ -255,7 +288,7 @@ subject's T1w space and resampled to the PET grid, and the PET series are resamp
 mid-thickness surface mesh::
 
   sub-<subject_label>/
-    func/
+    pet/
       sub-<subject_label>_[specifiers]_space-T1w_desc-aparcaseg_dseg.nii.gz
       sub-<subject_label>_[specifiers]_space-T1w_desc-aseg_dseg.nii.gz
       sub-<subject_label>_[specifiers]_hemi-[LR]_space-<space_label>_pet.func.gii
@@ -270,14 +303,14 @@ a container format that holds both volumetric (regularly sampled in a grid) and 
 (sampled on a triangular mesh) samples.
 Sub-cortical time series are sampled on a regular grid derived from one MNI template, while
 cortical time series are sampled on surfaces projected from the [Glasser2016]_ template.
-If CIFTI outputs are requested (with the ``--cifti-outputs`` argument), the PET series are also
-saved as ``dtseries.nii`` CIFTI2 files::
+If CIFTI outputs are requested (with the ``--cifti-output`` argument), the PET series are also
+saved as CIFTI-2 dense time series files::
 
   sub-<subject_label>/
-    func/
-      sub-<subject_label>_[specifiers]_pet.dtseries.nii
+    pet/
+      sub-<subject_label>_[specifiers]_space-fsLR_den-<density>[_pvc-<method>]_pet.dtseries.nii
 
-CIFTI output resolution can be specified as an optional parameter after ``--cifti-output``.
+CIFTI output density can be specified as an optional parameter after ``--cifti-output``.
 By default, '91k' outputs are produced and match up to the standard `HCP Pipelines`_ CIFTI
 output (91282 grayordinates @ 2mm). However, '170k' outputs are also possible, and produce
 higher resolution CIFTI output (170494 grayordinates @ 1.6mm).
@@ -288,9 +321,12 @@ accompanying *confounds* file will be generated.
 Confounds_ are saved as a :abbr:`TSV (tab-separated value)` file::
 
   sub-<subject_label>/
-    func/
+    pet/
       sub-<subject_label>_[specifiers]_desc-confounds_timeseries.tsv
       sub-<subject_label>_[specifiers]_desc-confounds_timeseries.json
+
+Confounds are generated for PET series with at least three frames.
+They are part of the *full* processing level.
 
 These :abbr:`TSV (tab-separated values)` tables look like the example below,
 where each row of the file corresponds to one time point found in the
@@ -313,6 +349,7 @@ from an anatomical segmentation. The resulting table has ``frame_start`` and
 
 The ``desc-preproc`` entity indicates that the curves were derived from the
 preprocessed PET series.
+Time-activity curves are part of the *full* processing level.
 
 If partial volume correction is applied, the filenames also include the
 ``_pvc-<method>`` entity, indicating the algorithm used.
@@ -430,8 +467,8 @@ and ``--dvars-spike-threshold`` (defaults are FD > 0.5 mm or standardized DVARS 
 Regressors of motion spikes are stored in separate ``motion_outlier_XX`` columns.
 
 **Discrete cosine-basis regressors**.
-Physiological and instrumental (scanner) noise sources are generally present in fMRI
-data, typically taking the form of low-frequency signal drifts.
+Physiological and instrumental scanner noise sources may appear as low-frequency
+signal drifts.
 To account for these drifts, temporal high-pass filtering is the immediate option.
 Alternatively, low-frequency regressors can be included in the statistical model to account
 for these confounding signals.
@@ -465,7 +502,7 @@ hence component-based, noise pattern recognition method.
 In the method, principal components are calculated within an :abbr:`ROI (Region of Interest)`
 that is unlikely to include signal related to neuronal activity, such as :abbr:`CSF (cerebro-spinal fluid)`
 and :abbr:`WM (white matter)` masks.
-Signals extracted from CompCor components can be further regressed out from the fMRI data with a
+Signals extracted from CompCor components can be further regressed out from the PET data with a
 denoising procedure [Behzadi2007]_.
 
 - ``a_comp_cor_XX`` - additional noise components are calculated using anatomical :abbr:`CompCor
@@ -479,7 +516,7 @@ three different noise ROIs: an eroded white matter mask, an eroded CSF mask, and
 from the union of these.
 
 Each confounds data file will also have a corresponding metadata file
-(``~desc-confounds_regressors.json``).
+(``~desc-confounds_timeseries.json``).
 Metadata files contain additional information about columns in the confounds TSV file:
 
 .. code-block:: json
@@ -562,24 +599,31 @@ The procedure essentially follows the initial proposal of the approach by Patria
 
 Confounds and "carpet"-plot on the visual reports
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The visual reports provide several sections per task and run to aid designing
+The visual reports provide several sections per session and run to aid designing
 a denoising strategy for subsequent analysis.
 Some of the estimated confounds are plotted with a "carpet" visualization of the
-:abbr:`BOLD (blood-oxygen level-dependent)` time series [Power2016]_.
+:abbr:`PET (positron emission tomography)` time series.
 An example of these plots follows:
 
-.. figure:: _static/sub-405_ses-01_task-rest_run-01_desc-carpetplot_bold.svg
+.. figure:: _static/sub-01_ses-baseline_desc-carpetplot_pet.svg
 
-    The figure shows on top several confounds estimated for the BOLD series:
+    The figure shows on top several confounds estimated for the PET series:
     global signals ('GS', 'CSF', 'WM'), DVARS,
     and framewise-displacement ('FD').
-    At the bottom, a 'carpetplot' summarizing the BOLD series [Power2016]_.
+    At the bottom, a 'carpetplot' summarizing tracer uptake over time.
     The carpet plot rows correspond to voxelwise time series,
     and are separated into regions: cortical gray matter, deep
     gray matter, white matter and cerebrospinal fluid, cerebellum
     and the brain-edge or “crown” [Provins2022]_.
     The crown corresponds to the voxels located on a
     closed band around the brain [Patriat2015]_.
+
+Motion correction diagnostics are also included:
+
+.. figure:: _static/sub-01_ses-baseline_desc-hmc_pet.svg
+
+    Animated before/after PET frames summarize head-motion correction,
+    with a synchronized framewise displacement trace.
 
 Noise components computed during each CompCor decomposition are evaluated according
 to the fraction of variance that they explain across the nuisance ROI.
@@ -588,31 +632,15 @@ use in denoising operations: a component is saved if it contributes to explainin
 the top 50 percent of variance in the nuisance ROI.
 *PETPrep* can be configured to save all components instead using the command line
 option ``--return-all-components``.
-*PETPrep* reports include a plot of the cumulative variance explained by each
-component, ordered by descending singular value.
-
-.. figure:: _static/sub-01_task-rest_compcor.svg
-
-    The figure displays the cumulative variance explained by components for each
-    of four CompCor decompositions (left to right: anatomical CSF mask, anatomical
-    white matter mask, anatomical combined mask, temporal).
-    The number of components is plotted on the abscissa and
-    the cumulative variance explained on the ordinate.
-    Dotted lines indicate the minimum number of components necessary
-    to explain 50%, 70%, and 90% of the variance in the nuisance mask.
-    By default, only the components that explain the top 50% of the variance
-    are saved.
 
 Also included is a plot of correlations among confound regressors.
 This can be used to guide selection of a confound model or to assess the extent
 to which tissue-specific regressors correlate with global signal.
 
-.. figure:: _static/sub-01_task-mixedgamblestask_run-01_confounds_correlation.svg
+.. figure:: _static/sub-01_ses-baseline_desc-confoundcorr_pet.svg
 
     The left-hand panel shows the matrix of correlations among selected confound
     time series as a heat-map.
-    Note the zero-correlation blocks near the diagonal; these correspond to each
-    CompCor decomposition.
     The right-hand panel displays the correlation of selected confound time series
     with the mean global signal computed across the whole brain; the regressors shown
     are those with greatest correlation with the global signal.
@@ -623,15 +651,16 @@ See implementation on :mod:`~petprep.workflows.pet.confounds.init_pet_confs_wf`.
 Legacy layout
 -------------
 
-Prior to tools such as fMRIPrep 21.0, the following organizational structure was used::
+The ``legacy`` layout keeps PETPrep and FreeSurfer outputs in sibling
+subdirectories::
 
     <output_dir>/
-      fmriprep/
+      petprep/
       freesurfer/
 
 Although this has the advantage of keeping all outputs together,
-it ensured that the output of fMRIPrep could not itself be a BIDS derivative dataset,
-only contain one.
+it means that the top-level output directory is not itself a PETPrep
+BIDS Derivatives dataset, but instead contains one.
 
 To restore this behavior, use the ``--output-layout legacy`` command-line option.
 
