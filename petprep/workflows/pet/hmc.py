@@ -237,6 +237,9 @@ FreeSurfer's ``mri_robust_template``.
     inputnode.inputs.frame_start_times = frame_start_times
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
 
+    robust_template_threads = min(omp_nthreads, 4)
+    robust_template_mem_gb = min(mem_gb, 16)
+
     # Split frames
     split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
 
@@ -313,11 +316,13 @@ FreeSurfer's ``mri_robust_template``.
             intensity_scaling=True,
             average_metric='mean',
             args='--cras',
-            num_threads=omp_nthreads,
+            num_threads=robust_template_threads,
             fixed_timepoint=fixed_frame,
             no_iteration=fixed_frame,
         ),
         name='est_robust_hmc',
+        n_procs=robust_template_threads,
+        mem_gb=robust_template_mem_gb,
     )
     if not auto_init_frame:
         robust_template.inputs.initial_timepoint = int(initial_frame) + 1
