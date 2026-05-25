@@ -82,6 +82,11 @@ def _build_parser(**kwargs):
                 d[name] = loc
             setattr(namespace, self.dest, d)
 
+    class RandomSeedAction(Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(namespace, self.dest, values)
+            namespace.skull_strip_fixed_seed = True
+
     def _path_exists(path, parser):
         """Ensure a given path exists."""
         if path is None or not Path(path).exists():
@@ -450,10 +455,10 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_conf.add_argument(
         '--random-seed',
         dest='_random_seed',
-        action='store',
+        action=RandomSeedAction,
         type=int,
         default=None,
-        help='Initialize the random seed for the workflow',
+        help='Initialize the random seed for the workflow and fix the skull-stripping seed',
     )
 
     g_outputs = parser.add_argument_group('Options for modulating outputs')
@@ -559,9 +564,9 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
     g_ants.add_argument(
         '--skull-strip-fixed-seed',
         action='store_true',
-        help='Do not use a random seed for skull-stripping - will ensure '
-        'run-to-run replicability when used with --omp-nthreads 1 and '
-        'matching --random-seed <int>',
+        help='Fix the skull-stripping seed. This is enabled automatically with '
+        '--random-seed and helps ensure run-to-run replicability when used with '
+        '--omp-nthreads 1.',
     )
     g_ants.add_argument(
         '--skull-strip-t1w',

@@ -71,6 +71,19 @@ def test_parser_valid(tmp_path, args):
     assert opts.bids_dir == datapath
 
 
+def test_random_seed_enables_skull_strip_fixed_seed(tmp_path):
+    """Ensure --random-seed pins skull-stripping randomness."""
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    opts = _build_parser().parse_args(
+        [str(datapath), 'out/', 'participant', '--random-seed', '42']
+    )
+
+    assert opts._random_seed == 42
+    assert opts.skull_strip_fixed_seed is True
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [
