@@ -1,11 +1,13 @@
 from pathlib import Path
 
+import networkx as nx
 import nibabel as nb
 import nitransforms as nt
 import numpy as np
 import pytest
 import yaml
 from nipype.interfaces.base import Undefined
+from nipype.pipeline import engine as pe
 from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
@@ -649,6 +651,33 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     node_names = wf.list_node_names()
     assert any(name.endswith('.mri_coreg') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
+
+
+def test_pet_fit_auto_petref_graph_is_acyclic(bids_root: Path, tmp_path: Path):
+    """Ensure auto reference selection does not introduce workflow cycles."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}')
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.petref_specified = True
+        config.workflow.pet2anat_method = 'auto'
+        config.workflow.pet2anat_method_specified = True
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    with pytest.raises(nx.exception.NetworkXNoCycle):
+        nx.find_cycle(wf._graph)
+
+    for node in wf._graph.nodes:
+        if isinstance(node, pe.Workflow):
+            with pytest.raises(nx.exception.NetworkXNoCycle):
+                nx.find_cycle(node._graph)
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):
