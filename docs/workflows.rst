@@ -75,7 +75,7 @@ single reference template (see `Longitudinal processing`_).
     wf = init_anat_preproc_wf(
         bids_root='.',
         freesurfer=True,
-        hires=True,
+        hires=False,
         longitudinal=False,
         omp_nthreads=1,
         output_dir='.',
@@ -256,9 +256,12 @@ Reconstructed white and pial surfaces are included in the report.
 
     Surface reconstruction (FreeSurfer)
 
-If T1w voxel sizes are less than 1mm in all dimensions (rounding to nearest
-.1mm), `submillimeter reconstruction`_ is used, unless disabled with
-``--no-submm-recon``.
+FreeSurfer `submillimeter reconstruction`_ is disabled by default in *PETPrep*
+because PET resampling and GTM time-activity-curve extraction can become very
+memory intensive on submillimeter anatomical grids. Use ``--submm-recon`` to opt
+in for T1w images with voxel sizes less than 1mm in all dimensions (rounding to
+nearest .1mm). The ``--no-submm-recon`` flag may be used to explicitly keep this
+default behavior.
 
 If T2w or FLAIR images are available, and you do not want them included in
 FreeSurfer reconstruction, use ``--ignore t2w`` or ``--ignore flair``,
@@ -284,7 +287,7 @@ packages, including FreeSurfer and the `Connectome Workbench`_.
 
     from smriprep.workflows.surfaces import init_surface_recon_wf
     wf = init_surface_recon_wf(
-        omp_nthreads=1, hires=True, precomputed={}, fs_no_resume=False,
+        omp_nthreads=1, hires=False, precomputed={}, fs_no_resume=False,
     )
 
 See also *sMRIPrep*'s
