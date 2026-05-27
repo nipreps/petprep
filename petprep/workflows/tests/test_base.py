@@ -17,8 +17,10 @@ from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _detect_existing_highres_freesurfer,
     _fix_multi_source_name,
     _fmt_group,
+    _is_submillimeter_anat,
     _prefix,
     _session_bids_filters,
     _stringify_sessions,
@@ -305,6 +307,39 @@ def test_subject_id_helpers():
     assert _subject_fs_id('976', 'wave1') == 'sub-976_ses-wave1'
     assert _subject_fs_id('976', 'ses-wave1') == 'sub-976_ses-wave1'
     assert _subject_fs_id('sub-976', ['ses-01', 'ses-02']) == 'sub-976_ses-01_02'
+
+
+def test_is_submillimeter_anat(tmp_path):
+    submm = tmp_path / 'submm_T1w.nii.gz'
+    anisotropic = tmp_path / 'anisotropic_T1w.nii.gz'
+
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 0.5, 1])).to_filename(submm)
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 1.0, 1])).to_filename(
+        anisotropic
+    )
+
+    assert _is_submillimeter_anat(submm)
+    assert not _is_submillimeter_anat(anisotropic)
+
+
+def test_detect_existing_highres_freesurfer(bids_root, tmp_path):
+    with mock_config(bids_dir=bids_root):
+        config.execution.output_dir = tmp_path
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        nu = mri_dir / 'nu.mgz'
+        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.diag([0.5, 0.5, 0.5, 1])).to_filename(
+            nu
+        )
+
+        detected = _detect_existing_highres_freesurfer('sub-01')
+
+    assert detected is not None
+    detected_file, shape, zooms = detected
+    assert detected_file == nu
+    assert shape == (10, 10, 10)
+    assert max(zooms) == 0.5
 
 
 def test_session_helpers_format_groups_and_bids_filters(bids_root):

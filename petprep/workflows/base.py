@@ -33,6 +33,7 @@ import os
 import sys
 import warnings
 from copy import deepcopy
+from math import prod
 
 from nipype.interfaces import utility as niu
 from nipype.pipeline import engine as pe
@@ -329,6 +330,13 @@ It is released under the [CC0]\
         )
 
     pet_runs = subject_data['pet']
+
+    _warn_about_submillimeter_recon(
+        subject_id=subject_id,
+        session_id=session_id,
+        t1w_files=subject_data['t1w'],
+        pet_runs=pet_runs,
+    )
 
     if subject_data['roi']:
         warnings.warn(
@@ -827,6 +835,118 @@ def _subject_fs_id(subid, session_id=None):
     if ses_str:
         subject_id = f'{subject_id}_ses-{ses_str}'
     return subject_id
+
+
+def _image_geometry(image_file):
+    import nibabel as nb
+
+    img = nb.load(str(image_file))
+    return img.shape[:3], img.header.get_zooms()[:3]
+
+
+def _format_geometry(shape, zooms):
+    shape_str = ' x '.join(str(dim) for dim in shape)
+    zoom_str = ' x '.join(f'{zoom:g}' for zoom in zooms)
+    return f'{shape_str} @ {zoom_str} mm'
+
+
+def _is_submillimeter_anat(image_file):
+    try:
+        _, zooms = _image_geometry(image_file)
+    except Exception as exc:  # noqa: BLE001
+        config.loggers.workflow.warning(
+            f'Could not inspect T1w resolution for {image_file}: {exc}'
+        )
+        return False
+
+    # Match niworkflows.interfaces.freesurfer.detect_inputs, which enables
+    # hires when all dimensions are at least approximately submillimeter.
+    return max(zooms) < 0.95
+
+
+def _freesurfer_subjects_dir():
+    if config.execution.fs_subjects_dir is not None:
+        return config.execution.fs_subjects_dir.absolute()
+    return config.execution.output_dir / 'freesurfer'
+
+
+def _detect_existing_highres_freesurfer(subject_id):
+    subject_dir = _freesurfer_subjects_dir() / subject_id / 'mri'
+
+    for filename in ('nu.mgz', 'orig.mgz', 'T1.mgz'):
+        image_file = subject_dir / filename
+        if not image_file.exists():
+            continue
+        try:
+            shape, zooms = _image_geometry(image_file)
+        except Exception:
+            continue
+        if max(zooms) < 0.95:
+            return image_file, shape, zooms
+
+    gtmseg = subject_dir / 'gtmseg.mgz'
+    if gtmseg.exists():
+        try:
+            shape, zooms = _image_geometry(gtmseg)
+        except Exception:
+            pass
+        else:
+            if prod(shape) > 150_000_000:
+                return gtmseg, shape, zooms
+
+    return None
+
+
+def _warn_about_submillimeter_recon(*, subject_id, session_id, t1w_files, pet_runs):
+    if not config.workflow.run_reconall:
+        return
+
+    group = _fmt_group(subject_id, session_id)
+    fs_subject_id = _subject_fs_id(subject_id, session_id)
+    existing_highres = _detect_existing_highres_freesurfer(fs_subject_id)
+    if existing_highres is not None:
+        image_file, shape, zooms = existing_highres
+        config.loggers.workflow.warning(
+            f'Existing high-resolution FreeSurfer outputs were detected for {group} '
+            f'({image_file.name}: {_format_geometry(shape, zooms)}). PETPrep may reuse these '
+            'outputs; --no-submm-recon only affects new recon-all runs and will not downsample '
+            'or rebuild an existing FreeSurfer subject. To avoid high-resolution GTM/PET '
+            'resampling, use a fresh --fs-subjects-dir or rebuild the FreeSurfer subject without '
+            'submillimeter reconstruction.'
+        )
+        return
+
+    if not t1w_files:
+        return
+
+    t1w_file = t1w_files[0]
+    if not _is_submillimeter_anat(t1w_file):
+        return
+
+    try:
+        shape, zooms = _image_geometry(t1w_file)
+    except Exception:
+        shape = zooms = None
+
+    t1w_desc = str(t1w_file)
+    if shape is not None and zooms is not None:
+        t1w_desc = f'{t1w_file} ({_format_geometry(shape, zooms)})'
+
+    pet_count = len(pet_runs) if pet_runs else 0
+    if config.workflow.hires:
+        config.loggers.workflow.warning(
+            f'Submillimeter FreeSurfer reconstruction is enabled for {group}; the first '
+            f'T1w image is {t1w_desc}. This may produce very large nu.mgz/gtmseg.mgz grids '
+            f'and require tens of GB when resampling {pet_count} PET run(s) into anatomical '
+            'space, especially with --seg gtm. Remove --submm-recon or use a 1 mm T1w if '
+            'high-resolution PET/anat outputs are not required.'
+        )
+    else:
+        config.loggers.workflow.warning(
+            f'Submillimeter T1w image detected for {group}: {t1w_desc}. PETPrep will run '
+            'FreeSurfer without submillimeter reconstruction by default to avoid very large '
+            'anatomical/GTM grids during PET resampling. Use --submm-recon to opt in.'
+        )
 
 
 def _fmt_group(subject_id, session_id=None):

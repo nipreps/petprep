@@ -135,6 +135,12 @@ would be equivalent to the latest example: ::
         /data /out participant
     ...
 
+FreeSurfer submillimeter reconstruction is disabled by default in *PETPrep*.
+This avoids very large anatomical and GTM segmentation grids when PET data are
+resampled into anatomical space. To opt in for submillimeter T1w inputs, pass
+``--submm-recon``. The ``--no-submm-recon`` flag can be used to explicitly keep
+the default behavior.
+
 
 .. _prev_derivs:
 
@@ -159,6 +165,10 @@ components will be recomputed.
 You can use the ``--fs-subjects-dir`` flag to specify a different location to save
 FreeSurfer outputs.
 If precomputed results are found, they will be reused.
+If those precomputed results were generated with submillimeter reconstruction,
+``--no-submm-recon`` will not downsample or rebuild them; use a fresh
+``--fs-subjects-dir`` or rebuild the FreeSurfer subject without submillimeter
+reconstruction to avoid high-resolution GTM/PET resampling.
 
 BIDS Derivatives reuse
 ~~~~~~~~~~~~~~~~~~~~~~
