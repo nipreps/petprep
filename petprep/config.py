@@ -582,8 +582,8 @@ class workflow(_Config):
     """Flag indicating whether ``--petref`` was explicitly provided."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
-    hires = None
-    """Run FreeSurfer ``recon-all`` with the ``-hires`` flag."""
+    hires = False
+    """Allow FreeSurfer ``recon-all`` to use the ``-hires`` flag for submillimeter T1w."""
     fs_no_resume = None
     """Adjust pipeline to reuse base template of existing longitudinal freesurfer"""
     ignore = None

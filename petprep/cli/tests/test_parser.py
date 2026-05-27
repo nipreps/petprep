@@ -71,6 +71,21 @@ def test_parser_valid(tmp_path, args):
     assert opts.bids_dir == datapath
 
 
+def test_submm_recon_flags(tmp_path):
+    """Check FreeSurfer submillimeter reconstruction defaults and overrides."""
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+    base_args = [str(datapath)] + MIN_ARGS[1:]
+    parser = _build_parser()
+
+    assert parser.parse_args(base_args).hires is False
+    assert parser.parse_args(base_args + ['--submm-recon']).hires is True
+    assert parser.parse_args(base_args + ['--no-submm-recon']).hires is False
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(base_args + ['--submm-recon', '--no-submm-recon'])
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [

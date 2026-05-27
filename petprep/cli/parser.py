@@ -582,11 +582,19 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Path to FreeSurfer license key file. Get it (for free) by registering'
         ' at https://surfer.nmr.mgh.harvard.edu/registration.html',
     )
-    g_fs.add_argument(
+    fs_hires = g_fs.add_mutually_exclusive_group()
+    fs_hires.add_argument(
+        '--submm-recon',
+        action='store_true',
+        dest='hires',
+        default=False,
+        help='Enable FreeSurfer sub-millimeter (hires) reconstruction.',
+    )
+    fs_hires.add_argument(
         '--no-submm-recon',
         action='store_false',
         dest='hires',
-        help='Disable sub-millimeter (hires) reconstruction',
+        help='Disable FreeSurfer sub-millimeter (hires) reconstruction.',
     )
     fs_mutex = g_fs.add_mutually_exclusive_group()
     fs_mutex.add_argument(
