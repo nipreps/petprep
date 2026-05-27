@@ -389,9 +389,7 @@ def test_detect_existing_highres_freesurfer_ignores_standard_grid(bids_root, tmp
         config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
         mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
         mri_dir.mkdir(parents=True)
-        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.eye(4)).to_filename(
-            mri_dir / 'nu.mgz'
-        )
+        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.eye(4)).to_filename(mri_dir / 'nu.mgz')
 
         assert _detect_existing_highres_freesurfer('sub-01') is None
 
@@ -409,9 +407,7 @@ def test_detect_existing_highres_freesurfer_handles_unreadable_outputs(
         assert _detect_existing_highres_freesurfer('sub-01') is None
 
 
-def test_detect_existing_highres_freesurfer_flags_large_gtmseg(
-    bids_root, tmp_path, monkeypatch
-):
+def test_detect_existing_highres_freesurfer_flags_large_gtmseg(bids_root, tmp_path, monkeypatch):
     with mock_config(bids_dir=bids_root):
         config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
         mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
@@ -512,9 +508,7 @@ def test_warn_about_submillimeter_recon_existing_highres(bids_root, tmp_path, mo
     assert '--no-submm-recon only affects new recon-all runs' in messages[0]
 
 
-def test_warn_about_submillimeter_recon_handles_geometry_failure(
-    bids_root, tmp_path, monkeypatch
-):
+def test_warn_about_submillimeter_recon_handles_geometry_failure(bids_root, tmp_path, monkeypatch):
     messages = []
     submm = tmp_path / 'submm_T1w.nii.gz'
     submm.write_text('placeholder')
