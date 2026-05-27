@@ -21,6 +21,12 @@ def test_segmentation_node_selection():
         assert 'create_wm_dsegtsv' in names_wm
         assert 'create_wm_morphtsv' in names_wm
 
+        wf_aparcaseg = init_segmentation_wf('aparcaseg')
+        names_aparcaseg = [n.name for n in wf_aparcaseg._get_all_nodes()]
+        assert 'segstats_aparcaseg' in names_aparcaseg
+        assert 'create_aparcaseg_dsegtsv' in names_aparcaseg
+        assert 'create_aparcaseg_morphtsv' in names_aparcaseg
+
 
 def test_merge_ha_labels(tmp_path):
     """Merged volume should match input geometry."""

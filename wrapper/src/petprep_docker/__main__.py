@@ -133,6 +133,8 @@ def check_memory(image):
 
 
 def merge_help(wrapper_help, target_help):
+    ansi_re = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
+
     def _get_posargs(usage):
         """
         Extract positional arguments from usage string.
@@ -158,8 +160,8 @@ def merge_help(wrapper_help, target_help):
     flag_re = re.compile(r'\[--?([\w-]+)[ \]]')
 
     # Normalize to Unix-style line breaks
-    w_help = wrapper_help.rstrip().replace('\r', '')
-    t_help = target_help.rstrip().replace('\r', '')
+    w_help = ansi_re.sub('', wrapper_help.rstrip().replace('\r', ''))
+    t_help = ansi_re.sub('', target_help.rstrip().replace('\r', ''))
 
     w_usage, w_details = w_help.split('\n\n', 1)
     w_groups = w_details.split('\n\n')

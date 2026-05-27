@@ -103,6 +103,46 @@ def test_config_spaces():
     _reset_config()
 
 
+def test_processing_groups_roundtrip(tmp_path):
+    _reset_config()
+    config.execution.processing_groups = [
+        ('01', 'pre'),
+        ('01', 'post'),
+        ('02', None),
+        ('sub-03', ['ses-pre', 'post']),
+    ]
+
+    settings = loads(config.dumps())
+    assert settings['execution']['processing_groups'] == [
+        'sub-01_ses-pre',
+        'sub-01_ses-post',
+        'sub-02',
+        'sub-03_ses-pre,post',
+    ]
+
+    config_file = tmp_path / 'petprep.toml'
+    config.to_filename(config_file)
+    _reset_config()
+    config.load(config_file, init=False)
+
+    assert config.execution.processing_groups == [
+        ('01', ['pre']),
+        ('01', ['post']),
+        ('02', None),
+        ('03', ['pre', 'post']),
+    ]
+    _reset_config()
+
+
+def test_processing_groups_load_preserves_nonserialized_values():
+    groups = [('01', None)]
+
+    config.execution.load({'processing_groups': groups}, init=False)
+
+    assert config.execution.processing_groups == groups
+    _reset_config()
+
+
 @pytest.mark.parametrize(
     ('master_seed', 'ants_seed', 'numpy_seed', 'freesurfer_seed'),
     [(1, 17612, 8272, 33433), (100, 19094, 60232, 59629)],

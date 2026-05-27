@@ -367,7 +367,7 @@ def init_pet_fit_wf(
     name: str = 'pet_fit_wf',
 ) -> pe.Workflow:
     """
-    This workflow controls the minimal estimation steps for functional preprocessing.
+    This workflow controls the fit-stage estimation steps for PET preprocessing.
 
     Workflow Graph
         .. workflow::
@@ -378,7 +378,7 @@ def init_pet_fit_wf(
             from petprep import config
             from petprep.workflows.pet.fit import init_pet_fit_wf
             with mock_config():
-                pet_file = config.execution.bids_dir / "sub-01" / "func" \
+                pet_file = config.execution.bids_dir / "sub-01" / "pet" \
                     / "sub-01_task-mixedgamblestask_run-01_pet.nii.gz"
                 wf = init_pet_fit_wf(pet_series=[str(pet_file)])
 
@@ -536,14 +536,20 @@ def init_pet_fit_wf(
     petref_strategy = requested_petref_strategy
     petref_candidates = None
     petref_candidate_labels: list[str] = []
-    if requested_petref_strategy == 'auto':
+    if pet_tlen <= 1 and requested_petref_strategy == 'auto':
+        petref_strategy = 'template'
+        config.loggers.workflow.info(
+            '3D PET file detected; using the input image as the PET reference instead of '
+            'building multiple auto PET references.'
+        )
+    elif requested_petref_strategy == 'auto':
         petref_strategy = 'auto'
         petref_candidate_labels = ['template', 'twa', 'sum', 'first5min']
         petref_candidates = pe.Node(
             niu.IdentityInterface(fields=petref_candidate_labels), name='petref_candidates'
         )
 
-    if hmc_disabled and petref_strategy == 'template':
+    if pet_tlen > 1 and hmc_disabled and petref_strategy == 'template':
         config.loggers.workflow.warning(
             'Head motion correction disabled (--hmc-off); using a time-weighted average '
             'reference instead of the motion correction template.'
@@ -1306,9 +1312,9 @@ def init_pet_native_wf(
     r"""
     Minimal resampling workflow.
 
-    This workflow performs slice-timing correction, and resamples to petref space
-    with head motion and susceptibility distortion correction. It also selects
-    the transforms needed to perform further resampling.
+    This workflow resamples the PET series into PET reference space while
+    applying the head-motion transforms estimated in the fit stage. It also
+    selects the transforms needed to perform further resampling.
 
     Workflow Graph
         .. workflow::
@@ -1319,7 +1325,7 @@ def init_pet_native_wf(
             from petprep import config
             from petprep.workflows.pet.fit import init_pet_native_wf
             with mock_config():
-                pet_file = config.execution.bids_dir / "sub-01" / "func" \
+                pet_file = config.execution.bids_dir / "sub-01" / "pet" \
                     / "sub-01_task-mixedgamblestask_run-01_pet.nii.gz"
                 wf = init_pet_native_wf(pet_series=[str(pet_file)])
 

@@ -15,8 +15,15 @@ Execution and the BIDS format
 The *PETPrep* workflow takes as principal input the path of the dataset
 that is to be processed.
 The input dataset is required to be in valid :abbr:`BIDS (Brain Imaging Data
-Structure)` format, and it must include at least one T1w structural image and
-(unless disabled with a flag) a PET scan.
+Structure)` format. For a subject to be processed, the selected inputs for that
+subject must include at least one PET scan, unless :option:`--anat-only` is
+used. The workflow also requires anatomical information: either at least one
+T1w structural image in the raw BIDS dataset, or reusable T1w preprocessing
+derivatives supplied with :option:`--derivatives`.
+At the beginning of the workflow, *PETPrep* checks each selected subject for
+these required inputs. Subjects missing PET and/or anatomical data are skipped,
+and a warning is emitted before subject-level workflows are built. The run only
+errors if no selected subjects remain after these checks.
 We highly recommend that you validate your dataset with the free, online
 `BIDS Validator <https://bids-standard.github.io/bids-validator/>`_.
 
@@ -33,60 +40,50 @@ Further information about BIDS and BIDS-Apps can be found at the
 Combining multiple PET runs within a session
 --------------------------------------------
 Some PET datasets include multiple ``run`` acquisitions for the same
-``subject``/``session``/``task``/``tracer`` combination (for example, for long 
-scans where the subject is in and out of the scanner). When the runs belong 
-together, add :option:`--combine-runs` to
-have *PETPrep* concatenate them before building the preprocessing workflow.
+``subject``/``session``/``task``/``tracer``/``reconstruction`` combination
+(for example, for long scans where the subject is in and out of the scanner).
+When the runs belong together, add :option:`--combine-runs` to have *PETPrep*
+concatenate them before building the preprocessing workflow.
 
 Enabling :option:`--combine-runs` instructs *PETPrep* to create a temporary,
-run-less copy of the BIDS tree in the working directory. For each group of runs
-sharing the same non-run entities, PET images are concatenated along the final
-dimension when they contain multiple frames (or along the volume dimension for
-static images). Frame timing metadata from the individual sidecar JSON files is
-merged with adjusted offsets, and the combined image and metadata are written
-without the ``run`` entity in their filenames. Subsequent preprocessing then
-operates on these merged series rather than the original per-run inputs.
+run-less copy of the BIDS tree in the working directory. PET files are grouped
+by all matching PET entities except ``run``, ``suffix``, ``extension``,
+``datatype`` and ``space``. Within each group, images are concatenated along
+the frame dimension. Three-dimensional PET images are first treated as
+single-frame series. Frame timing metadata from the individual sidecar JSON
+files is merged with adjusted offsets, and the combined image and metadata are
+written without the ``run`` entity in their filenames. Subsequent preprocessing
+then operates on these merged series rather than the original per-run inputs.
 
-Command-Line Arguments
-----------------------
-.. argparse::
-   :ref: petprep.cli.parser._build_parser
-   :prog: petprep
-   :nodefault:
-   :nodefaultconst:
+Because :option:`--combine-runs` removes the ``run`` entity before querying PET
+files, it is intended for processing all runs in each matching group. Avoid
+combining it with :option:`--run-label` unless you explicitly want run labels
+ignored during the combination step.
 
+Filtering PET inputs by BIDS entities
+-------------------------------------
+*PETPrep* can restrict which PET series are preprocessed by matching BIDS
+entities in the input filenames. In addition to
+:option:`--participant-label` and :option:`--session-label`, PET-specific
+filters are available through :option:`--tracer-label`, :option:`--rec-label`,
+and :option:`--run-label`. The :option:`--task-id` option similarly filters PET
+inputs by task.
 
-The command-line interface of the docker wrapper
-------------------------------------------------
+Use :option:`--rec-label` when a dataset contains multiple reconstruction
+variants for the same acquisition and only a subset should be processed. The
+option accepts one or more reconstruction identifiers, and the ``rec-`` prefix
+is optional. For example, if a dataset includes files such as
+``sub-01_rec-FBP_pet.nii.gz`` and ``sub-01_rec-OSEM_pet.nii.gz``, both can be
+selected explicitly with: ::
 
-.. argparse::
-   :ref: petprep_docker.__main__.get_parser
-   :prog: petprep-docker
-   :nodefault:
-   :nodefaultconst:
+    petprep data/bids_root/ out/ participant --rec-label FBP OSEM
 
+The equivalent command with explicit BIDS entity values is also valid: ::
 
+    petprep data/bids_root/ out/ participant --rec-label rec-FBP rec-OSEM
 
-Limitations and reasons not to use *PETPrep*
----------------------------------------------
-
-1. Very narrow :abbr:`FoV (field-of-view)` images oftentimes do not contain
-   enough information for standard image registration methods to work correctly.
-   Also, problems may arise when extracting the brain from these data.
-   PETPrep supports pre-aligned PET data, and accepting pre-computed
-   derivatives such as brain masks and atlases are a target of future effort.
-2. *PETPrep* may also underperform for particular populations (e.g., infants) and
-   non-human brains, although appropriate templates can be provided to overcome the
-   issue.
-3. If you are working with blocking data, be aware that the motion correction step may not perform optimally.
-4. If you really want unlimited flexibility (which is obviously a double-edged sword).
-5. If you want students to suffer through implementing each step for didactic purposes,
-   or to learn shell-scripting or Python along the way.
-6. If you are trying to reproduce some *in-house* lab pipeline.
-
-(Reasons 4-6 were kindly provided by S. Nastase in his
-`open review <https://pubpeer.com/publications/6B3E024EAEBF2C80085FDF644C2085>`__
-of our `pre-print <https://doi.org/10.1101/306951>`__).
+These filters apply to PET inputs only, so anatomical files are still resolved
+using the matching subject and session context.
 
 .. _fs_license:
 
@@ -154,7 +151,9 @@ reprocessing.
 Using a previous run of *FreeSurfer*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 *PETPrep* will automatically reuse previous runs of *FreeSurfer* if a subject directory
-named ``freesurfer/`` is found in the output directory (``<output_dir>/freesurfer``).
+is found in the configured FreeSurfer subjects directory. By default this is
+``<output_dir>/sourcedata/freesurfer`` with ``--output-layout bids`` and
+``<output_dir>/freesurfer`` with ``--output-layout legacy``.
 Reconstructions for each participant will be checked for completeness, and any missing
 components will be recomputed.
 You can use the ``--fs-subjects-dir`` flag to specify a different location to save
@@ -197,17 +196,18 @@ Head motion correction
 ----------------------
 *PETPrep* can correct for head motion in the PET data.
 The head motion is estimated using a frame-based robust registration approach to an unbiased mean 
-volume implemented in FreeSurfer's mri_robust_register (Reuter et al., 2010), combined with 
+volume implemented in FreeSurfer's ``mri_robust_template`` (Reuter et al., 2010), combined with
 preprocessing steps using tools from FSL (Jenkinson et al., 2012). Specifically, for the estimation 
-of head motion, each frame is initially smoothed with a Gaussian filter (full-width half-maximum [FWHM] of 10 mm, --hmc-fwhm 10), 
+of head motion, each frame is initially smoothed with a Gaussian filter
+(full-width half-maximum [FWHM] of 10 mm, :option:`--hmc-fwhm` ``10``),
 followed by thresholding at 20% of the intensity range to reduce noise and improve registration 
 accuracy (removing stripe artefacts from filtered back projection reconstructions). 
-Per default, the motion is estimated selectively of frames acquired after 120 seconds post-injection of the tracer (--hmc-start-time 120),
-as frames before this often contain low count statistics. Frames preceding 120 seconds were corrected 
-using identical transformations as derived for the first frame after 120 seconds. The robust 
-registration (mri_robust_register) algorithm utilized settings optimized for PET data: intensity 
-scaling was enabled, automated sensitivity detection was activated, and the Frobenius norm threshold 
-for convergence was set at 0.0001, ensuring precise and consistent alignment across frames.
+By default, motion is estimated from frames whose midpoint is later than
+120 seconds post-injection (:option:`--hmc-start-time` ``120``), as earlier
+frames often contain low count statistics. Frames before this point are
+corrected with the transform estimated for the first selected frame. The robust
+template estimation uses PET-oriented settings, including intensity scaling and
+automatic sensitivity detection.
 
 By default, *PETPrep* evaluates the frames acquired after
 :option:`--hmc-start-time` and initializes motion correction with the
@@ -230,14 +230,18 @@ Examples: ::
 
 
 PET reference image selection
--------------------------
+-----------------------------
 Use :option:`--petref` to control how the reference volume is built from the
-dynamic PET series. Each strategy uses the frame timing metadata from
-``FrameTimesStart`` and ``FrameDuration`` to weight volumes; missing metadata
-will raise an error before preprocessing starts.
+PET series. PET fitting currently requires frame timing metadata before the
+workflow is built. *PETPrep* accepts ``FrameTimesStart`` or ``VolumeTiming`` for
+frame starts, and ``FrameDuration`` or ``AcquisitionDuration`` for frame
+durations. Strategies that average frames use these values to weight volumes;
+missing timing metadata raises an error before preprocessing starts.
 
 * ``auto`` (default) builds candidate references, runs PET-to-T1w registration
   for each, and keeps whichever option scores best for anatomical alignment.
+  For three-dimensional PET files, ``auto`` uses the input image as the PET
+  reference instead of building multiple candidates.
 * ``template`` reuses the motion-correction template, providing a
   consistent target for downstream registration. When :option:`--hmc-off`
   disables motion correction, requesting ``template`` automatically falls back
@@ -277,10 +281,10 @@ registration that consumes the unmasked T1w and a separate mask). The
 resampling steps.
 
 Segmentation
-----------------
+------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from freesurfer, ``brainstem``, ``wm`` (white matter), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`.
+Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``aparcaseg`` (FreeSurfer ``aparc+aseg.mgz``), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 
@@ -289,7 +293,7 @@ To run the segmentation with the default ``gtm`` method, use: ::
     $ petprep /data/bids_root /out participant --seg gtm 
 
 Atlas Segmentation
---------------------
+------------------
 
 PETPrep currently supports three atlas variants for segmentation:
 
@@ -297,15 +301,17 @@ PETPrep currently supports three atlas variants for segmentation:
 
 .. figure:: _static/atlas_HOCPA.svg
 
-``Schaefer2018*`` : the Schaefer 2018 cortical parcellation (`--seg` options). 
+``Schaefer2018*`` : the Schaefer 2018 cortical parcellation (``--seg`` options).
 
 Available in resolutions of **100–1000 parcels**, each with either **7 or 17 networks**.
 
 **Format:**
-- `Schaefer2018<N>Parcels7Networks`
-- `Schaefer2018<N>Parcels17Networks`
 
-Where `<N>` ∈ {100, 200, 300, 400, 500, 600, 800, 1000}
+* ``Schaefer2018<N>Parcels7Networks``
+* ``Schaefer2018<N>Parcels17Networks``
+
+Where ``<N>`` is one of ``100``, ``200``, ``300``, ``400``, ``500``, ``600``,
+``800`` or ``1000``.
 
 .. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
@@ -364,11 +370,15 @@ using that reference together with the point spread function. As a
 consequence, decent motion correction of the input frames and a reliable PSF
 estimate are prerequisites for ``AGTM`` to succeed.
 Use ``--pvc-psf`` to specify the point spread function FWHM, either as a single
-value or three values. When PVC is enabled, the corrected image automatically
-feeds into the remainder of the workflow, and standard-space outputs are derived
-from this PVC-corrected series. The corrected data are first aligned to the
-T1-weighted anatomy, and only the anatomical-to-template transforms are applied
-for further resampling.
+value or three values. The options ``--pvc-tool``, ``--pvc-method`` and
+``--pvc-psf`` must be supplied together. ``petpvc`` accepts either one isotropic
+PSF value or three values for the x/y/z FWHM. ``petsurfer`` uses an isotropic
+PSF, so only the first value is used when several values are provided.
+
+When PVC is enabled, the corrected image automatically feeds into the remainder
+of the workflow, and standard-space outputs are derived from this PVC-corrected
+series. The corrected data are first aligned to the T1-weighted anatomy, and
+only the anatomical-to-template transforms are applied for further resampling.
 
 For example, to run PVC using the ``petpvc`` implementation together with the ``--seg gtm`` (default) and the ``GTM``
 method with a 5 mm PSF::
@@ -393,10 +403,12 @@ Use ``--ref-mask-name`` to select a predefined region and
 ``--ref-mask-index`` to override the label indices.
 
 The available masks are and do not require ``--ref-mask-index`` to be specified:
+
 - ``cerebellum``: Cerebellar gray matter (requires the ``--seg gtm`` option).
 - ``semiovale``: White matter in the centrum semiovale (requires the ``--seg wm`` option).
 - ``neocortex``: Neocortical gray matter (requires the ``--seg gtm`` option).
 - ``thalamus``: Thalamic gray matter (requires the ``--seg gtm`` option).
+- ``cc``: Corpus callosum labels 251-255 (requires the ``--seg aparcaseg`` option).
 
 The presets are defined in ``petprep/data/reference_mask/config.json``.
 
@@ -416,10 +428,51 @@ For example, to extract a mask of thalamus to use as a reference region, you can
 
 The indices of the regions from a given segmentation can be found in the corresponding ``/anat/sub-<participant_label>_seg-<segmentation>_morph.tsv``.
 
+Command-Line Arguments
+----------------------
+.. argparse::
+   :ref: petprep.cli.parser._build_parser
+   :prog: petprep
+   :nodefault:
+   :nodefaultconst:
+
+
+The command-line interface of the docker wrapper
+------------------------------------------------
+
+.. argparse::
+   :ref: petprep_docker.__main__.get_parser
+   :prog: petprep-docker
+   :nodefault:
+   :nodefaultconst:
+
+Limitations and reasons not to use *PETPrep*
+---------------------------------------------
+
+1. Very narrow :abbr:`FoV (field-of-view)` images oftentimes do not contain
+   enough information for standard image registration methods to work correctly.
+   Also, problems may arise when extracting the brain from these data.
+   PETPrep supports pre-aligned PET data, and accepting pre-computed
+   derivatives such as brain masks and atlases are a target of future effort.
+2. *PETPrep* may also underperform for particular populations (e.g., infants) and
+   non-human brains, although appropriate templates can be provided to overcome the
+   issue.
+3. If you are working with blocking data, be aware that the motion correction step may not perform optimally.
+4. If you really want unlimited flexibility (which is obviously a double-edged sword).
+5. If you want students to suffer through implementing each step for didactic purposes,
+   or to learn shell-scripting or Python along the way.
+6. If you are trying to reproduce some *in-house* lab pipeline.
+
+(Reasons 4-6 were kindly provided by S. Nastase in his
+`open review <https://pubpeer.com/publications/6B3E024EAEBF2C80085FDF644C2085>`__
+of our `pre-print <https://doi.org/10.1101/306951>`__).
+
 Troubleshooting
 ---------------
 Logs and crashfiles are output into the
-``<output dir>/petprep/sub-<participant_label>/log`` directory.
+``<output_dir>/sub-<participant_label>/log`` directory when using the default
+``--output-layout bids``. With ``--output-layout legacy``, logs are written
+under ``<output_dir>/petprep/sub-<participant_label>/log``.
 Information on how to customize and understand these files can be found on the
 `Debugging Nipype Workflows <https://miykael.github.io/nipype_tutorial/notebooks/basic_debug.html>`_
 page.
