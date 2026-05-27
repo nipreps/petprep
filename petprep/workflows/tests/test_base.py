@@ -314,9 +314,7 @@ def test_is_submillimeter_anat(tmp_path):
     anisotropic = tmp_path / 'anisotropic_T1w.nii.gz'
 
     nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 0.5, 1])).to_filename(submm)
-    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 1.0, 1])).to_filename(
-        anisotropic
-    )
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 1.0, 1])).to_filename(anisotropic)
 
     assert _is_submillimeter_anat(submm)
     assert not _is_submillimeter_anat(anisotropic)
