@@ -15,3 +15,13 @@ def test_estimate_pet_mem_usage(tmp_path):
     assert np.isclose(mem['filesize'], size)
     assert np.isclose(mem['resampled'], size * 4)
     assert np.isclose(mem['largemem'], size * (max(tlen / 100, 1.0) + 4))
+
+
+def test_estimate_pet_mem_usage_refreshes_overwritten_file(tmp_path):
+    pet_file = tmp_path / 'pet.nii.gz'
+
+    nb.Nifti1Image(np.zeros((5, 5, 5), dtype=np.float32), np.eye(4)).to_filename(pet_file)
+    assert estimate_pet_mem_usage(str(pet_file))[0] == 1
+
+    nb.Nifti1Image(np.zeros((5, 5, 5, 2), dtype=np.float32), np.eye(4)).to_filename(pet_file)
+    assert estimate_pet_mem_usage(str(pet_file))[0] == 2

@@ -341,6 +341,12 @@ class PETSummaryInputSpec(TraitedSpec):
         allow_none=True,
         desc='Winner selected during automatic PET-to-T1w registration',
     )
+    registration_score = traits.Either(
+        None,
+        traits.Float(),
+        usedefault=True,
+        desc='Similarity metric from PET-to-T1w registration',
+    )
     registration_dof = traits.Enum(
         6, 9, 12, desc='Registration degrees of freedom', mandatory=True
     )
@@ -400,7 +406,14 @@ class PETSummary(SummaryInterface):
                 winner_desc = 'FreeSurfer'
             else:
                 winner_desc = 'not recorded'
-            reg = f'Automatic selection between FreeSurfer and ANTs (best score: {winner_desc})'
+            score = getattr(self.inputs, 'registration_score', None)
+            metric_desc = ''
+            if score is not None and isdefined(score):
+                metric_desc = f'; similarity metric: {score:g}'
+            reg = (
+                'Automatic selection between FreeSurfer and ANTs '
+                f'(best score: {winner_desc}{metric_desc})'
+            )
         else:
             reg = f'Unknown registration method: {self.inputs.registration}'
 

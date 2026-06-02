@@ -116,6 +116,17 @@ def test_memory_arg(tmp_path, argval, gb):
     assert opts.memory_gb == gb
 
 
+def test_pet2anat_no_anat_crop_arg(tmp_path):
+    """Check PET-to-anat anatomical crop toggle parsing."""
+
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+
+    opts = _build_parser().parse_args([str(datapath)] + MIN_ARGS[1:] + ['--pet2anat-no-anat-crop'])
+
+    assert opts.pet2anat_crop is False
+
+
 @pytest.mark.parametrize(('current', 'latest'), [('1.0.0', '1.3.2'), ('1.3.2', '1.3.2')])
 def test_get_parser_update(monkeypatch, capsys, current, latest):
     """Make sure the out-of-date banner is shown."""

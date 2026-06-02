@@ -34,6 +34,7 @@ from niworkflows.utils.connections import listify
 from ... import config
 from ...data import load as load_data
 from ...interfaces import DerivativesDataSink
+from ...interfaces.registration import PETCoregistrationFallback
 from ...interfaces.reports import PETSummary
 from ...interfaces.resampling import ResampleSeries
 from ...utils.atlas import load_atlas_config
@@ -226,7 +227,16 @@ def _extract_sum_image(pet_file: str, output_dir: 'Path') -> str:
     return str(out_file)
 
 
-def _select_best_petref(labels, scores, transforms, inv_transforms, winners, petrefs):
+def _select_best_petref(
+    labels,
+    scores,
+    transforms,
+    inv_transforms,
+    winners,
+    petrefs,
+    fallbacks=None,
+    anat_references=None,
+):
     """Select the PET reference with the lowest registration cost."""
 
     if not labels or not scores:
@@ -251,6 +261,8 @@ def _select_best_petref(labels, scores, transforms, inv_transforms, winners, pet
         inv_transforms[best_idx],
         winners[best_idx],
         petrefs[best_idx],
+        fallbacks[best_idx] if fallbacks is not None else False,
+        anat_references[best_idx] if anat_references is not None else 'cropped',
     )
 
 
@@ -425,6 +437,12 @@ def init_pet_fit_wf(
     petref2anat_xfm
         Affine transform mapping from PET reference space to the anatomical
         space.
+    registration_fallback
+        Whether the selected PET-to-anatomical registration used the uncropped
+        anatomical fallback.
+    registration_anat_reference
+        Anatomical reference used by the selected PET-to-anatomical transform
+        (``cropped`` or ``uncropped``).
 
     See Also
     --------
@@ -505,6 +523,8 @@ def init_pet_fit_wf(
                 'pet_mask',
                 'motion_xfm',
                 'petref2anat_xfm',
+                'registration_fallback',
+                'registration_anat_reference',
                 'refmask',
             ],
         ),
@@ -671,11 +691,13 @@ def init_pet_fit_wf(
         reference_nodes['first5min'].inputs.fallback_to_first_frame = True
 
     rerun_coreg = petref2anat_xform and (
-        config.workflow.petref_specified or config.workflow.pet2anat_method_specified
+        config.workflow.petref_specified
+        or config.workflow.pet2anat_method_specified
+        or not config.workflow.pet2anat_crop
     )
     if rerun_coreg:
         config.loggers.workflow.info(
-            'PET Stage 3: Re-running co-registration because --petref or --pet2anat-method '
+            'PET Stage 3: Re-running co-registration because PET reference or registration '
             'were explicitly requested.'
         )
         petref2anat_xform = None
@@ -995,6 +1017,35 @@ def init_pet_fit_wf(
 
     pet_to_t1_source = None
     pet_to_t1_field = None
+    use_crop_fallback = (
+        config.workflow.pet2anat_crop
+        and config.workflow.pet2anat_crop_fallback
+        and config.workflow.pet2anat_method == 'auto'
+    )
+    crop_fallback_output_fields = [
+        'best_transform',
+        'best_inv_transform',
+        'best_winner',
+        'best_score',
+        'fallback',
+        'anat_reference',
+        'registration_winner',
+        'registration_score',
+        'fallback_scores',
+    ]
+
+    def _retain_crop_fallback_outputs(source, name):
+        provenance = pe.Node(
+            niu.IdentityInterface(fields=crop_fallback_output_fields),
+            name=name,
+            run_without_submitting=True,
+        )
+        workflow.connect(
+            [
+                (source, provenance, [(field, field) for field in crop_fallback_output_fields]),
+            ]
+        )
+        return provenance
 
     if not petref2anat_xform:
         config.loggers.workflow.info('PET Stage 3: Adding co-registration workflow of PET to T1w')
@@ -1014,6 +1065,12 @@ def init_pet_fit_wf(
             winner_merge = pe.Node(
                 niu.Merge(len(petref_candidate_labels)), name='merge_reg_winners'
             )
+            fallback_merge = pe.Node(
+                niu.Merge(len(petref_candidate_labels)), name='merge_reg_fallbacks'
+            )
+            anat_reference_merge = pe.Node(
+                niu.Merge(len(petref_candidate_labels)), name='merge_reg_anat_references'
+            )
             label_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_labels')
             petref_merge = pe.Node(niu.Merge(len(petref_candidate_labels)), name='merge_petrefs')
 
@@ -1023,9 +1080,51 @@ def init_pet_fit_wf(
                     omp_nthreads=omp_nthreads,
                     mem_gb=mem_gb['resampled'],
                     pet2anat_method=config.workflow.pet2anat_method,
+                    crop_anat=config.workflow.pet2anat_crop,
                     sloppy=config.execution.sloppy,
                     name=f'pet_reg_wf_{label}',
                 )
+
+                reg_source = reg_wf
+                if use_crop_fallback:
+                    select_crop_fallback = pe.Node(
+                        PETCoregistrationFallback(),
+                        name=f'select_crop_fallback_{label}',
+                    )
+                    select_crop_fallback.inputs.fallback_threshold = (
+                        config.workflow.pet2anat_crop_fallback_threshold
+                    )
+                    select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                    select_crop_fallback.inputs.pet2anat_method = config.workflow.pet2anat_method
+                    select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                    select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                    select_crop_fallback.inputs.sloppy = config.execution.sloppy
+
+                    workflow.connect([
+                        (inputnode, select_crop_fallback, [
+                            ('t1w_preproc', 'anat_preproc'),
+                            ('t1w_mask', 'anat_mask'),
+                        ]),
+                        (petref_candidates, select_crop_fallback, [
+                            (label, 'ref_pet_brain')
+                        ]),
+                    ])  # fmt:skip
+
+                    workflow.connect([
+                        (reg_wf, select_crop_fallback, [
+                            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                            ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                            ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                        ]),
+                    ])  # fmt:skip
+                    reg_source = select_crop_fallback
+                    _retain_crop_fallback_outputs(
+                        select_crop_fallback,
+                        name=f'select_crop_fallback_{label}_provenance',
+                    )
 
                 label_src = pe.Node(niu.IdentityInterface(fields=['label']), name=f'label_{label}')
                 label_src.inputs.label = label
@@ -1036,12 +1135,30 @@ def init_pet_fit_wf(
                         ('t1w_mask', 'inputnode.anat_mask'),
                     ]),
                     (petref_candidates, reg_wf, [(label, 'inputnode.ref_pet_brain')]),
-                    (reg_wf, score_merge, [(
-                        'outputnode.registration_score', f'in{idx + 1}'
+                    (reg_source, score_merge, [(
+                        'best_score' if use_crop_fallback else 'outputnode.registration_score',
+                        f'in{idx + 1}',
                     )]),
-                    (reg_wf, xfm_merge, [('outputnode.itk_pet_to_t1', f'in{idx + 1}')]),
-                    (reg_wf, inv_merge, [('outputnode.itk_t1_to_pet', f'in{idx + 1}')]),
-                    (reg_wf, winner_merge, [('outputnode.registration_winner', f'in{idx + 1}')]),
+                    (reg_source, xfm_merge, [(
+                        'best_transform' if use_crop_fallback else 'outputnode.itk_pet_to_t1',
+                        f'in{idx + 1}',
+                    )]),
+                    (reg_source, inv_merge, [(
+                        'best_inv_transform' if use_crop_fallback else 'outputnode.itk_t1_to_pet',
+                        f'in{idx + 1}',
+                    )]),
+                    (reg_source, winner_merge, [(
+                        'best_winner' if use_crop_fallback else 'outputnode.registration_winner',
+                        f'in{idx + 1}',
+                    )]),
+                    (reg_source, fallback_merge, [(
+                        'fallback' if use_crop_fallback else 'outputnode.fallback',
+                        f'in{idx + 1}',
+                    )]),
+                    (reg_source, anat_reference_merge, [(
+                        'anat_reference' if use_crop_fallback else 'outputnode.anat_reference',
+                        f'in{idx + 1}',
+                    )]),
                     (petref_candidates, petref_merge, [(label, f'in{idx + 1}')]),
                     (label_src, label_merge, [('label', f'in{idx + 1}')]),
                 ])  # fmt:skip
@@ -1056,6 +1173,8 @@ def init_pet_fit_wf(
                         'inv_transforms',
                         'winners',
                         'petrefs',
+                        'fallbacks',
+                        'anat_references',
                     ],
                     output_names=[
                         'best_label',
@@ -1064,6 +1183,8 @@ def init_pet_fit_wf(
                         'best_inv_transform',
                         'best_winner',
                         'best_petref',
+                        'fallback',
+                        'anat_reference',
                     ],
                 ),
                 name='select_best_petref',
@@ -1074,14 +1195,23 @@ def init_pet_fit_wf(
                 (xfm_merge, select_best_ref, [('out', 'transforms')]),
                 (inv_merge, select_best_ref, [('out', 'inv_transforms')]),
                 (winner_merge, select_best_ref, [('out', 'winners')]),
+                (fallback_merge, select_best_ref, [('out', 'fallbacks')]),
+                (anat_reference_merge, select_best_ref, [('out', 'anat_references')]),
                 (label_merge, select_best_ref, [('out', 'labels')]),
                 (petref_merge, select_best_ref, [('out', 'petrefs')]),
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
                 (select_best_ref, ds_petreg_wf, [('best_transform', 'inputnode.xform')]),
                 (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
+                (select_best_ref, outputnode, [
+                    ('fallback', 'registration_fallback'),
+                    ('anat_reference', 'registration_anat_reference'),
+                ]),
                 (select_best_ref, t1w_mask_tfm, [('best_transform', 'transforms')]),
                 (select_best_ref, petref_buffer, [('best_petref', 'petref')]),
-                (select_best_ref, summary, [('best_winner', 'registration_winner')]),
+                (select_best_ref, summary, [
+                    ('best_winner', 'registration_winner'),
+                    ('best_score', 'registration_score'),
+                ]),
                 (select_best_ref, summary, [('best_label', 'petref_strategy')]),
             ])  # fmt:skip
 
@@ -1094,8 +1224,10 @@ def init_pet_fit_wf(
                 omp_nthreads=omp_nthreads,
                 mem_gb=mem_gb['resampled'],
                 pet2anat_method=config.workflow.pet2anat_method,
+                crop_anat=config.workflow.pet2anat_crop,
                 sloppy=config.execution.sloppy,
             )
+            pet_reg_source = pet_reg_wf
 
             ds_petreg_wf = init_ds_registration_wf(
                 bids_root=layout.root,
@@ -1105,6 +1237,43 @@ def init_pet_fit_wf(
                 name='ds_petreg_wf',
             )
 
+            if use_crop_fallback:
+                select_crop_fallback = pe.Node(
+                    PETCoregistrationFallback(),
+                    name='select_crop_fallback',
+                )
+                select_crop_fallback.inputs.fallback_threshold = (
+                    config.workflow.pet2anat_crop_fallback_threshold
+                )
+                select_crop_fallback.inputs.pet2anat_dof = config.workflow.pet2anat_dof
+                select_crop_fallback.inputs.pet2anat_method = config.workflow.pet2anat_method
+                select_crop_fallback.inputs.mem_gb = mem_gb['resampled']
+                select_crop_fallback.inputs.omp_nthreads = omp_nthreads
+                select_crop_fallback.inputs.sloppy = config.execution.sloppy
+                workflow.connect([
+                    (inputnode, select_crop_fallback, [
+                        ('t1w_preproc', 'anat_preproc'),
+                        ('t1w_mask', 'anat_mask'),
+                    ]),
+                    (petref_buffer, select_crop_fallback, [('petref', 'ref_pet_brain')]),
+                ])  # fmt:skip
+
+                workflow.connect([
+                    (pet_reg_wf, select_crop_fallback, [
+                        ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+                        ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+                        ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+                        ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+                        ('outputnode.registration_score_ants', 'cropped_ants_score'),
+                        ('outputnode.registration_score_fs', 'cropped_fs_score'),
+                    ]),
+                ])  # fmt:skip
+                pet_reg_source = select_crop_fallback
+                _retain_crop_fallback_outputs(
+                    select_crop_fallback,
+                    name='select_crop_fallback_provenance',
+                )
+
             workflow.connect([
                 (inputnode, pet_reg_wf, [
                     ('t1w_preproc', 'inputnode.anat_preproc'),
@@ -1112,10 +1281,31 @@ def init_pet_fit_wf(
                 ]),
                 (petref_buffer, pet_reg_wf, [('petref', 'inputnode.ref_pet_brain')]),
                 (val_pet, ds_petreg_wf, [('out_file', 'inputnode.source_files')]),
-                (pet_reg_wf, ds_petreg_wf, [('outputnode.itk_pet_to_t1', 'inputnode.xform')]),
+                (pet_reg_source, ds_petreg_wf, [(
+                    'best_transform' if use_crop_fallback else 'outputnode.itk_pet_to_t1',
+                    'inputnode.xform',
+                )]),
                 (ds_petreg_wf, outputnode, [('outputnode.xform', 'petref2anat_xfm')]),
-                (pet_reg_wf, t1w_mask_tfm, [('outputnode.itk_pet_to_t1', 'transforms')]),
-                (pet_reg_wf, summary, [('outputnode.registration_winner', 'registration_winner')]),
+                (pet_reg_source, outputnode, [
+                    ('fallback' if use_crop_fallback else 'outputnode.fallback',
+                     'registration_fallback'),
+                    ('anat_reference' if use_crop_fallback else 'outputnode.anat_reference',
+                     'registration_anat_reference'),
+                ]),
+                (pet_reg_source, t1w_mask_tfm, [(
+                    'best_transform' if use_crop_fallback else 'outputnode.itk_pet_to_t1',
+                    'transforms',
+                )]),
+                (pet_reg_source, summary, [
+                    (
+                        'best_winner' if use_crop_fallback else 'outputnode.registration_winner',
+                        'registration_winner',
+                    ),
+                    (
+                        'best_score' if use_crop_fallback else 'outputnode.registration_score',
+                        'registration_score',
+                    ),
+                ]),
             ])  # fmt:skip
 
             pet_to_t1_source = pet_reg_wf
