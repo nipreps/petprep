@@ -135,11 +135,11 @@ jobs:
     - check-skip
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        - build-v2--{{ .Revision }}
-        - build-v2-{{ .Branch }}-
-        - build-v2-master-
-        - build-v2-
+        - build-v3-{{ .Branch }}-{{ .Revision }}
+        - build-v3--{{ .Revision }}
+        - build-v3-{{ .Branch }}-
+        - build-v3-master-
+        - build-v3-
         paths:
         - /tmp/docker
         - /tmp/images
@@ -220,7 +220,7 @@ jobs:
         paths:
         - src/petprep
     - save_cache:
-        key: build-v2-{{ .Branch }}-{{ .Revision }}
+        key: build-v3-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
@@ -288,7 +288,7 @@ jobs:
         at: /tmp
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
+        - build-v3-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
@@ -330,7 +330,7 @@ jobs:
         at: /tmp
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
+        - build-v3-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
@@ -393,7 +393,7 @@ jobs:
           fi
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
+        - build-v3-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
@@ -418,7 +418,7 @@ jobs:
     - check-skip
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
+        - build-v3-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
