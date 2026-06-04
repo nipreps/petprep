@@ -1,3 +1,10 @@
+0.0.8 (June 04, 2026)
+=====================
+Bug-fix release in the 0.0.x series.
+
+  * MAINT: Bump CircleCI Docker registry cache key (#322)
+
+
 0.0.7 (June 03, 2026)
 =====================
 Bug-fix release in the 0.0.x series.
