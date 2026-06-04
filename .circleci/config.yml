@@ -57,10 +57,13 @@ commands:
             docker load < /tmp/images/registry.tar.gz
           else
             echo "Pulling registry image from DockerHub"
-            docker pull registry:2
+            docker pull registry:3
           fi
+          # registry:3 defaults to exporting OpenTelemetry traces to localhost:4318.
+          # Disable it in CI. See https://distribution.github.io/distribution/about/deploying/
           docker run -d -p 5000:5000 --restart=always --name=registry \
-              -v /tmp/docker:/var/lib/registry registry:2
+              -e OTEL_TRACES_EXPORTER=none \
+              -v /tmp/docker:/var/lib/registry registry:3
   pull-from-registry:
     description: Pull and tag image from local registry
     steps:
@@ -135,11 +138,11 @@ jobs:
     - check-skip
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        - build-v2--{{ .Revision }}
-        - build-v2-{{ .Branch }}-
-        - build-v2-master-
-        - build-v2-
+        - build-v4-{{ .Branch }}-{{ .Revision }}
+        - build-v4--{{ .Revision }}
+        - build-v4-{{ .Branch }}-
+        - build-v4-main-
+        - build-v4-
         paths:
         - /tmp/docker
         - /tmp/images
@@ -212,15 +215,22 @@ jobs:
     - run:
         name: Docker registry garbage collection
         command: |
-          docker exec -it registry /bin/registry garbage-collect --delete-untagged \
-            /etc/docker/registry/config.yml
+          docker stop registry
+          # registry:3 stores its default config at /etc/distribution/config.yml.
+          # See https://distribution.github.io/distribution/about/configuration/
+          docker run --rm \
+            -e OTEL_TRACES_EXPORTER=none \
+            -v /tmp/docker:/var/lib/registry \
+            registry:3 /bin/registry garbage-collect --delete-untagged \
+            /etc/distribution/config.yml
 
     - persist_to_workspace:
         root: /tmp
         paths:
         - src/petprep
+        - docker
     - save_cache:
-        key: build-v2-{{ .Branch }}-{{ .Revision }}
+        key: build-v4-{{ .Branch }}-{{ .Revision }}
         paths:
         - /tmp/docker
         - /tmp/images
@@ -288,12 +298,6 @@ jobs:
         at: /tmp
     - restore_cache:
         keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        paths:
-        - /tmp/docker
-        - /tmp/images
-    - restore_cache:
-        keys:
         - data-v1-
     - docker/install-docker-credential-helper
     - docker-auth
@@ -328,12 +332,6 @@ jobs:
         check: tests
     - attach_workspace:
         at: /tmp
-    - restore_cache:
-        keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        paths:
-        - /tmp/docker
-        - /tmp/images
     - restore_cache:
         keys:
         - data-v1-
@@ -391,12 +389,8 @@ jobs:
             echo "Nothing to deploy for $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME."
             circleci step halt
           fi
-    - restore_cache:
-        keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        paths:
-        - /tmp/docker
-        - /tmp/images
+    - attach_workspace:
+        at: /tmp
     - docker/install-docker-credential-helper
     - docker-auth
     - setup-docker-registry
@@ -416,12 +410,8 @@ jobs:
     - checkout:
         path: *src
     - check-skip
-    - restore_cache:
-        keys:
-        - build-v2-{{ .Branch }}-{{ .Revision }}
-        paths:
-        - /tmp/docker
-        - /tmp/images
+    - attach_workspace:
+        at: /tmp
     - docker/install-docker-credential-helper
     - docker-auth
     - setup-docker-registry
