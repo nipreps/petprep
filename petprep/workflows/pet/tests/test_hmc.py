@@ -1,9 +1,12 @@
 import nibabel as nb
 import numpy as np
 import pytest
+from nipype.interfaces.base import Undefined
 
 from ..hmc import (
+    _estimate_hmc_gb,
     _find_highest_uptake_frame,
+    _select_hmc_subsample_threshold,
     estimate_hmc_mem_usage,
     get_start_frame,
     init_pet_hmc_wf,
@@ -67,6 +70,23 @@ def test_init_pet_hmc_wf_specific_inittp():
     assert node.inputs.no_iteration is True
 
 
+def test_init_pet_hmc_wf_subsample_threshold():
+    wf = init_pet_hmc_wf(mem_gb=0, omp_nthreads=1, subsample_threshold=200)
+    node = wf.get_node('est_robust_hmc')
+
+    assert node.inputs.subsample_threshold == 200
+    assert node.mem_gb == 0.01
+    assert '--subsample 200' in wf.__desc__
+
+
+def test_init_pet_hmc_wf_without_subsample_threshold():
+    wf = init_pet_hmc_wf(mem_gb=1, omp_nthreads=1)
+    node = wf.get_node('est_robust_hmc')
+
+    assert node.inputs.subsample_threshold is Undefined
+    assert '--subsample' not in wf.__desc__
+
+
 def test_find_highest_uptake_frame(tmp_path):
     data = [np.ones((2, 2, 2)) * i for i in (1, 2, 3)]
     files = []
@@ -79,6 +99,24 @@ def test_find_highest_uptake_frame(tmp_path):
     expected = np.argmax([arr.sum() for arr in data]) + 1
     result = _find_highest_uptake_frame(files)
     assert result == expected
+
+
+def test_estimate_hmc_gb_rejects_non_spatial_shape():
+    with pytest.raises(ValueError, match='PET image must be 3D or 4D'):
+        _estimate_hmc_gb((5, 5), 2)
+
+
+def test_estimate_hmc_gb_clamps_frame_count():
+    zero_frame_estimate = _estimate_hmc_gb((5, 5, 5), 0)
+    one_frame_estimate = _estimate_hmc_gb((5, 5, 5), 1)
+
+    assert zero_frame_estimate == one_frame_estimate
+
+
+def test_select_hmc_subsample_threshold():
+    assert _select_hmc_subsample_threshold(256) == 200
+    assert _select_hmc_subsample_threshold(160) == 159
+    assert _select_hmc_subsample_threshold(150) is None
 
 
 def test_estimate_hmc_mem_usage_respects_start_time(tmp_path):
@@ -99,6 +137,26 @@ def test_estimate_hmc_mem_usage_respects_start_time(tmp_path):
     assert estimate['estimate'] > estimate['frame']
 
 
+def test_estimate_hmc_mem_usage_handles_3d_pet(tmp_path):
+    img = nb.Nifti1Image(np.zeros((5, 5, 5), dtype=np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    estimate = estimate_hmc_mem_usage(str(pet_file))
+
+    assert estimate['selected_frames'] == 1
+    assert estimate['total_frames'] == 1
+
+
+def test_estimate_hmc_mem_usage_rejects_non_3d_or_4d(tmp_path):
+    img = nb.Nifti1Image(np.zeros((5, 5), dtype=np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    with pytest.raises(ValueError, match='PET image must be 3D or 4D'):
+        estimate_hmc_mem_usage(str(pet_file))
+
+
 def test_estimate_hmc_mem_usage_subsample_threshold(tmp_path):
     img = nb.Nifti1Image(np.zeros((30, 25, 22, 2), dtype=np.uint8), np.eye(4))
     pet_file = tmp_path / 'pet.nii.gz'
@@ -109,6 +167,18 @@ def test_estimate_hmc_mem_usage_subsample_threshold(tmp_path):
 
     assert subsampled['estimate'] < full['estimate']
     assert subsampled['frame'] < full['frame']
+
+
+def test_estimate_hmc_mem_usage_keeps_shape_when_subsample_cannot_apply(tmp_path):
+    img = nb.Nifti1Image(np.zeros((30, 20, 22, 2), dtype=np.uint8), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    full = estimate_hmc_mem_usage(str(pet_file), subsample_threshold=None)
+    subsampled = estimate_hmc_mem_usage(str(pet_file), subsample_threshold=20)
+
+    assert subsampled['estimate'] == full['estimate']
+    assert subsampled['frame'] == full['frame']
 
 
 def test_plan_hmc_resource_policy_ignores_requested_memory(tmp_path):
