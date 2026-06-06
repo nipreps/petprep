@@ -228,15 +228,6 @@ manual) fixed during robust template estimation to improve reproducibility.
 Iterations are automatically disabled to reduce runtime when :option:`--hmc-init-frame-fix` is
 used.
 
-For PET series with many selected frames or large spatial dimensions, *PETPrep*
-estimates the memory required by ``mri_robust_template`` after applying
-:option:`--hmc-start-time`. If the estimate is high, or if it would consume a
-large fraction of the requested :option:`--mem` budget, *PETPrep* automatically
-uses FreeSurfer's ``--subsample 200`` option and fixes the selected initial
-frame, disabling robust-template iterations. This keeps the workflow as a
-single robust-template step while reducing peak memory pressure for long or
-high-resolution dynamic PET acquisitions.
-
 When motion correction is undesirable, use :option:`--hmc-off` to disable head motion
 correction entirely and keep the data unmodified apart from downstream
 processing steps.
