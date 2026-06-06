@@ -481,10 +481,10 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
 
 
-def test_pet_fit_auto_limits_hmc_memory_against_requested_resources(
+def test_pet_fit_hmc_policy_does_not_depend_on_requested_resources(
     bids_root: Path,
 ):
-    """Stage 1 should adapt mri_robust_template settings to tight memory budgets."""
+    """Stage 1 should not change HMC settings only because --mem is tight."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
     for path in pet_series:
@@ -501,9 +501,9 @@ def test_pet_fit_auto_limits_hmc_memory_against_requested_resources(
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
 
     robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
-    assert robust_node.inputs.fixed_timepoint is True
-    assert robust_node.inputs.no_iteration is True
-    assert robust_node.inputs.subsample_threshold == 200
+    assert robust_node.inputs.fixed_timepoint is False
+    assert robust_node.inputs.no_iteration is False
+    assert robust_node.inputs.subsample_threshold is Undefined
 
 
 def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):

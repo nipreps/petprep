@@ -123,7 +123,7 @@ def test_estimate_hmc_mem_usage_subsample_threshold(tmp_path):
     assert subsampled['frame'] < full['frame']
 
 
-def test_plan_hmc_resource_policy_uses_requested_memory(tmp_path):
+def test_plan_hmc_resource_policy_ignores_requested_memory(tmp_path):
     img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
     pet_file = tmp_path / 'pet.nii.gz'
     img.to_filename(pet_file)
@@ -132,14 +132,12 @@ def test_plan_hmc_resource_policy_uses_requested_memory(tmp_path):
         str(pet_file),
         frame_durations=[1, 1, 1, 1],
         frame_start_times=[0, 1, 2, 3],
-        requested_memory_gb=0.00001,
         fixed_frame=False,
     )
 
-    assert policy['auto_limited'] is True
-    assert policy['fixed_frame'] is True
-    assert policy['subsample_threshold'] == 200
-    assert 'requested memory' in policy['reason']
+    assert policy['auto_limited'] is False
+    assert policy['fixed_frame'] is False
+    assert policy['subsample_threshold'] is None
 
 
 def test_plan_hmc_resource_policy_allows_forty_lowres_frames(tmp_path):
@@ -158,3 +156,60 @@ def test_plan_hmc_resource_policy_allows_forty_lowres_frames(tmp_path):
     assert policy['auto_limited'] is False
     assert policy['fixed_frame'] is False
     assert policy['subsample_threshold'] is None
+
+
+def test_plan_hmc_resource_policy_limits_more_than_forty_frames(tmp_path):
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 41), dtype=np.float32), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    policy = plan_hmc_resource_policy(
+        str(pet_file),
+        start_time=0,
+        frame_durations=[1] * 41,
+        frame_start_times=list(range(41)),
+    )
+
+    assert policy['selected_frames'] == 41
+    assert policy['auto_limited'] is True
+    assert policy['fixed_frame'] is True
+    assert policy['subsample_threshold'] is None
+    assert '41 selected frames' in policy['reason']
+
+
+def test_plan_hmc_resource_policy_skips_subsample_below_floor(tmp_path):
+    img = nb.Nifti1Image(np.zeros((100, 100, 100, 41), dtype=np.uint8), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    policy = plan_hmc_resource_policy(
+        str(pet_file),
+        start_time=0,
+        frame_durations=[1] * 41,
+        frame_start_times=list(range(41)),
+    )
+
+    assert policy['selected_frames'] == 41
+    assert policy['auto_limited'] is True
+    assert policy['fixed_frame'] is True
+    assert policy['subsample_threshold'] is None
+    assert policy['planned_memory_gb'] == policy['estimated_memory_gb']
+
+
+def test_plan_hmc_resource_policy_selects_dynamic_subsample_threshold(tmp_path):
+    img = nb.Nifti1Image(np.zeros((160, 160, 160, 41), dtype=np.uint8), np.eye(4))
+    pet_file = tmp_path / 'pet.nii.gz'
+    img.to_filename(pet_file)
+
+    policy = plan_hmc_resource_policy(
+        str(pet_file),
+        start_time=0,
+        frame_durations=[1] * 41,
+        frame_start_times=list(range(41)),
+    )
+
+    assert policy['selected_frames'] == 41
+    assert policy['auto_limited'] is True
+    assert policy['fixed_frame'] is True
+    assert policy['subsample_threshold'] == 159
+    assert policy['planned_memory_gb'] < policy['estimated_memory_gb']

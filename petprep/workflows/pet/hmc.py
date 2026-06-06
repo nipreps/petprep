@@ -48,9 +48,9 @@ from nipype.interfaces.utility import Select
 from nipype.pipeline import engine as pe
 
 HMC_AUTO_SUBSAMPLE_THRESHOLD = 200
+HMC_MIN_SUBSAMPLE_THRESHOLD = 150
 HMC_HIGH_FRAME_COUNT = 40
 HMC_HIGH_MEMORY_GB = 8.0
-HMC_MEMORY_BUDGET_FRACTION = 0.75
 
 
 def get_start_frame(
@@ -140,6 +140,18 @@ def _estimate_hmc_gb(
     return hmc_gb, frame_gb
 
 
+def _select_hmc_subsample_threshold(
+    min_spatial_dim: int,
+    *,
+    preferred_threshold: int = HMC_AUTO_SUBSAMPLE_THRESHOLD,
+    minimum_threshold: int = HMC_MIN_SUBSAMPLE_THRESHOLD,
+) -> int | None:
+    """Choose a threshold that can activate FreeSurfer's all-axis subsampling."""
+    if min_spatial_dim <= minimum_threshold:
+        return None
+    return min(preferred_threshold, min_spatial_dim - 1)
+
+
 def estimate_hmc_mem_usage(
     pet_file: str,
     *,
@@ -169,6 +181,7 @@ def estimate_hmc_mem_usage(
     return {
         'estimate': hmc_gb,
         'frame': frame_gb,
+        'min_spatial_dim': int(min(img.shape[:3])),
         'selected_frames': selected_frames,
         'start_frame': start_idx,
         'total_frames': n_total_frames,
@@ -181,11 +194,10 @@ def plan_hmc_resource_policy(
     start_time: float = 120.0,
     frame_durations: Sequence[float] | None = None,
     frame_start_times: Sequence[float] | None = None,
-    requested_memory_gb: float | None = None,
     fixed_frame: bool = False,
     subsample_threshold: int = HMC_AUTO_SUBSAMPLE_THRESHOLD,
 ) -> dict[str, float | int | bool | str | None]:
-    """Plan memory-saving options for robust-template HMC."""
+    """Plan data-driven memory-saving options for robust-template HMC."""
     estimate = estimate_hmc_mem_usage(
         pet_file,
         start_time=start_time,
@@ -198,17 +210,16 @@ def plan_hmc_resource_policy(
         reasons.append(f'{estimate["selected_frames"]} selected frames')
     if estimate['estimate'] >= HMC_HIGH_MEMORY_GB:
         reasons.append(f'estimated HMC memory {estimate["estimate"]:.2f} GB')
-    if (
-        requested_memory_gb
-        and estimate['estimate'] >= HMC_MEMORY_BUDGET_FRACTION * requested_memory_gb
-    ):
-        reasons.append(
-            f'estimated HMC memory is at least '
-            f'{int(HMC_MEMORY_BUDGET_FRACTION * 100)}% of requested memory'
-        )
 
     auto_limit_memory = bool(reasons)
-    planned_subsample = subsample_threshold if auto_limit_memory else None
+    planned_subsample = (
+        _select_hmc_subsample_threshold(
+            estimate['min_spatial_dim'],
+            preferred_threshold=subsample_threshold,
+        )
+        if auto_limit_memory
+        else None
+    )
     planned_estimate = estimate
     if planned_subsample is not None:
         planned_estimate = estimate_hmc_mem_usage(
@@ -353,6 +364,17 @@ Head-motion parameters with respect to the PET reference
 (transformation matrices, and six corresponding rotation and translation
 parameters) are estimated before any spatiotemporal filtering using
 FreeSurfer's ``mri_robust_template``.
+"""
+    if subsample_threshold is not None:
+        workflow.__desc__ += f"""\
+High-memory PET HMC settings were selected from data characteristics, and
+FreeSurfer's ``mri_robust_template`` was run with
+``--subsample {int(subsample_threshold)}``.
+"""
+    if fixed_frame:
+        workflow.__desc__ += """\
+The selected initial frame was fixed during robust-template estimation,
+disabling robust-template iterations.
 """
 
     inputnode = pe.Node(

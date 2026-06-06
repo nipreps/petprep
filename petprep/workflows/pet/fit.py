@@ -805,20 +805,27 @@ def init_pet_fit_wf(
             start_time=config.workflow.hmc_start_time,
             frame_durations=frame_durations,
             frame_start_times=frame_start_times,
-            requested_memory_gb=config.nipype.memory_gb,
             fixed_frame=config.workflow.hmc_fix_frame,
         )
         if hmc_policy['auto_limited']:
+            subsample_msg = (
+                f' with --subsample {hmc_policy["subsample_threshold"]}'
+                if hmc_policy['subsample_threshold'] is not None
+                else ''
+            )
             config.loggers.workflow.warning(
-                f'PET HMC memory estimate is high ({hmc_policy["estimated_memory_gb"]:.2f} GB '
-                f'for {hmc_policy["selected_frames"]}/{hmc_policy["total_frames"]} selected '
-                f'frames; {hmc_policy["reason"]}). Using --subsample '
-                f'{hmc_policy["subsample_threshold"]} and fixed initial-frame registration '
+                'PET HMC data-driven memory policy selected high-memory settings: '
+                f'estimated {hmc_policy["estimated_memory_gb"]:.2f} GB for '
+                f'{hmc_policy["selected_frames"]}/{hmc_policy["total_frames"]} selected '
+                f'frames ({hmc_policy["reason"]}); planned estimate '
+                f'{hmc_policy["planned_memory_gb"]:.2f} GB{subsample_msg} '
+                'and fixed initial-frame registration '
                 'for mri_robust_template.'
             )
         else:
-            config.loggers.workflow.debug(
-                f'PET HMC memory estimate: {hmc_policy["estimated_memory_gb"]:.2f} GB '
+            config.loggers.workflow.info(
+                'PET HMC data-driven memory policy selected standard settings: '
+                f'estimated {hmc_policy["estimated_memory_gb"]:.2f} GB '
                 f'for {hmc_policy["selected_frames"]}/{hmc_policy["total_frames"]} '
                 'selected frames.'
             )

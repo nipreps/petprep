@@ -230,12 +230,17 @@ used.
 
 For PET series with many selected frames or large spatial dimensions, *PETPrep*
 estimates the memory required by ``mri_robust_template`` after applying
-:option:`--hmc-start-time`. If the estimate is high, or if it would consume a
-large fraction of the requested :option:`--mem` budget, *PETPrep* automatically
-uses FreeSurfer's ``--subsample 200`` option and fixes the selected initial
-frame, disabling robust-template iterations. This keeps the workflow as a
-single robust-template step while reducing peak memory pressure for long or
-high-resolution dynamic PET acquisitions.
+:option:`--hmc-start-time`. If the data-driven estimate is high, *PETPrep*
+automatically fixes the selected initial frame, disabling robust-template
+iterations, and uses a FreeSurfer ``--subsample`` threshold when the spatial
+dimensions support safe subsampling. The threshold is at most 200 and is lowered
+below the smallest spatial dimension when needed so FreeSurfer's all-axis
+subsampling condition can take effect, but is not lowered below 150 voxels. This
+keeps the workflow as a single robust-template step while reducing peak memory
+pressure for long or high-resolution dynamic PET acquisitions without forcing a
+very coarse registration grid. The estimate, selected frame count and reason for
+the decision are recorded in the workflow log; the chosen HMC settings are
+reflected in the workflow boilerplate.
 
 When motion correction is undesirable, use :option:`--hmc-off` to disable head motion
 correction entirely and keep the data unmodified apart from downstream

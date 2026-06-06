@@ -408,11 +408,15 @@ explicit zero-based frame index can be provided with
 frame fixed during robust template estimation and disables iterations to
 reduce runtime. A 10 mm FWHM Gaussian is applied and estimation begins at
 120 s unless otherwise specified.
+
 For long or high-resolution series, PETPrep estimates robust-template memory
-from the selected frames and compares the estimate with the requested
-:option:`--mem` budget when available. High-risk HMC runs automatically use
-FreeSurfer's ``--subsample 200`` setting and fixed initial-frame registration
-to lower peak memory use.
+from the selected frames. High-risk HMC runs automatically use fixed
+initial-frame registration and, when spatial dimensions support safe
+subsampling, a dynamic FreeSurfer ``--subsample`` threshold of at most 200. The
+threshold is lowered below the smallest spatial dimension when needed so
+FreeSurfer's all-axis subsampling condition can take effect, but is not lowered
+below 150 voxels. This decision is data-driven and is recorded in the workflow
+log; the selected HMC settings are reflected in the workflow boilerplate.
 
 Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
