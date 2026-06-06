@@ -4,8 +4,10 @@ import pytest
 
 from ..hmc import (
     _find_highest_uptake_frame,
+    estimate_hmc_mem_usage,
     get_start_frame,
     init_pet_hmc_wf,
+    plan_hmc_resource_policy,
     update_list_transforms,
 )
 

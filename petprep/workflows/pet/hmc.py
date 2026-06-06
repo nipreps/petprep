@@ -285,6 +285,7 @@ def init_pet_hmc_wf(
     frame_start_times: Sequence[float] | None = None,
     initial_frame: int | str | None = 'auto',
     fixed_frame: bool = False,
+    subsample_threshold: int | None = None,
     name: str = 'pet_hmc_wf',
 ):
     r"""
@@ -332,6 +333,9 @@ def init_pet_hmc_wf(
         Whether to keep the initial time point fixed during robust template
         estimation (``fs.RobustTemplate``'s ``fixtp`` parameter). If ``True``,
         iterations are skipped to reduce runtime.
+    subsample_threshold : :obj:`int` or ``None``
+        FreeSurfer ``mri_robust_template --subsample`` threshold. If ``None``,
+        robust-template subsampling is not requested.
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -454,17 +458,22 @@ disabling robust-template iterations.
         )
 
     # Motion estimation
+    robust_template_kwargs = {
+        'auto_detect_sensitivity': True,
+        'intensity_scaling': True,
+        'average_metric': 'mean',
+        'args': '--cras',
+        'num_threads': omp_nthreads,
+        'fixed_timepoint': fixed_frame,
+        'no_iteration': fixed_frame,
+    }
+    if subsample_threshold is not None:
+        robust_template_kwargs['subsample_threshold'] = int(subsample_threshold)
+
     robust_template = pe.Node(
-        fs.RobustTemplate(
-            auto_detect_sensitivity=True,
-            intensity_scaling=True,
-            average_metric='mean',
-            args='--cras',
-            num_threads=omp_nthreads,
-            fixed_timepoint=fixed_frame,
-            no_iteration=fixed_frame,
-        ),
+        fs.RobustTemplate(**robust_template_kwargs),
         name='est_robust_hmc',
+        mem_gb=max(float(mem_gb), 0.01),
     )
     if not auto_init_frame:
         robust_template.inputs.initial_timepoint = int(initial_frame) + 1
