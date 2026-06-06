@@ -42,7 +42,7 @@ from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
 from .confounds import _binary_union, _smooth_binarize
-from .hmc import init_pet_hmc_wf, plan_hmc_resource_policy
+from .hmc import init_pet_hmc_wf
 from .outputs import (
     init_ds_hmc_wf,
     init_ds_petmask_wf,
@@ -832,15 +832,14 @@ def init_pet_fit_wf(
 
         pet_hmc_wf = init_pet_hmc_wf(
             name='pet_hmc_wf',
-            mem_gb=max(mem_gb['filesize'], hmc_policy['planned_memory_gb']),
+            mem_gb=mem_gb['filesize'],
             omp_nthreads=omp_nthreads,
             fwhm=config.workflow.hmc_fwhm,
             start_time=config.workflow.hmc_start_time,
             frame_durations=frame_durations,
             frame_start_times=frame_start_times,
             initial_frame=config.workflow.hmc_init_frame,
-            fixed_frame=hmc_policy['fixed_frame'],
-            subsample_threshold=hmc_policy['subsample_threshold'],
+            fixed_frame=config.workflow.hmc_fix_frame,
         )
 
         ds_hmc_wf = init_ds_hmc_wf(

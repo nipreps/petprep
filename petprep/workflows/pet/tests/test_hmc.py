@@ -4,10 +4,8 @@ import pytest
 
 from ..hmc import (
     _find_highest_uptake_frame,
-    estimate_hmc_mem_usage,
     get_start_frame,
     init_pet_hmc_wf,
-    plan_hmc_resource_policy,
     update_list_transforms,
 )
 
@@ -65,18 +63,6 @@ def test_init_pet_hmc_wf_specific_inittp():
     assert node.inputs.initial_timepoint == initial_frame + 1
     assert node.inputs.fixed_timepoint is True
     assert node.inputs.no_iteration is True
-
-
-def test_init_pet_hmc_wf_subsample_threshold():
-    wf = init_pet_hmc_wf(
-        mem_gb=2,
-        omp_nthreads=1,
-        fixed_frame=True,
-        subsample_threshold=200,
-    )
-    node = wf.get_node('est_robust_hmc')
-    assert node.inputs.subsample_threshold == 200
-    assert node.mem_gb == 2
 
 
 def test_find_highest_uptake_frame(tmp_path):
