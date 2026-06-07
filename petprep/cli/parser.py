@@ -668,7 +668,7 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         default='auto',
         help=(
             "Policy for automatic HMC memory safeguards. 'auto' estimates robust-template "
-            "memory from the PET data and enables fixed-frame/subsample safeguards for "
+            'memory from the PET data and enables fixed-frame/subsample safeguards for '
             "high-risk scans; 'off' disables these automatic safeguards."
         ),
     )
