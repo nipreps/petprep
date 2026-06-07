@@ -410,13 +410,15 @@ reduce runtime. A 10 mm FWHM Gaussian is applied and estimation begins at
 120 s unless otherwise specified.
 
 For long or high-resolution series, PETPrep estimates robust-template memory
-from the selected frames. High-risk HMC runs automatically use fixed
-initial-frame registration and, when spatial dimensions support safe
-subsampling, a dynamic FreeSurfer ``--subsample`` threshold of at most 200. The
-threshold is lowered below the smallest spatial dimension when needed so
-FreeSurfer's all-axis subsampling condition can take effect, but is not lowered
-below 150 voxels. This decision is data-driven and is recorded in the workflow
-log; the selected HMC settings are reflected in the workflow boilerplate.
+from the selected frames. With the default :option:`--hmc-memory-policy` ``auto``,
+high-risk HMC runs automatically use fixed initial-frame registration and, when
+spatial dimensions support safe subsampling, a dynamic FreeSurfer ``--subsample``
+threshold of at most 200. The threshold is lowered below the smallest spatial
+dimension when needed so FreeSurfer's all-axis subsampling condition can take
+effect, but is not lowered below 150 voxels. This decision is data-driven and is
+recorded in the workflow log; the selected HMC settings are reflected in the
+workflow boilerplate. Use :option:`--hmc-memory-policy` ``off`` to disable these
+automatic memory safeguards.
 
 Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -87,6 +87,12 @@ def test_init_pet_hmc_wf_without_subsample_threshold():
     assert '--subsample' not in wf.__desc__
 
 
+def test_init_pet_hmc_wf_records_disabled_memory_policy():
+    wf = init_pet_hmc_wf(mem_gb=1, omp_nthreads=1, memory_policy='off')
+
+    assert '--hmc-memory-policy off' in wf.__desc__
+
+
 def test_find_highest_uptake_frame(tmp_path):
     data = [np.ones((2, 2, 2)) * i for i in (1, 2, 3)]
     files = []

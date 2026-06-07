@@ -286,6 +286,7 @@ def init_pet_hmc_wf(
     initial_frame: int | str | None = 'auto',
     fixed_frame: bool = False,
     subsample_threshold: int | None = None,
+    memory_policy: str = 'auto',
     name: str = 'pet_hmc_wf',
 ):
     r"""
@@ -336,6 +337,8 @@ def init_pet_hmc_wf(
     subsample_threshold : :obj:`int` or ``None``
         FreeSurfer ``mri_robust_template --subsample`` threshold. If ``None``,
         robust-template subsampling is not requested.
+    memory_policy : {'auto', 'off'}
+        Whether automatic HMC memory safeguards were enabled for this workflow.
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -364,6 +367,11 @@ Head-motion parameters with respect to the PET reference
 (transformation matrices, and six corresponding rotation and translation
 parameters) are estimated before any spatiotemporal filtering using
 FreeSurfer's ``mri_robust_template``.
+"""
+    if memory_policy == 'off':
+        workflow.__desc__ += """\
+Automatic HMC memory safeguards were disabled with
+:option:`--hmc-memory-policy off`.
 """
     if subsample_threshold is not None:
         workflow.__desc__ += f"""\
