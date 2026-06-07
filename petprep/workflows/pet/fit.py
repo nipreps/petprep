@@ -842,7 +842,7 @@ def init_pet_fit_wf(
             )
         else:
             raise ValueError(
-                f"Unsupported HMC memory policy: {config.workflow.hmc_memory_policy!r}"
+                f'Unsupported HMC memory policy: {config.workflow.hmc_memory_policy!r}'
             )
 
         pet_hmc_wf = init_pet_hmc_wf(
