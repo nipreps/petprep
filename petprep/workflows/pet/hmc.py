@@ -50,7 +50,7 @@ from nipype.pipeline import engine as pe
 HMC_AUTO_SUBSAMPLE_THRESHOLD = 200
 HMC_MIN_SUBSAMPLE_THRESHOLD = 150
 HMC_HIGH_FRAME_COUNT = 40
-HMC_HIGH_MEMORY_GB = 8.0
+HMC_HIGH_MEMORY_GB = 24.0
 
 
 def get_start_frame(

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 from nipype.interfaces.base import Undefined
 
+from .. import hmc as pet_hmc
 from ..hmc import (
     _estimate_hmc_gb,
     _find_highest_uptake_frame,
@@ -220,6 +221,47 @@ def test_plan_hmc_resource_policy_allows_forty_lowres_frames(tmp_path):
     assert policy['auto_limited'] is False
     assert policy['fixed_frame'] is False
     assert policy['subsample_threshold'] is None
+
+
+class _DummyImage:
+    def __init__(self, shape):
+        self.shape = shape
+        self.ndim = len(shape)
+
+
+def test_plan_hmc_resource_policy_allows_historical_dynamic_pet(monkeypatch):
+    monkeypatch.setattr(pet_hmc.nb, 'load', lambda _filename: _DummyImage((200, 200, 111, 33)))
+
+    policy = plan_hmc_resource_policy(
+        'pet.nii.gz',
+        start_time=0,
+        frame_durations=[1] * 33,
+        frame_start_times=list(range(33)),
+    )
+
+    assert policy['selected_frames'] == 33
+    assert policy['estimated_memory_gb'] < 24.0
+    assert policy['auto_limited'] is False
+    assert policy['fixed_frame'] is False
+    assert policy['subsample_threshold'] is None
+
+
+def test_plan_hmc_resource_policy_limits_high_resolution_pet(monkeypatch):
+    monkeypatch.setattr(pet_hmc.nb, 'load', lambda _filename: _DummyImage((300, 300, 300, 20)))
+
+    policy = plan_hmc_resource_policy(
+        'pet.nii.gz',
+        start_time=0,
+        frame_durations=[1] * 20,
+        frame_start_times=list(range(20)),
+    )
+
+    assert policy['selected_frames'] == 20
+    assert policy['estimated_memory_gb'] >= 24.0
+    assert policy['auto_limited'] is True
+    assert policy['fixed_frame'] is True
+    assert policy['subsample_threshold'] == 200
+    assert policy['planned_memory_gb'] < policy['estimated_memory_gb']
 
 
 def test_plan_hmc_resource_policy_limits_more_than_forty_frames(tmp_path):
