@@ -5,6 +5,7 @@ from nipype.interfaces.base import Undefined
 
 from .. import hmc as pet_hmc
 from ..hmc import (
+    HMC_HIGH_MEMORY_GB,
     _estimate_hmc_gb,
     _find_highest_uptake_frame,
     _select_hmc_subsample_threshold,
@@ -240,7 +241,24 @@ def test_plan_hmc_resource_policy_allows_historical_dynamic_pet(monkeypatch):
     )
 
     assert policy['selected_frames'] == 33
-    assert policy['estimated_memory_gb'] < 24.0
+    assert policy['estimated_memory_gb'] < HMC_HIGH_MEMORY_GB
+    assert policy['auto_limited'] is False
+    assert policy['fixed_frame'] is False
+    assert policy['subsample_threshold'] is None
+
+
+def test_plan_hmc_resource_policy_allows_moderate_high_resolution_pet(monkeypatch):
+    monkeypatch.setattr(pet_hmc.nb, 'load', lambda _filename: _DummyImage((256, 256, 207, 28)))
+
+    policy = plan_hmc_resource_policy(
+        'pet.nii.gz',
+        start_time=0,
+        frame_durations=[1] * 28,
+        frame_start_times=list(range(28)),
+    )
+
+    assert policy['selected_frames'] == 28
+    assert policy['estimated_memory_gb'] < HMC_HIGH_MEMORY_GB
     assert policy['auto_limited'] is False
     assert policy['fixed_frame'] is False
     assert policy['subsample_threshold'] is None
@@ -257,7 +275,7 @@ def test_plan_hmc_resource_policy_limits_high_resolution_pet(monkeypatch):
     )
 
     assert policy['selected_frames'] == 20
-    assert policy['estimated_memory_gb'] >= 24.0
+    assert policy['estimated_memory_gb'] >= HMC_HIGH_MEMORY_GB
     assert policy['auto_limited'] is True
     assert policy['fixed_frame'] is True
     assert policy['subsample_threshold'] == 200
