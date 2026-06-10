@@ -185,9 +185,7 @@ def test_combine_pet_runs_handles_mixed_dimensions(tmp_path: Path, monkeypatch) 
     assert combined_meta['AcquisitionDuration'] == 7.5
 
 
-def test_combine_pet_runs_aligns_runs_to_common_timezero(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_combine_pet_runs_aligns_runs_to_common_timezero(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
@@ -232,9 +230,7 @@ def test_combine_pet_runs_aligns_runs_to_common_timezero(
         bids_filters={},
     )
 
-    expected_json = (
-        combined_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.json'
-    )
+    expected_json = combined_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.json'
     combined_meta = json.loads(expected_json.read_text())
 
     assert combined_meta['TimeZero'] == '11:19:37'
@@ -244,9 +240,7 @@ def test_combine_pet_runs_aligns_runs_to_common_timezero(
     assert combined_meta['FrameReferenceTime'] == [300.0, 652.776, 8001.0, 8351.508]
 
 
-def test_combine_pet_runs_rescales_decay_corrected_runs(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_combine_pet_runs_rescales_decay_corrected_runs(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
