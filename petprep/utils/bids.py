@@ -246,6 +246,14 @@ _FRAMEWISE_METADATA = (
     'RandomRate',
 )
 _DECAY_FACTOR_METADATA = ('DecayFactor', 'DecayCorrectionFactor')
+_RADIONUCLIDE_HALF_LIVES = {
+    'C11': 1220.4,
+    'F18': 6586.2,
+}
+_RADIONUCLIDE_ALIASES = {
+    'C11': ('C11', '11C', 'CARBON11', '11CARBON'),
+    'F18': ('F18', '18F', 'FLUORINE18', '18FLUORINE'),
+}
 
 
 def _parse_timezero(value) -> float | None:
@@ -333,6 +341,31 @@ def _metadata_as_framewise(value, frame_count: int) -> list | None:
     return None
 
 
+def _infer_radionuclide(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+
+    normalized = re.sub(r'[^A-Za-z0-9]', '', value).upper()
+    matches = {
+        radionuclide
+        for radionuclide, aliases in _RADIONUCLIDE_ALIASES.items()
+        if any(alias in normalized for alias in aliases)
+    }
+    return matches.pop() if len(matches) == 1 else None
+
+
+def _metadata_half_life(meta: dict) -> float | None:
+    try:
+        half_life = float(meta['RadionuclideHalfLife'])
+    except (KeyError, TypeError, ValueError):
+        half_life = None
+    if half_life is not None and half_life > 0:
+        return half_life
+
+    radionuclide = _infer_radionuclide(meta.get('TracerRadionuclide'))
+    return _RADIONUCLIDE_HALF_LIVES.get(radionuclide)
+
+
 def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
     factors = [1.0] * len(metas)
     if not metas or not all(meta.get('ImageDecayCorrected') is True for meta in metas):
@@ -340,10 +373,16 @@ def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[
 
     try:
         target_decay_time = float(metas[0]['ImageDecayCorrectionTime'])
-        half_life = float(metas[0]['RadionuclideHalfLife'])
     except (KeyError, TypeError, ValueError):
         return factors
-    if half_life <= 0:
+
+    half_lives = [_metadata_half_life(meta) for meta in metas]
+    if any(half_life is None for half_life in half_lives):
+        return factors
+    half_life = half_lives[0]
+    if not all(
+        np.isclose(half_life, other_half_life, rtol=0.01) for other_half_life in half_lives
+    ):
         return factors
 
     decay_constant = np.log(2.0) / half_life

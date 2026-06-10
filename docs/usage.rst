@@ -77,11 +77,16 @@ lengths are omitted from the combined sidecar to avoid writing misleading
 metadata.
 
 If all input runs are marked as decay-corrected and the sidecars include
-``ImageDecayCorrectionTime`` and ``RadionuclideHalfLife``, *PETPrep* rescales
-each run's image data to the first run's ``ImageDecayCorrectionTime`` before
-concatenating. The corresponding ``DecayFactor`` and ``DecayCorrectionFactor``
-values are updated by the same rescaling factor. If the required decay metadata
-are incomplete, the images are concatenated without additional decay rescaling.
+``ImageDecayCorrectionTime``, *PETPrep* rescales each run's image data to the
+first run's ``ImageDecayCorrectionTime`` before concatenating when it can
+determine a consistent radionuclide half-life. An explicit
+``RadionuclideHalfLife`` is used when available. Otherwise, *PETPrep* infers
+the half-life from clear ``TracerRadionuclide`` values for carbon-11 and
+fluorine-18, including forms such as ``C11``, ``11C``, ``Carbon11``, ``F18``,
+``18F``, and ``18Fluorine``. The corresponding ``DecayFactor`` and
+``DecayCorrectionFactor`` values are updated by the same rescaling factor. If
+the required decay metadata are incomplete, ambiguous, or inconsistent across
+runs, the images are concatenated without additional decay rescaling.
 
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid

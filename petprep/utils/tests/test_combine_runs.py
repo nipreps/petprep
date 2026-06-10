@@ -113,6 +113,40 @@ def test_metadata_as_framewise(value, frame_count, expected) -> None:
     assert bids_utils._metadata_as_framewise(value, frame_count) == expected
 
 
+@pytest.mark.parametrize(
+    ('value', 'expected'),
+    [
+        ('C11', 'C11'),
+        ('11C', 'C11'),
+        ('carbon-11', 'C11'),
+        ('[11C]PIB', 'C11'),
+        ('F18', 'F18'),
+        ('18F', 'F18'),
+        ('18Fluorine', 'F18'),
+        ('fluorine-18', 'F18'),
+        ('[18F]FDG', 'F18'),
+        ('VAT', None),
+        ('11C18F', None),
+        (None, None),
+    ],
+)
+def test_infer_radionuclide(value, expected) -> None:
+    assert bids_utils._infer_radionuclide(value) == expected
+
+
+@pytest.mark.parametrize(
+    ('meta', 'expected'),
+    [
+        ({'RadionuclideHalfLife': 123.0, 'TracerRadionuclide': '18F'}, 123.0),
+        ({'RadionuclideHalfLife': 'bad', 'TracerRadionuclide': '18Fluorine'}, 6586.2),
+        ({'RadionuclideHalfLife': 0.0, 'TracerRadionuclide': '11C'}, 1220.4),
+        ({'TracerRadionuclide': 'unknown'}, None),
+    ],
+)
+def test_metadata_half_life(meta, expected) -> None:
+    assert bids_utils._metadata_half_life(meta) == expected
+
+
 def test_decay_rescale_factors_fallbacks() -> None:
     assert bids_utils._decay_rescale_factors([], []) == []
     assert bids_utils._decay_rescale_factors([{}], [0.0]) == [1.0]
@@ -158,6 +192,40 @@ def test_decay_rescale_factors() -> None:
     ]
 
     assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == pytest.approx([1.0, 2.0])
+
+
+def test_decay_rescale_factors_uses_tracer_radionuclide_half_life() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': '18Fluorine',
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': '18F',
+        },
+    ]
+
+    assert bids_utils._decay_rescale_factors(metas, [0.0, 6586.2]) == pytest.approx([1.0, 2.0])
+
+
+def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': '18F',
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': '11C',
+        },
+    ]
+
+    assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == [1.0, 1.0]
 
 
 def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
