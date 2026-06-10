@@ -54,11 +54,34 @@ single-frame series. Frame timing metadata from the individual sidecar JSON
 files is merged with adjusted offsets, and the combined image and metadata are
 written without the ``run`` entity in their filenames. Subsequent preprocessing
 then operates on these merged series rather than the original per-run inputs.
-When available, ``TimeZero`` and ``InjectionStart`` are used to place all runs
-on the first run's time scale. If the PET images are decay-corrected to
-different reference times, *PETPrep* rescales the temporary combined image to
-the first run's ``ImageDecayCorrectionTime`` when ``RadionuclideHalfLife`` is
-available.
+
+The combined sidecar is written on the first run's time scale:
+
+* If ``TimeZero`` is available for each run, *PETPrep* uses the elapsed clock
+  time between each run's ``TimeZero`` and the first run's ``TimeZero`` as the
+  offset for that run.
+* If ``TimeZero`` cannot be used, but ``InjectionStart`` is available, *PETPrep*
+  uses the difference in ``InjectionStart`` values to place runs on the same
+  injection-relative clock.
+* If neither timing field is available, *PETPrep* falls back to treating runs
+  whose ``FrameTimesStart`` begins at zero as contiguous with the preceding run.
+
+Using those offsets, *PETPrep* shifts ``FrameTimesStart`` and
+``FrameReferenceTime`` into the combined time scale and concatenates
+``FrameDuration``. Frame-wise metadata arrays, such as ``ScaleFactor``,
+``ScatterFraction``, ``DecayFactor``, ``DecayCorrectionFactor``,
+``PromptRate``, ``SinglesRate``, and ``RandomRate``, are also concatenated when
+they can be matched to the number of frames in each run. Single-value arrays
+are expanded across all frames in that run; frame-wise arrays with incompatible
+lengths are omitted from the combined sidecar to avoid writing misleading
+metadata.
+
+If all input runs are marked as decay-corrected and the sidecars include
+``ImageDecayCorrectionTime`` and ``RadionuclideHalfLife``, *PETPrep* rescales
+each run's image data to the first run's ``ImageDecayCorrectionTime`` before
+concatenating. The corresponding ``DecayFactor`` and ``DecayCorrectionFactor``
+values are updated by the same rescaling factor. If the required decay metadata
+are incomplete, the images are concatenated without additional decay rescaling.
 
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid
