@@ -54,6 +54,11 @@ single-frame series. Frame timing metadata from the individual sidecar JSON
 files is merged with adjusted offsets, and the combined image and metadata are
 written without the ``run`` entity in their filenames. Subsequent preprocessing
 then operates on these merged series rather than the original per-run inputs.
+When available, ``TimeZero`` and ``InjectionStart`` are used to place all runs
+on the first run's time scale. If the PET images are decay-corrected to
+different reference times, *PETPrep* rescales the temporary combined image to
+the first run's ``ImageDecayCorrectionTime`` when ``RadionuclideHalfLife`` is
+available.
 
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid

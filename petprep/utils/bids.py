@@ -235,38 +235,178 @@ def _ignore_run_pet_files(_, names):
     return run_pet
 
 
-def _merge_frame_metadata(metas: list[dict]) -> dict:
+_FRAMEWISE_METADATA = (
+    'FrameReferenceTime',
+    'ScaleFactor',
+    'ScatterFraction',
+    'DecayFactor',
+    'DecayCorrectionFactor',
+    'PromptRate',
+    'SinglesRate',
+    'RandomRate',
+)
+_DECAY_FACTOR_METADATA = ('DecayFactor', 'DecayCorrectionFactor')
+
+
+def _parse_timezero(value) -> float | None:
+    if not isinstance(value, str):
+        return None
+
+    match = re.match(r'^\s*(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)\s*$', value)
+    if not match:
+        return None
+
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600.0 + int(minutes) * 60.0 + float(seconds)
+
+
+def _run_offset_from_timezero(base_meta: dict, meta: dict) -> float | None:
+    base_time = _parse_timezero(base_meta.get('TimeZero'))
+    current_time = _parse_timezero(meta.get('TimeZero'))
+    if base_time is None or current_time is None:
+        return None
+
+    offset = current_time - base_time
+    if offset < -12 * 3600:
+        offset += 24 * 3600
+    return offset if offset >= 0 else None
+
+
+def _run_offset_from_injection_start(base_meta: dict, meta: dict) -> float | None:
+    if 'InjectionStart' not in base_meta or 'InjectionStart' not in meta:
+        return None
+    try:
+        offset = float(base_meta['InjectionStart']) - float(meta['InjectionStart'])
+    except (TypeError, ValueError):
+        return None
+    return offset if offset >= 0 else None
+
+
+def _frame_end(starts: list[float], durations: list[float]) -> float:
+    if starts and durations and len(starts) == len(durations):
+        return max(start + duration for start, duration in zip(starts, durations))
+    if starts:
+        return max(starts) + (float(sum(durations)) if durations else 0.0)
+    return 0.0
+
+
+def _run_time_offsets(metas: list[dict]) -> list[float]:
+    offsets = []
+    fallback_offset = 0.0
+    base_meta = metas[0] if metas else {}
+
+    for meta in metas:
+        starts = [float(start) for start in (meta.get('FrameTimesStart') or [])]
+        durations = [float(duration) for duration in (meta.get('FrameDuration') or [])]
+        starts_are_relative = bool(starts) and np.isclose(min(starts), 0.0)
+
+        metadata_offset = _run_offset_from_timezero(base_meta, meta)
+        if metadata_offset is None:
+            metadata_offset = _run_offset_from_injection_start(base_meta, meta)
+
+        if metadata_offset is not None:
+            offset = metadata_offset
+            adjusted_starts = [start + offset for start in starts]
+        elif starts_are_relative or not starts:
+            offset = fallback_offset
+            adjusted_starts = [start + offset for start in starts]
+        else:
+            offset = 0.0
+            adjusted_starts = starts
+
+        offsets.append(float(offset))
+        frame_end = _frame_end(adjusted_starts, durations)
+        if not adjusted_starts and durations:
+            frame_end = offset + float(sum(durations))
+        fallback_offset = max(fallback_offset, frame_end)
+
+    return offsets
+
+
+def _metadata_as_framewise(value, frame_count: int) -> list | None:
+    if frame_count == 0 or not isinstance(value, list):
+        return None
+    if len(value) == frame_count:
+        return value
+    if len(value) == 1:
+        return value * frame_count
+    return None
+
+
+def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
+    factors = [1.0] * len(metas)
+    if not metas or not all(meta.get('ImageDecayCorrected') is True for meta in metas):
+        return factors
+
+    try:
+        target_decay_time = float(metas[0]['ImageDecayCorrectionTime'])
+        half_life = float(metas[0]['RadionuclideHalfLife'])
+    except (KeyError, TypeError, ValueError):
+        return factors
+    if half_life <= 0:
+        return factors
+
+    decay_constant = np.log(2.0) / half_life
+    for i, (meta, run_offset) in enumerate(zip(metas, run_offsets)):
+        try:
+            decay_time = float(meta['ImageDecayCorrectionTime']) + run_offset
+        except (KeyError, TypeError, ValueError):
+            return [1.0] * len(metas)
+        factors[i] = float(np.exp(decay_constant * (decay_time - target_decay_time)))
+
+    return factors
+
+
+def _merge_frame_metadata(
+    metas: list[dict],
+    *,
+    run_offsets: list[float] | None = None,
+    decay_rescale_factors: list[float] | None = None,
+) -> dict:
     merged = metas[0].copy()
     frame_times = []
     frame_durations = []
-    offset = 0.0
+    run_offsets = run_offsets or _run_time_offsets(metas)
+    decay_rescale_factors = decay_rescale_factors or [1.0] * len(metas)
 
-    for meta in metas:
+    for meta, run_offset in zip(metas, run_offsets):
         starts = meta.get('FrameTimesStart') or []
         durations = meta.get('FrameDuration') or []
-        run_duration = float(sum(durations)) if durations else 0.0
-        starts_are_relative = bool(starts) and np.isclose(min(starts), 0.0)
 
         if starts:
-            if starts_are_relative:
-                frame_times.extend([float(start) + offset for start in starts])
-            else:
-                frame_times.extend([float(start) for start in starts])
+            frame_times.extend([float(start) + run_offset for start in starts])
         if durations:
             frame_durations.extend(durations)
-
-        if starts_are_relative:
-            offset += run_duration
-        elif starts:
-            offset = max(offset, float(max(starts)) + run_duration)
-        elif durations:
-            offset += run_duration
 
     if frame_times:
         merged['FrameTimesStart'] = frame_times
     if frame_durations:
         merged['FrameDuration'] = frame_durations
         merged['AcquisitionDuration'] = float(sum(frame_durations))
+
+    for key in _FRAMEWISE_METADATA:
+        values = []
+        for meta, run_offset, decay_factor in zip(metas, run_offsets, decay_rescale_factors):
+            frame_count = max(
+                len(meta.get('FrameTimesStart') or []),
+                len(meta.get('FrameDuration') or []),
+            )
+            framewise_values = _metadata_as_framewise(meta.get(key), frame_count)
+            if framewise_values is None:
+                values = []
+                break
+
+            if key == 'FrameReferenceTime':
+                values.extend([float(value) + run_offset for value in framewise_values])
+            elif key in _DECAY_FACTOR_METADATA:
+                values.extend([float(value) * decay_factor for value in framewise_values])
+            else:
+                values.extend(framewise_values)
+
+        if values:
+            merged[key] = values
+        else:
+            merged.pop(key, None)
 
     return merged
 
@@ -323,6 +463,8 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
+            run_offsets = _run_time_offsets(metas)
+            decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
 
             if imgs:
                 shapes = [img.shape for img in imgs]
@@ -341,23 +483,36 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             new_name = re.sub(r'_run-[^_]+', '', rel_path.name)
             output_img = combined_root / rel_path.with_name(new_name)
             output_img.parent.mkdir(exist_ok=True, parents=True)
-            if which('mri_concat'):
+            needs_rescaling = not np.allclose(decay_rescale_factors, 1.0)
+            if which('mri_concat') and not needs_rescaling:
                 concat = Concatenate(in_files=files, concatenated_file=str(output_img))
                 concat.run()
             else:
                 normalized_imgs = []
-                for img in imgs:
+                for img, rescale_factor in zip(imgs, decay_rescale_factors):
                     if img.ndim == 3:
-                        data = np.expand_dims(img.get_fdata(), axis=3)
+                        data = np.expand_dims(img.get_fdata(dtype=np.float32), axis=3)
+                        if not np.isclose(rescale_factor, 1.0):
+                            data = data * np.float32(rescale_factor)
                         header = img.header.copy()
                         header.set_data_shape(data.shape)
+                        header.set_data_dtype(np.float32)
+                        normalized_imgs.append(nb.Nifti1Image(data, img.affine, header))
+                    elif not np.isclose(rescale_factor, 1.0):
+                        data = img.get_fdata(dtype=np.float32) * np.float32(rescale_factor)
+                        header = img.header.copy()
+                        header.set_data_dtype(np.float32)
                         normalized_imgs.append(nb.Nifti1Image(data, img.affine, header))
                     else:
                         normalized_imgs.append(img)
                 combined_img = nb.concat_images(normalized_imgs, axis=3)
                 nb.save(combined_img, str(output_img))
 
-            combined_meta = _merge_frame_metadata(metas)
+            combined_meta = _merge_frame_metadata(
+                metas,
+                run_offsets=run_offsets,
+                decay_rescale_factors=decay_rescale_factors,
+            )
             meta_output = output_img.with_suffix('').with_suffix('.json')
             meta_output.write_text(json.dumps(combined_meta, indent=4))
             combined_files.append(str(output_img))
