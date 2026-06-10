@@ -5,8 +5,10 @@ from pathlib import Path
 
 import nibabel as nb
 import numpy as np
+import pytest
 from bids.layout import BIDSLayout
 
+from petprep.utils import bids as bids_utils
 from petprep.utils.bids import combine_pet_runs
 
 
@@ -23,6 +25,181 @@ def _write_metadata(path: Path, metadata: dict) -> None:
 def _write_dataset_description(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({'Name': 'Test dataset', 'BIDSVersion': '1.8.0'}))
+
+
+@pytest.mark.parametrize(
+    ('value', 'expected'),
+    [
+        ('11:19:37', 40777.0),
+        (' 01:02:03.5 ', 3723.5),
+        ('not-a-time', None),
+        (None, None),
+    ],
+)
+def test_parse_timezero(value, expected) -> None:
+    assert bids_utils._parse_timezero(value) == expected
+
+
+@pytest.mark.parametrize(
+    ('base_meta', 'meta', 'expected'),
+    [
+        ({'TimeZero': '11:19:37'}, {'TimeZero': '13:27:58'}, 7701.0),
+        ({'TimeZero': '23:55:00'}, {'TimeZero': '00:05:00'}, 600.0),
+        ({'TimeZero': '13:27:58'}, {'TimeZero': '11:19:37'}, None),
+        ({'TimeZero': 'bad'}, {'TimeZero': '13:27:58'}, None),
+    ],
+)
+def test_run_offset_from_timezero(base_meta, meta, expected) -> None:
+    assert bids_utils._run_offset_from_timezero(base_meta, meta) == expected
+
+
+@pytest.mark.parametrize(
+    ('base_meta', 'meta', 'expected'),
+    [
+        ({'InjectionStart': 0.0}, {'InjectionStart': -7701.0}, 7701.0),
+        ({}, {'InjectionStart': -1.0}, None),
+        ({'InjectionStart': 'bad'}, {'InjectionStart': -1.0}, None),
+        ({'InjectionStart': -1.0}, {'InjectionStart': 0.0}, None),
+    ],
+)
+def test_run_offset_from_injection_start(base_meta, meta, expected) -> None:
+    assert bids_utils._run_offset_from_injection_start(base_meta, meta) == expected
+
+
+@pytest.mark.parametrize(
+    ('starts', 'durations', 'expected'),
+    [
+        ([0.0, 10.0], [10.0, 20.0], 30.0),
+        ([5.0], [1.0, 2.0], 8.0),
+        ([5.0], [], 5.0),
+        ([], [10.0], 0.0),
+    ],
+)
+def test_frame_end(starts, durations, expected) -> None:
+    assert bids_utils._frame_end(starts, durations) == expected
+
+
+def test_run_time_offsets_fallbacks() -> None:
+    metas = [
+        {'FrameTimesStart': [0.0], 'FrameDuration': [5.0]},
+        {'FrameTimesStart': [0.0], 'FrameDuration': [2.0]},
+        {'FrameTimesStart': [10.0], 'FrameDuration': [1.0]},
+        {'FrameDuration': [3.0]},
+    ]
+
+    assert bids_utils._run_time_offsets(metas) == [0.0, 5.0, 0.0, 11.0]
+
+
+def test_run_time_offsets_uses_injection_start_when_timezero_is_missing() -> None:
+    metas = [
+        {'InjectionStart': 0.0, 'FrameTimesStart': [0.0], 'FrameDuration': [5.0]},
+        {'InjectionStart': -10.0, 'FrameTimesStart': [0.0], 'FrameDuration': [2.0]},
+    ]
+
+    assert bids_utils._run_time_offsets(metas) == [0.0, 10.0]
+
+
+@pytest.mark.parametrize(
+    ('value', 'frame_count', 'expected'),
+    [
+        ([1.0, 2.0], 2, [1.0, 2.0]),
+        ([1.0], 3, [1.0, 1.0, 1.0]),
+        ([1.0, 2.0], 3, None),
+        ('not-framewise', 1, None),
+        ([1.0], 0, None),
+    ],
+)
+def test_metadata_as_framewise(value, frame_count, expected) -> None:
+    assert bids_utils._metadata_as_framewise(value, frame_count) == expected
+
+
+def test_decay_rescale_factors_fallbacks() -> None:
+    assert bids_utils._decay_rescale_factors([], []) == []
+    assert bids_utils._decay_rescale_factors([{}], [0.0]) == [1.0]
+
+    corrected_missing_fields = [{'ImageDecayCorrected': True}]
+    assert bids_utils._decay_rescale_factors(corrected_missing_fields, [0.0]) == [1.0]
+
+    invalid_half_life = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 0.0,
+        }
+    ]
+    assert bids_utils._decay_rescale_factors(invalid_half_life, [0.0]) == [1.0]
+
+    missing_run_decay_time = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
+        },
+        {'ImageDecayCorrected': True, 'RadionuclideHalfLife': 10.0},
+    ]
+    assert bids_utils._decay_rescale_factors(missing_run_decay_time, [0.0, 10.0]) == [
+        1.0,
+        1.0,
+    ]
+
+
+def test_decay_rescale_factors() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
+        },
+    ]
+
+    assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == pytest.approx([1.0, 2.0])
+
+
+def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
+    metas = [
+        {
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [1.0],
+            'ScaleFactor': [1.0],
+            'PromptRate': [10.0],
+            'SinglesRate': [20.0],
+            'RandomRate': [30.0],
+            'ScatterFraction': [0.1],
+            'DecayFactor': [1.0],
+        },
+        {
+            'FrameTimesStart': [0.0, 1.0],
+            'FrameDuration': [1.0, 1.0],
+            'ScaleFactor': [2.0],
+            'PromptRate': [11.0, 12.0],
+            'SinglesRate': [21.0, 22.0],
+            'RandomRate': [31.0, 32.0],
+            'ScatterFraction': [0.2, 0.3],
+            'DecayFactor': [1.0, 1.5],
+            'FrameReferenceTime': [0.5, 1.5],
+        },
+    ]
+
+    merged = bids_utils._merge_frame_metadata(
+        metas,
+        run_offsets=[0.0, 10.0],
+        decay_rescale_factors=[1.0, 2.0],
+    )
+
+    assert merged['FrameTimesStart'] == [0.0, 10.0, 11.0]
+    assert merged['FrameDuration'] == [1.0, 1.0, 1.0]
+    assert merged['ScaleFactor'] == [1.0, 2.0, 2.0]
+    assert merged['PromptRate'] == [10.0, 11.0, 12.0]
+    assert merged['SinglesRate'] == [20.0, 21.0, 22.0]
+    assert merged['RandomRate'] == [30.0, 31.0, 32.0]
+    assert merged['ScatterFraction'] == [0.1, 0.2, 0.3]
+    assert merged['DecayFactor'] == [1.0, 2.0, 3.0]
+    assert 'FrameReferenceTime' not in merged
 
 
 def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None:
@@ -302,3 +479,58 @@ def test_combine_pet_runs_rescales_decay_corrected_runs(tmp_path: Path, monkeypa
     assert combined_meta['FrameTimesStart'] == [0.0, 10.0]
     assert combined_meta['ImageDecayCorrectionTime'] == 0.0
     assert combined_meta['DecayCorrectionFactor'] == [1.0, 2.0]
+
+
+def test_combine_pet_runs_rescales_decay_corrected_3d_runs(tmp_path: Path, monkeypatch) -> None:
+    bids_dir = tmp_path / 'bids'
+    dataset_description = bids_dir / 'dataset_description.json'
+    _write_dataset_description(dataset_description)
+
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    run1_img = pet_dir / 'sub-01_task-rest_run-01_pet.nii.gz'
+    run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
+
+    _write_nifti(run1_img, np.ones((2, 2, 2)))
+    _write_nifti(run2_img, np.full((2, 2, 2), 2))
+
+    common_metadata = {
+        'ImageDecayCorrected': True,
+        'ImageDecayCorrectionTime': 0.0,
+        'RadionuclideHalfLife': 10.0,
+        'FrameDuration': [10.0],
+    }
+    _write_metadata(
+        run1_img.with_suffix('').with_suffix('.json'),
+        {
+            **common_metadata,
+            'TimeZero': '00:00:00',
+            'FrameTimesStart': [0.0],
+        },
+    )
+    _write_metadata(
+        run2_img.with_suffix('').with_suffix('.json'),
+        {
+            **common_metadata,
+            'TimeZero': '00:00:10',
+            'FrameTimesStart': [0.0],
+        },
+    )
+
+    layout = BIDSLayout(bids_dir, validate=False)
+
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+
+    combined_dir, _ = combine_pet_runs(
+        bids_dir=bids_dir,
+        layout=layout,
+        work_dir=tmp_path / 'work',
+        subjects=['01'],
+        bids_filters={},
+    )
+
+    expected_img = combined_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.nii.gz'
+
+    combined_img = nb.load(expected_img)
+    data = combined_img.get_fdata()
+    assert np.all(data[..., 0] == 1)
+    assert np.allclose(data[..., 1], 4)

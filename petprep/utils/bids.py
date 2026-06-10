@@ -284,7 +284,7 @@ def _run_offset_from_injection_start(base_meta: dict, meta: dict) -> float | Non
 
 def _frame_end(starts: list[float], durations: list[float]) -> float:
     if starts and durations and len(starts) == len(durations):
-        return max(start + duration for start, duration in zip(starts, durations))
+        return max(start + duration for start, duration in zip(starts, durations, strict=True))
     if starts:
         return max(starts) + (float(sum(durations)) if durations else 0.0)
     return 0.0
@@ -347,7 +347,7 @@ def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[
         return factors
 
     decay_constant = np.log(2.0) / half_life
-    for i, (meta, run_offset) in enumerate(zip(metas, run_offsets)):
+    for i, (meta, run_offset) in enumerate(zip(metas, run_offsets, strict=True)):
         try:
             decay_time = float(meta['ImageDecayCorrectionTime']) + run_offset
         except (KeyError, TypeError, ValueError):
@@ -369,7 +369,7 @@ def _merge_frame_metadata(
     run_offsets = run_offsets or _run_time_offsets(metas)
     decay_rescale_factors = decay_rescale_factors or [1.0] * len(metas)
 
-    for meta, run_offset in zip(metas, run_offsets):
+    for meta, run_offset in zip(metas, run_offsets, strict=True):
         starts = meta.get('FrameTimesStart') or []
         durations = meta.get('FrameDuration') or []
 
@@ -386,7 +386,9 @@ def _merge_frame_metadata(
 
     for key in _FRAMEWISE_METADATA:
         values = []
-        for meta, run_offset, decay_factor in zip(metas, run_offsets, decay_rescale_factors):
+        for meta, run_offset, decay_factor in zip(
+            metas, run_offsets, decay_rescale_factors, strict=True
+        ):
             frame_count = max(
                 len(meta.get('FrameTimesStart') or []),
                 len(meta.get('FrameDuration') or []),
@@ -489,7 +491,7 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                 concat.run()
             else:
                 normalized_imgs = []
-                for img, rescale_factor in zip(imgs, decay_rescale_factors):
+                for img, rescale_factor in zip(imgs, decay_rescale_factors, strict=True):
                     if img.ndim == 3:
                         data = np.expand_dims(img.get_fdata(dtype=np.float32), axis=3)
                         if not np.isclose(rescale_factor, 1.0):
