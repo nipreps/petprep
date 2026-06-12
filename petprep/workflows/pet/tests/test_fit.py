@@ -481,6 +481,142 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
 
 
+def test_pet_fit_hmc_policy_does_not_depend_on_requested_resources(
+    bids_root: Path,
+):
+    """Stage 1 should not change HMC settings only because --mem is tight."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.nipype.memory_gb = 0.00001
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    assert robust_node.inputs.fixed_timepoint is False
+    assert robust_node.inputs.no_iteration is False
+    assert robust_node.inputs.subsample_threshold is Undefined
+
+
+@pytest.mark.parametrize(
+    ('subsample_threshold', 'expected_subsample_msg'),
+    [
+        (None, ''),
+        (159, ' with --subsample 159'),
+    ],
+)
+def test_pet_fit_logs_high_memory_hmc_policy(
+    bids_root: Path,
+    monkeypatch,
+    subsample_threshold,
+    expected_subsample_msg,
+):
+    """Stage 1 should log data-driven high-memory HMC settings."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    def _fake_plan_hmc_resource_policy(*_args, **_kwargs):
+        return {
+            'estimated_memory_gb': 40.1,
+            'planned_memory_gb': 15.0,
+            'frame_memory_gb': 0.1,
+            'selected_frames': 41,
+            'start_frame': 0,
+            'total_frames': 41,
+            'subsample_threshold': subsample_threshold,
+            'fixed_frame': True,
+            'auto_limited': True,
+            'reason': '41 selected frames',
+        }
+
+    monkeypatch.setattr(pet_fit, 'plan_hmc_resource_policy', _fake_plan_hmc_resource_policy)
+
+    warnings = []
+    with mock_config(bids_dir=bids_root):
+        monkeypatch.setattr(
+            config.loggers.workflow,
+            'warning',
+            lambda message, *_args, **_kwargs: warnings.append(message),
+        )
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    assert robust_node.mem_gb == 15.0
+    assert robust_node.inputs.fixed_timepoint is True
+    assert robust_node.inputs.no_iteration is True
+    if subsample_threshold is None:
+        assert robust_node.inputs.subsample_threshold is Undefined
+    else:
+        assert robust_node.inputs.subsample_threshold == subsample_threshold
+
+    assert len(warnings) == 1
+    warning = warnings[0]
+    assert 'selected high-memory settings' in warning
+    assert 'estimated 40.10 GB' in warning
+    assert '41/41 selected frames' in warning
+    assert 'planned estimate 15.00 GB' in warning
+    assert expected_subsample_msg in warning
+    if subsample_threshold is None:
+        assert 'with --subsample' not in warning
+
+
+def test_pet_fit_hmc_memory_policy_off_disables_auto_safeguards(
+    bids_root: Path,
+    monkeypatch,
+):
+    """``--hmc-memory-policy off`` should leave HMC settings user-controlled."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    def _unexpected_plan_hmc_resource_policy(*_args, **_kwargs):
+        raise AssertionError('memory policy planner should not run when disabled')
+
+    monkeypatch.setattr(pet_fit, 'plan_hmc_resource_policy', _unexpected_plan_hmc_resource_policy)
+
+    messages = []
+    with mock_config(bids_dir=bids_root):
+        monkeypatch.setattr(
+            config.loggers.workflow,
+            'info',
+            lambda message, *_args, **_kwargs: messages.append(message),
+        )
+        config.workflow.hmc_memory_policy = 'off'
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    hmc_wf = wf.get_node('pet_hmc_wf')
+
+    assert robust_node.inputs.fixed_timepoint is False
+    assert robust_node.inputs.no_iteration is False
+    assert robust_node.inputs.subsample_threshold is Undefined
+    assert '--hmc-memory-policy off' in hmc_wf.__desc__
+    assert any('PET HMC memory policy disabled' in message for message in messages)
+
+
 def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
     """Robust PET-to-anatomical registration swaps in mri_robust_register."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]

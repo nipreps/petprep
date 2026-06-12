@@ -663,6 +663,16 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help=('Keep the chosen initial reference frame fixed during head-motion estimation.'),
     )
     g_hmc.add_argument(
+        '--hmc-memory-policy',
+        choices=['auto', 'off'],
+        default='auto',
+        help=(
+            "Policy for automatic HMC memory safeguards. 'auto' estimates robust-template "
+            'memory from the PET data and enables fixed-frame/subsample safeguards for '
+            "high-risk scans; 'off' disables these automatic safeguards."
+        ),
+    )
+    g_hmc.add_argument(
         '--hmc-off',
         dest='hmc_off',
         action='store_true',

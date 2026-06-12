@@ -42,7 +42,7 @@ from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
 from .confounds import _binary_union, _smooth_binarize
-from .hmc import init_pet_hmc_wf
+from .hmc import init_pet_hmc_wf, plan_hmc_resource_policy
 from .outputs import (
     init_ds_hmc_wf,
     init_ds_petmask_wf,
@@ -800,16 +800,63 @@ def init_pet_fit_wf(
         config.loggers.workflow.info(
             'PET Stage 1: Adding motion correction workflow and petref estimation'
         )
+        if config.workflow.hmc_memory_policy == 'auto':
+            hmc_policy = plan_hmc_resource_policy(
+                pet_file,
+                start_time=config.workflow.hmc_start_time,
+                frame_durations=frame_durations,
+                frame_start_times=frame_start_times,
+                fixed_frame=config.workflow.hmc_fix_frame,
+            )
+            if hmc_policy['auto_limited']:
+                subsample_msg = (
+                    f' with --subsample {hmc_policy["subsample_threshold"]}'
+                    if hmc_policy['subsample_threshold'] is not None
+                    else ''
+                )
+                config.loggers.workflow.warning(
+                    'PET HMC data-driven memory policy selected high-memory settings: '
+                    f'estimated {hmc_policy["estimated_memory_gb"]:.2f} GB for '
+                    f'{hmc_policy["selected_frames"]}/{hmc_policy["total_frames"]} selected '
+                    f'frames ({hmc_policy["reason"]}); planned estimate '
+                    f'{hmc_policy["planned_memory_gb"]:.2f} GB{subsample_msg} '
+                    'and fixed initial-frame registration '
+                    'for mri_robust_template.'
+                )
+            else:
+                config.loggers.workflow.info(
+                    'PET HMC data-driven memory policy selected standard settings: '
+                    f'estimated {hmc_policy["estimated_memory_gb"]:.2f} GB '
+                    f'for {hmc_policy["selected_frames"]}/{hmc_policy["total_frames"]} '
+                    'selected frames.'
+                )
+        elif config.workflow.hmc_memory_policy == 'off':
+            hmc_policy = {
+                'planned_memory_gb': mem_gb['filesize'],
+                'fixed_frame': config.workflow.hmc_fix_frame,
+                'subsample_threshold': None,
+            }
+            config.loggers.workflow.info(
+                'PET HMC memory policy disabled (--hmc-memory-policy off); '
+                'using configured mri_robust_template settings.'
+            )
+        else:
+            raise ValueError(
+                f'Unsupported HMC memory policy: {config.workflow.hmc_memory_policy!r}'
+            )
+
         pet_hmc_wf = init_pet_hmc_wf(
             name='pet_hmc_wf',
-            mem_gb=mem_gb['filesize'],
+            mem_gb=max(mem_gb['filesize'], hmc_policy['planned_memory_gb']),
             omp_nthreads=omp_nthreads,
             fwhm=config.workflow.hmc_fwhm,
             start_time=config.workflow.hmc_start_time,
             frame_durations=frame_durations,
             frame_start_times=frame_start_times,
             initial_frame=config.workflow.hmc_init_frame,
-            fixed_frame=config.workflow.hmc_fix_frame,
+            fixed_frame=hmc_policy['fixed_frame'],
+            subsample_threshold=hmc_policy['subsample_threshold'],
+            memory_policy=config.workflow.hmc_memory_policy,
         )
 
         ds_hmc_wf = init_ds_hmc_wf(

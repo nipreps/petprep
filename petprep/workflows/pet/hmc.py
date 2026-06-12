@@ -47,6 +47,11 @@ from nipype.interfaces.base import (
 from nipype.interfaces.utility import Select
 from nipype.pipeline import engine as pe
 
+HMC_AUTO_SUBSAMPLE_THRESHOLD = 200
+HMC_MIN_SUBSAMPLE_THRESHOLD = 150
+HMC_HIGH_FRAME_COUNT = 40
+HMC_HIGH_MEMORY_GB = 32.0
+
 
 def get_start_frame(
     durations,
@@ -108,6 +113,137 @@ def _find_highest_uptake_frame(in_files: list[str]) -> int:
     return int(np.argmax(uptake)) + 1
 
 
+def _estimate_hmc_gb(
+    spatial_shape: Sequence[int],
+    n_frames: int,
+    *,
+    subsample_threshold: int | None = None,
+) -> tuple[float, float]:
+    """Estimate peak robust-template memory and per-frame memory, in GB."""
+    import numpy as np
+
+    shape = np.asarray(spatial_shape[:3], dtype='f8')
+    if shape.size != 3:
+        raise ValueError('PET image must be 3D or 4D')
+
+    if subsample_threshold is not None and np.all(shape > subsample_threshold):
+        shape = np.minimum(shape, subsample_threshold)
+
+    frame_gb = 8 * float(np.prod(shape)) / (1024**3)
+    n_frames = max(int(n_frames), 1)
+
+    # mri_robust_template keeps several image pyramids/buffers and performs
+    # many pairwise-like registration updates. This heuristic intentionally
+    # over-reserves compared to the raw data size so Nipype schedules HMC
+    # conservatively on large dynamic/high-resolution PET series.
+    hmc_gb = frame_gb * (10.0 + 6.0 * n_frames + 0.15 * n_frames * (n_frames - 1))
+    return hmc_gb, frame_gb
+
+
+def _select_hmc_subsample_threshold(
+    min_spatial_dim: int,
+    *,
+    preferred_threshold: int = HMC_AUTO_SUBSAMPLE_THRESHOLD,
+    minimum_threshold: int = HMC_MIN_SUBSAMPLE_THRESHOLD,
+) -> int | None:
+    """Choose a threshold that can activate FreeSurfer's all-axis subsampling."""
+    if min_spatial_dim <= minimum_threshold:
+        return None
+    return min(preferred_threshold, min_spatial_dim - 1)
+
+
+def estimate_hmc_mem_usage(
+    pet_file: str,
+    *,
+    start_time: float = 120.0,
+    frame_durations: Sequence[float] | None = None,
+    frame_start_times: Sequence[float] | None = None,
+    subsample_threshold: int | None = None,
+) -> dict[str, float | int]:
+    """Estimate memory required by the HMC robust-template step."""
+    img = nb.load(pet_file)
+    if img.ndim == 4:
+        n_total_frames = int(img.shape[3])
+    elif img.ndim == 3:
+        n_total_frames = 1
+    else:
+        raise ValueError('PET image must be 3D or 4D')
+
+    start_idx = get_start_frame(frame_durations, start_time, frame_start_times)
+    start_idx = min(max(start_idx, 0), n_total_frames - 1)
+    selected_frames = max(n_total_frames - start_idx, 1)
+    hmc_gb, frame_gb = _estimate_hmc_gb(
+        img.shape[:3],
+        selected_frames,
+        subsample_threshold=subsample_threshold,
+    )
+
+    return {
+        'estimate': hmc_gb,
+        'frame': frame_gb,
+        'min_spatial_dim': int(min(img.shape[:3])),
+        'selected_frames': selected_frames,
+        'start_frame': start_idx,
+        'total_frames': n_total_frames,
+    }
+
+
+def plan_hmc_resource_policy(
+    pet_file: str,
+    *,
+    start_time: float = 120.0,
+    frame_durations: Sequence[float] | None = None,
+    frame_start_times: Sequence[float] | None = None,
+    fixed_frame: bool = False,
+    subsample_threshold: int = HMC_AUTO_SUBSAMPLE_THRESHOLD,
+) -> dict[str, float | int | bool | str | None]:
+    """Plan data-driven memory-saving options for robust-template HMC."""
+    estimate = estimate_hmc_mem_usage(
+        pet_file,
+        start_time=start_time,
+        frame_durations=frame_durations,
+        frame_start_times=frame_start_times,
+    )
+
+    reasons: list[str] = []
+    if estimate['selected_frames'] > HMC_HIGH_FRAME_COUNT:
+        reasons.append(f'{estimate["selected_frames"]} selected frames')
+    if estimate['estimate'] >= HMC_HIGH_MEMORY_GB:
+        reasons.append(f'estimated HMC memory {estimate["estimate"]:.2f} GB')
+
+    auto_limit_memory = bool(reasons)
+    planned_subsample = (
+        _select_hmc_subsample_threshold(
+            estimate['min_spatial_dim'],
+            preferred_threshold=subsample_threshold,
+        )
+        if auto_limit_memory
+        else None
+    )
+    planned_estimate = estimate
+    if planned_subsample is not None:
+        planned_estimate = estimate_hmc_mem_usage(
+            pet_file,
+            start_time=start_time,
+            frame_durations=frame_durations,
+            frame_start_times=frame_start_times,
+            subsample_threshold=planned_subsample,
+        )
+
+    return {
+        'estimated_memory_gb': estimate['estimate'],
+        'planned_memory_gb': planned_estimate['estimate'],
+        'frame_memory_gb': planned_estimate['frame'],
+        'selected_frames': estimate['selected_frames'],
+        'start_frame': estimate['start_frame'],
+        'total_frames': estimate['total_frames'],
+        'subsample_threshold': planned_subsample,
+        'fixed_frame': bool(fixed_frame or auto_limit_memory),
+        'auto_limited': auto_limit_memory,
+        'reason': '; '.join(reasons),
+    }
+
+
 class _LTAList2ITKInputSpec(BaseInterfaceInputSpec):
     in_xforms = InputMultiObject(File(exists=True), mandatory=True)
     in_reference = File(exists=True, mandatory=True)
@@ -149,6 +285,8 @@ def init_pet_hmc_wf(
     frame_start_times: Sequence[float] | None = None,
     initial_frame: int | str | None = 'auto',
     fixed_frame: bool = False,
+    subsample_threshold: int | None = None,
+    memory_policy: str = 'auto',
     name: str = 'pet_hmc_wf',
 ):
     r"""
@@ -196,6 +334,11 @@ def init_pet_hmc_wf(
         Whether to keep the initial time point fixed during robust template
         estimation (``fs.RobustTemplate``'s ``fixtp`` parameter). If ``True``,
         iterations are skipped to reduce runtime.
+    subsample_threshold : :obj:`int` or ``None``
+        FreeSurfer ``mri_robust_template --subsample`` threshold. If ``None``,
+        robust-template subsampling is not requested.
+    memory_policy : {'auto', 'off'}
+        Whether automatic HMC memory safeguards were enabled for this workflow.
     name : :obj:`str`
         Name of workflow (default: ``pet_hmc_wf``)
 
@@ -224,6 +367,22 @@ Head-motion parameters with respect to the PET reference
 (transformation matrices, and six corresponding rotation and translation
 parameters) are estimated before any spatiotemporal filtering using
 FreeSurfer's ``mri_robust_template``.
+"""
+    if memory_policy == 'off':
+        workflow.__desc__ += """\
+Automatic HMC memory safeguards were disabled with
+:option:`--hmc-memory-policy off`.
+"""
+    if subsample_threshold is not None:
+        workflow.__desc__ += f"""\
+High-memory PET HMC settings were selected from data characteristics, and
+FreeSurfer's ``mri_robust_template`` was run with
+``--subsample {int(subsample_threshold)}``.
+"""
+    if fixed_frame:
+        workflow.__desc__ += """\
+The selected initial frame was fixed during robust-template estimation,
+disabling robust-template iterations.
 """
 
     inputnode = pe.Node(
@@ -307,17 +466,22 @@ FreeSurfer's ``mri_robust_template``.
         )
 
     # Motion estimation
+    robust_template_kwargs = {
+        'auto_detect_sensitivity': True,
+        'intensity_scaling': True,
+        'average_metric': 'mean',
+        'args': '--cras',
+        'num_threads': omp_nthreads,
+        'fixed_timepoint': fixed_frame,
+        'no_iteration': fixed_frame,
+    }
+    if subsample_threshold is not None:
+        robust_template_kwargs['subsample_threshold'] = int(subsample_threshold)
+
     robust_template = pe.Node(
-        fs.RobustTemplate(
-            auto_detect_sensitivity=True,
-            intensity_scaling=True,
-            average_metric='mean',
-            args='--cras',
-            num_threads=omp_nthreads,
-            fixed_timepoint=fixed_frame,
-            no_iteration=fixed_frame,
-        ),
+        fs.RobustTemplate(**robust_template_kwargs),
         name='est_robust_hmc',
+        mem_gb=max(float(mem_gb), 0.01),
     )
     if not auto_init_frame:
         robust_template.inputs.initial_timepoint = int(initial_frame) + 1

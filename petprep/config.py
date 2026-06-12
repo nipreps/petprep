@@ -634,6 +634,8 @@ class workflow(_Config):
     """Index of initial frame for head-motion estimation ('auto' selects highest uptake)."""
     hmc_fix_frame: bool = False
     """Whether to fix the reference frame during head-motion estimation."""
+    hmc_memory_policy: str = 'auto'
+    """Policy for automatic HMC memory safeguards ('auto' or 'off')."""
     hmc_off: bool = False
     """Disable head-motion correction and keep data uncorrected."""
     seg = 'gtm'

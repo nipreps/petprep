@@ -911,3 +911,22 @@ def test_hmc_off_flag(tmp_path):
 
     opts = parser.parse_args(base_args + ['--hmc-off'])
     assert opts.hmc_off is True
+
+
+def test_hmc_memory_policy_parsing(tmp_path):
+    """Ensure HMC memory policy choices are parsed correctly."""
+    datapath = tmp_path / 'data'
+    outpath = tmp_path / 'out'
+    datapath.mkdir()
+
+    parser = _build_parser()
+    base_args = [str(datapath), str(outpath), 'participant']
+
+    opts = parser.parse_args(base_args)
+    assert opts.hmc_memory_policy == 'auto'
+
+    opts = parser.parse_args(base_args + ['--hmc-memory-policy', 'off'])
+    assert opts.hmc_memory_policy == 'off'
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(base_args + ['--hmc-memory-policy', 'aggressive'])
