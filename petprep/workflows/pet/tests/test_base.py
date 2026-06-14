@@ -9,7 +9,7 @@ from niworkflows.utils.testing import generate_bids_skeleton
 from .... import config
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
-from ..base import init_pet_wf
+from ..base import _estimate_motion_report_mem_gb, init_pet_wf
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -77,15 +77,31 @@ def test_pet_wf(
     generate_expanded_graph(flatgraph)
 
 
-def _prep_pet_series(bids_root: Path) -> list[str]:
+def _prep_pet_series(bids_root: Path, shape=(10, 10, 10, 10)) -> list[str]:
     """Generate dummy PET data for testing."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((10, 10, 10, 10)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros(shape), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
         sidecar = Path(path).with_suffix('').with_suffix('.json')
         sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
     return pet_series
+
+
+def test_estimate_motion_report_mem_gb():
+    assert _estimate_motion_report_mem_gb(2, 0.01) == 1.0
+    assert _estimate_motion_report_mem_gb(100, 0.01) == 8.0
+    assert _estimate_motion_report_mem_gb(10, 12.0) == 12.0
+
+
+def test_motion_report_uses_estimated_memory(bids_root: Path):
+    pet_series = _prep_pet_series(bids_root, shape=(10, 10, 10, 100))
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.level = 'resampling'
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    assert wf.get_node('motion_report').mem_gb == 8.0
 
 
 def test_pet_wf_with_pvc(bids_root: Path):

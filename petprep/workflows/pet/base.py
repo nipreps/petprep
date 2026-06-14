@@ -59,6 +59,21 @@ from .ref_tacs import init_pet_ref_tacs_wf
 from .resampling import init_pet_surf_wf
 from .tacs import init_pet_tacs_wf
 
+MOTION_REPORT_MIN_GB = 1.0
+MOTION_REPORT_MAX_FRAME_GB = 8.0
+MOTION_REPORT_BASE_GB = 0.15
+MOTION_REPORT_PER_FRAME_GB = 0.08
+
+
+def _estimate_motion_report_mem_gb(n_frames: int, resampled_gb: float) -> float:
+    """Estimate memory for the animated HMC before/after reportlet."""
+    frame_based_gb = MOTION_REPORT_BASE_GB + MOTION_REPORT_PER_FRAME_GB * max(n_frames, 1)
+    return max(
+        MOTION_REPORT_MIN_GB,
+        float(resampled_gb),
+        min(MOTION_REPORT_MAX_FRAME_GB, frame_based_gb),
+    )
+
 
 def init_pet_wf(
     *,
@@ -277,7 +292,12 @@ configured with cubic B-spline interpolation.
     ])  # fmt:skip
 
     if nvols > 1:
-        motion_report = pe.Node(MotionPlot(), name='motion_report', mem_gb=0.1)
+        motion_report_mem_gb = _estimate_motion_report_mem_gb(nvols, mem_gb['resampled'])
+        motion_report = pe.Node(
+            MotionPlot(),
+            name='motion_report',
+            mem_gb=motion_report_mem_gb,
+        )
         ds_motion_report = pe.Node(
             DerivativesDataSink(
                 base_directory=petprep_dir,
