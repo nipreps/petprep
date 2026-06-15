@@ -42,12 +42,20 @@ except Exception:  # pragma: no cover - Py<3.9 fallback
 
 SEG_DATA = ir_files('petprep.data.segmentation')
 ATLAS_CONFIG = load_atlas_config()
+# ``gtmseg`` can keep several label, tissue and working volumes resident.
+# Reserve a conservative floor for ordinary 1 mm FreeSurfer grids and scale
+# high-resolution grids by an approximate stack of double-precision volumes
+# plus process overhead.
 GTMSEG_MEMORY_FLOOR_GB = 16.0
 GTMSEG_MEMORY_SCALE = 12.0
 
 
 def estimate_gtmseg_mem_usage(spatial_shape: tuple[int, int, int] | None = None) -> float:
-    """Estimate memory required by FreeSurfer's ``gtmseg`` command."""
+    """Estimate memory required by FreeSurfer's ``gtmseg`` command.
+
+    The estimate is intentionally conservative for Nipype scheduling and is not
+    intended to predict exact resident set size.
+    """
     if spatial_shape is None:
         return GTMSEG_MEMORY_FLOOR_GB
 

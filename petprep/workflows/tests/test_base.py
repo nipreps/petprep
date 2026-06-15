@@ -191,6 +191,24 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
         assert all('_seg_wf' not in n for n in pet_node.list_node_names())
 
 
+def test_gtm_memory_estimate_propagates_to_segmentation_wf(multisession_bids_root, monkeypatch):
+    from ..pet.segmentation import estimate_gtmseg_mem_usage
+
+    highres_shape = (682, 762, 820)
+
+    def fake_detect(_subject_id):
+        return Path('/fake/gtmseg.mgz'), highres_shape, (0.244, 0.244, 0.244)
+
+    with mock_config(bids_dir=multisession_bids_root):
+        config.workflow.seg = 'gtm'
+        monkeypatch.setattr(base_module, '_detect_existing_highres_freesurfer', fake_detect)
+        wf = init_single_subject_wf('01')
+
+    seg_wf = wf.get_node('pet_gtm_seg_wf')
+    run_gtm = seg_wf.get_node('run_gtm')
+    assert run_gtm.mem_gb == estimate_gtmseg_mem_usage(spatial_shape=highres_shape)
+
+
 def test_segmentation_boilerplate_mentions_atlas_reference():
     desc = _build_segmentation_boilerplate('MASSP20')
     assert 'atlas' in desc
@@ -456,11 +474,15 @@ def test_estimate_gtmseg_memory_uses_existing_highres_geometry(bids_root, tmp_pa
             observed['shape'] = spatial_shape
             return 41.0
 
+        monkeypatch.setattr(
+            'petprep.workflows.pet.segmentation.estimate_gtmseg_mem_usage',
+            fake_estimator,
+        )
+
         mem_gb = _estimate_gtmseg_memory(
             subject_id='01',
             session_id=None,
             t1w_files=[],
-            estimator=fake_estimator,
         )
 
     assert mem_gb == 41.0
@@ -486,11 +508,15 @@ def test_estimate_gtmseg_memory_uses_hires_t1w_geometry(bids_root, tmp_path, mon
             observed['shape'] = spatial_shape
             return 16.0
 
+        monkeypatch.setattr(
+            'petprep.workflows.pet.segmentation.estimate_gtmseg_mem_usage',
+            fake_estimator,
+        )
+
         mem_gb = _estimate_gtmseg_memory(
             subject_id='01',
             session_id=None,
             t1w_files=[t1w_file],
-            estimator=fake_estimator,
         )
 
     assert mem_gb == 16.0

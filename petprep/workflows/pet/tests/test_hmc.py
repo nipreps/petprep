@@ -96,6 +96,17 @@ def test_init_pet_hmc_wf_preprocessing_memory():
     assert wf.get_node('convert_ref').mem_gb == 0.5
 
 
+def test_init_pet_hmc_wf_preserves_default_preprocessing_memory():
+    wf = init_pet_hmc_wf(mem_gb=5, omp_nthreads=1)
+
+    default_mem_gb = wf.get_node('smooth').mem_gb
+    assert wf.get_node('split_frames').mem_gb == 5
+    assert default_mem_gb < wf.get_node('split_frames').mem_gb
+    assert wf.get_node('thresh').mem_gb == default_mem_gb
+    assert wf.get_node('find_highest_uptake_frame').mem_gb == default_mem_gb
+    assert wf.get_node('convert_ref').mem_gb == default_mem_gb
+
+
 def test_init_pet_hmc_wf_without_subsample_threshold():
     wf = init_pet_hmc_wf(mem_gb=1, omp_nthreads=1)
     node = wf.get_node('est_robust_hmc')

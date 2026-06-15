@@ -343,9 +343,12 @@ def init_pet_hmc_wf(
     source_file_mem_gb : :obj:`float` or ``None``
         Estimated memory required to load the full PET series. Used to reserve
         memory for frame splitting before robust-template subsampling applies.
+        If omitted, ``mem_gb`` is used for frame splitting.
     frame_mem_gb : :obj:`float` or ``None``
         Estimated memory required to load one full-resolution PET frame. Used
         to reserve memory for smoothing and thresholding each selected frame.
+        If omitted, per-frame preprocessing nodes use Nipype's default memory
+        accounting to preserve compatibility with direct workflow callers.
     memory_policy : {'auto', 'off'}
         Whether automatic HMC memory safeguards were enabled for this workflow.
     name : :obj:`str`
@@ -374,10 +377,12 @@ def init_pet_hmc_wf(
         float(source_file_mem_gb if source_file_mem_gb is not None else mem_gb),
         0.01,
     )
-    frame_mem_gb = max(
-        float(frame_mem_gb if frame_mem_gb is not None else source_file_mem_gb),
-        0.01,
-    )
+    frame_mem_gb = max(float(frame_mem_gb), 0.01) if frame_mem_gb is not None else None
+
+    def _frame_mem_kwargs(scale: float) -> dict[str, float]:
+        if frame_mem_gb is None:
+            return {}
+        return {'mem_gb': max(frame_mem_gb * scale, 0.1)}
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -451,13 +456,13 @@ disabling robust-template iterations.
         fsl.Smooth(fwhm=fwhm),
         name='smooth',
         iterfield=['in_file'],
-        mem_gb=max(frame_mem_gb * 4, 0.1),
+        **_frame_mem_kwargs(4),
     )
     thresh = pe.MapNode(
         fsl.maths.Threshold(thresh=20, use_robust_range=True),
         name='thresh',
         iterfield=['in_file'],
-        mem_gb=max(frame_mem_gb * 2, 0.1),
+        **_frame_mem_kwargs(2),
     )
 
     # Select reference frame
@@ -489,7 +494,7 @@ disabling robust-template iterations.
                 function=_find_highest_uptake_frame,
             ),
             name='find_highest_uptake_frame',
-            mem_gb=max(frame_mem_gb * 2, 0.1),
+            **_frame_mem_kwargs(2),
         )
 
     # Motion estimation
@@ -527,7 +532,7 @@ disabling robust-template iterations.
     ref_to_nii = pe.Node(
         fs.MRIConvert(out_type='niigz'),
         name='convert_ref',
-        mem_gb=max(frame_mem_gb * 2, 0.1),
+        **_frame_mem_kwargs(2),
     )
 
     workflow.connect([

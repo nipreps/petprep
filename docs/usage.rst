@@ -140,6 +140,9 @@ This avoids very large anatomical and GTM segmentation grids when PET data are
 resampled into anatomical space. To opt in for submillimeter T1w inputs, pass
 ``--submm-recon``. The ``--no-submm-recon`` flag can be used to explicitly keep
 the default behavior.
+When GTM segmentation is requested, *PETPrep* reserves scheduler memory from
+the available FreeSurfer or T1w grid size, so high-resolution ``gtmseg`` runs
+are not treated as low-memory jobs.
 
 
 .. _prev_derivs:
@@ -241,9 +244,11 @@ single robust-template step while reducing peak memory pressure for long or
 high-resolution dynamic PET acquisitions without forcing a very coarse
 registration grid. The estimate, selected frame count and reason for the
 decision are recorded in the workflow log; the chosen HMC settings are reflected
-in the workflow boilerplate. Use :option:`--hmc-memory-policy` ``off`` to disable
-these automatic memory safeguards and run HMC with only the explicitly requested
-``mri_robust_template`` settings.
+in the workflow boilerplate. Independently of this policy, *PETPrep* also
+reserves memory for HMC preprocessing and PET reference-generation nodes from
+the PET series dimensions. Use :option:`--hmc-memory-policy` ``off`` to disable
+the robust-template memory safeguards and run HMC with only the explicitly
+requested ``mri_robust_template`` settings.
 
 When motion correction is undesirable, use :option:`--hmc-off` to disable head motion
 correction entirely and keep the data unmodified apart from downstream
