@@ -3,7 +3,12 @@ import numpy as np
 import pytest
 
 from ...tests import mock_config
-from ..segmentation import _merge_ha_labels, init_segmentation_wf
+from ..segmentation import (
+    GTMSEG_MEMORY_FLOOR_GB,
+    _merge_ha_labels,
+    estimate_gtmseg_mem_usage,
+    init_segmentation_wf,
+)
 
 
 def test_segmentation_node_selection():
@@ -26,6 +31,26 @@ def test_segmentation_node_selection():
         assert 'segstats_aparcaseg' in names_aparcaseg
         assert 'create_aparcaseg_dsegtsv' in names_aparcaseg
         assert 'create_aparcaseg_morphtsv' in names_aparcaseg
+
+
+def test_gtm_segmentation_memory_reservation():
+    """GTM segmentation should reserve realistic scheduler memory."""
+    with mock_config():
+        wf = init_segmentation_wf('gtm')
+        assert wf.get_node('run_gtm').mem_gb == GTMSEG_MEMORY_FLOOR_GB
+
+        wf_highres = init_segmentation_wf('gtm', gtm_mem_gb=42.0)
+        assert wf_highres.get_node('run_gtm').mem_gb == 42.0
+
+
+def test_estimate_gtmseg_mem_usage_scales_with_grid():
+    """Large anatomical grids should schedule GTM as a high-memory node."""
+    standard = estimate_gtmseg_mem_usage((256, 256, 256))
+    highres = estimate_gtmseg_mem_usage((682, 762, 820))
+
+    assert standard == GTMSEG_MEMORY_FLOOR_GB
+    assert highres > standard
+    assert highres > 40
 
 
 def test_merge_ha_labels(tmp_path):

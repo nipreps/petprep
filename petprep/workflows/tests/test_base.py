@@ -19,6 +19,7 @@ from ..base import (
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
     _detect_existing_highres_freesurfer,
+    _estimate_gtmseg_memory,
     _fix_multi_source_name,
     _fmt_group,
     _format_geometry,
@@ -437,6 +438,63 @@ def test_detect_existing_highres_freesurfer_handles_unreadable_gtmseg(
         monkeypatch.setattr(base_module, '_image_geometry', _raise_runtime_error)
 
         assert _detect_existing_highres_freesurfer('sub-01') is None
+
+
+def test_estimate_gtmseg_memory_uses_existing_highres_geometry(bids_root, tmp_path, monkeypatch):
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+
+        def fake_detect(subject_id):
+            assert subject_id == 'sub-01'
+            return tmp_path / 'gtmseg.mgz', (682, 762, 820), (0.244, 0.244, 0.244)
+
+        monkeypatch.setattr(base_module, '_detect_existing_highres_freesurfer', fake_detect)
+
+        observed = {}
+
+        def fake_estimator(*, spatial_shape=None):
+            observed['shape'] = spatial_shape
+            return 41.0
+
+        mem_gb = _estimate_gtmseg_memory(
+            subject_id='01',
+            session_id=None,
+            t1w_files=[],
+            estimator=fake_estimator,
+        )
+
+    assert mem_gb == 41.0
+    assert observed['shape'] == (682, 762, 820)
+
+
+def test_estimate_gtmseg_memory_uses_hires_t1w_geometry(bids_root, tmp_path, monkeypatch):
+    t1w_file = tmp_path / 'sub-01_T1w.nii.gz'
+    t1w_file.write_text('placeholder')
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hires = True
+        monkeypatch.setattr(base_module, '_detect_existing_highres_freesurfer', lambda _: None)
+        monkeypatch.setattr(
+            base_module,
+            '_image_geometry',
+            lambda image_file: ((320, 320, 320), (0.8, 0.8, 0.8)),
+        )
+
+        observed = {}
+
+        def fake_estimator(*, spatial_shape=None):
+            observed['shape'] = spatial_shape
+            return 16.0
+
+        mem_gb = _estimate_gtmseg_memory(
+            subject_id='01',
+            session_id=None,
+            t1w_files=[t1w_file],
+            estimator=fake_estimator,
+        )
+
+    assert mem_gb == 16.0
+    assert observed['shape'] == (320, 320, 320)
 
 
 def test_warn_about_submillimeter_recon_branches(bids_root, tmp_path, monkeypatch):
