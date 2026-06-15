@@ -11,8 +11,11 @@ def test_estimate_pet_mem_usage(tmp_path):
 
     tlen, mem = estimate_pet_mem_usage(str(pet_file))
     size = 8 * np.prod(img.shape) / (1024**3)
+    frame_size = 8 * np.prod(img.shape[:3]) / (1024**3)
     assert tlen == 10
     assert np.isclose(mem['filesize'], size)
+    assert np.isclose(mem['frame'], frame_size)
+    assert np.isclose(mem['reference'], max(size * 1.5, size + frame_size * 4))
     assert np.isclose(mem['resampled'], size * 4)
     assert np.isclose(mem['largemem'], size * (max(tlen / 100, 1.0) + 4))
 

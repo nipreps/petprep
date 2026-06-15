@@ -355,6 +355,31 @@ def test_petref_auto_mixed_3d_and_4d_pet_runs(bids_root: Path, tmp_path: Path):
     assert wf_4d.get_node('summary').inputs.petref_strategy == 'auto'
 
 
+def test_pet_reference_nodes_use_estimated_memory(bids_root: Path):
+    from ....utils.misc import estimate_pet_mem_usage
+
+    pet_file = bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz'
+    nb.Nifti1Image(np.zeros((3, 3, 3, 2), dtype=np.float32), np.eye(4)).to_filename(pet_file)
+    pet_file.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+    )
+
+    estimate_pet_mem_usage.cache_clear()
+    try:
+        _, mem_gb = estimate_pet_mem_usage(str(pet_file))
+        with mock_config(bids_dir=bids_root):
+            config.workflow.petref = 'auto'
+            wf = init_pet_fit_wf(pet_series=[str(pet_file)], precomputed={}, omp_nthreads=1)
+    finally:
+        estimate_pet_mem_usage.cache_clear()
+
+    expected = mem_gb['reference']
+    assert wf.get_node('report_petref').mem_gb == expected
+    assert wf.get_node('auto_twa_reference').mem_gb == expected
+    assert wf.get_node('auto_sum_reference').mem_gb == expected
+    assert wf.get_node('auto_first5min_reference').mem_gb == expected
+
+
 def test_pet_reference_utilities(tmp_path: Path):
     labels = ['template', 'twa', 'sum']
     scores = [0.5, None, 0.25]

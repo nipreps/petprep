@@ -69,8 +69,10 @@ def _estimate_pet_mem_usage_cached(
 
     img = nb.load(pet_fname)
     nvox = int(np.prod(img.shape, dtype='u8'))
+    spatial_nvox = int(np.prod(img.shape[:3], dtype='u8'))
     # Assume tools will coerce to 8-byte floats to be safe
     pet_size_gb = 8 * nvox / (1024**3)
+    frame_size_gb = 8 * spatial_nvox / (1024**3)
 
     if img.ndim == 4:
         pet_tlen = img.shape[3]
@@ -81,6 +83,8 @@ def _estimate_pet_mem_usage_cached(
 
     mem_gb = {
         'filesize': pet_size_gb,
+        'frame': frame_size_gb,
+        'reference': max(pet_size_gb * 1.5, pet_size_gb + frame_size_gb * 4),
         'resampled': pet_size_gb * 4,
         'largemem': pet_size_gb * (max(pet_tlen / 100, 1.0) + 4),
     }
