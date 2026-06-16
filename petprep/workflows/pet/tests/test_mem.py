@@ -1,7 +1,7 @@
 import nibabel as nb
 import numpy as np
 
-from petprep.utils.misc import estimate_pet_mem_usage
+from petprep.utils.misc import PET_RESAMPLE_MEMORY_SCALE, estimate_pet_mem_usage
 
 
 def test_estimate_pet_mem_usage(tmp_path):
@@ -16,7 +16,7 @@ def test_estimate_pet_mem_usage(tmp_path):
     assert np.isclose(mem['filesize'], size)
     assert np.isclose(mem['frame'], frame_size)
     assert np.isclose(mem['reference'], max(size * 1.5, size + frame_size * 4))
-    assert np.isclose(mem['resampled'], size * 4)
+    assert np.isclose(mem['resampled'], size * PET_RESAMPLE_MEMORY_SCALE)
     assert np.isclose(mem['largemem'], size * (max(tlen / 100, 1.0) + 4))
 
 

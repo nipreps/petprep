@@ -422,8 +422,9 @@ effect, but is not lowered below 150 voxels. This decision is data-driven and is
 recorded in the workflow log; the selected HMC settings are reflected in the
 workflow boilerplate. Independently of this policy, PET geometry estimates are
 also used to reserve scheduler memory for frame splitting, HMC preprocessing,
-and PET reference image generation. Use :option:`--hmc-memory-policy` ``off`` to
-disable the robust-template memory safeguards.
+PET reference image generation and volumetric resampling. Use
+:option:`--hmc-memory-policy` ``off`` to disable the robust-template memory
+safeguards.
 
 Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
