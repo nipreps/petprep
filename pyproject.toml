@@ -215,7 +215,7 @@ source = [
 # petprep/data/tests contains a BIDS fixture dataset and generated HTML reports
 # whose chopped tags and escaped newlines yield many false positives.
 # .mailmap holds email addresses that trip word-level checks.
-skip = '.git,.gitignore,.gitattributes,*.svg,*.css,*.gii,.mailmap,*/petprep/data/tests/*'
+skip = '.git,.gitignore,.gitattributes,.tox,.git-meta,*.svg,*.css,*.gii,.mailmap,*/petprep/data/tests/*'
 check-hidden = true
 # Protect URLs from being "fixed" even if they contain typos.
 ignore-regex = 'https?://\S+'
