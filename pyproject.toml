@@ -212,7 +212,12 @@ source = [
 
 [tool.codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = '.git,.gitignore,.gitattributes,*.svg,*.css,*.gii'
+# petprep/data/tests contains a BIDS fixture dataset and generated HTML reports
+# whose chopped tags and escaped newlines yield many false positives.
+# .mailmap holds email addresses that trip word-level checks.
+skip = '.git,.gitignore,.gitattributes,*.svg,*.css,*.gii,.mailmap,*/petprep/data/tests/*'
 check-hidden = true
-# ignore-regex = ''
-# ignore-words-list = ''
+# Protect URLs from being "fixed" even if they contain typos.
+ignore-regex = 'https?://\S+'
+# Surnames appearing in BibTeX author lists in petprep/data/boilerplate.bib
+ignore-words-list = 'gage,claus'
