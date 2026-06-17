@@ -1546,9 +1546,7 @@ def test_pet_fit_hmc_off_identity_xforms_are_pet_specific(
     pet_dir = bids_root / 'sub-01' / 'pet'
     dynamic_pet = pet_dir / 'sub-01_task-rest_run-1_pet.nii.gz'
     static_pet = pet_dir / 'sub-01_task-rest_run-2_pet.nii.gz'
-    nb.Nifti1Image(np.zeros((2, 2, 2, 32), dtype=np.float32), np.eye(4)).to_filename(
-        dynamic_pet
-    )
+    nb.Nifti1Image(np.zeros((2, 2, 2, 32), dtype=np.float32), np.eye(4)).to_filename(dynamic_pet)
     nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(static_pet)
     dynamic_pet.with_suffix('').with_suffix('.json').write_text(
         json.dumps(
