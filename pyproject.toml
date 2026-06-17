@@ -209,3 +209,10 @@ source = [
   "wrapper",
   "**/site-packages/petprep"
 ]
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git,.gitignore,.gitattributes,*.svg,*.css,*.gii'
+check-hidden = true
+# ignore-regex = ''
+# ignore-words-list = ''
