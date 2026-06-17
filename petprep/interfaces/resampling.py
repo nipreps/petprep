@@ -213,15 +213,6 @@ async def resample_series_async(
         The resampled array, with shape ``coordinates.shape[1:] + (N,)``,
         where N is the number of volumes in ``data``.
     """
-    if hmc_xfms:
-        n_volumes = data.shape[-1] if data.ndim > 3 else 1
-        if len(hmc_xfms) != n_volumes:
-            raise ValueError(
-                'Head-motion transform count '
-                f'({len(hmc_xfms)}) does not match the number of PET volumes '
-                f'({n_volumes}).'
-            )
-
     if data.ndim == 3:
         return resample_vol(
             data,

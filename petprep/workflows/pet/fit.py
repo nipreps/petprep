@@ -276,17 +276,6 @@ def _write_identity_xforms(num_frames: int, filename: Path) -> Path:
     return filename
 
 
-def _identity_xforms_path(pet_file: str, work_dir: Path) -> Path:
-    """Return a PET-specific identity transform path."""
-
-    pet_path = Path(pet_file)
-    pet_stem = pet_path
-    while pet_stem.suffix:
-        pet_stem = pet_stem.with_suffix('')
-
-    return Path(work_dir) / f'{pet_stem.name}_idmat.tfm'
-
-
 def _construct_nu_path(subjects_dir: str, subject_id: str) -> str:
     """Return the expected path to FreeSurfer's ``nu.mgz`` for ``subject_id``."""
 
@@ -727,15 +716,16 @@ def init_pet_fit_wf(
     if hmc_disabled:
         config.execution.work_dir.mkdir(parents=True, exist_ok=True)
         petref = petref or reference_function(pet_file, **reference_kwargs)
-        idmat_fname = _identity_xforms_path(pet_file, config.execution.work_dir)
-        hmc_xforms = _write_identity_xforms(pet_tlen, idmat_fname)
+        idmat_fname = config.execution.work_dir / 'idmat.tfm'
+        n_frames = len(frame_durations)
+        hmc_xforms = _write_identity_xforms(n_frames, idmat_fname)
         config.loggers.workflow.info('Head motion correction disabled; using identity transforms.')
         if petref_strategy == 'auto' and petref_candidates is not None:
             petref_candidates.inputs.template = petref
 
     if pet_tlen <= 1:  # 3D PET
         petref = pet_file
-        idmat_fname = _identity_xforms_path(pet_file, config.execution.work_dir)
+        idmat_fname = config.execution.work_dir / 'idmat.tfm'
         hmc_xforms = _write_identity_xforms(pet_tlen, idmat_fname)
         config.loggers.workflow.debug('3D PET file - motion correction not needed')
     if petref:
