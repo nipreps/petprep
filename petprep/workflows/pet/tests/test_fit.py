@@ -22,6 +22,7 @@ from ..fit import (
     _extract_first5min_image,
     _extract_sum_image,
     _extract_twa_image,
+    _identity_xforms_path,
     _select_anatomical_reference,
     _select_best_petref,
     _write_identity_xforms,
@@ -1495,7 +1496,7 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkey
 
         assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
         hmc_buffer = wf.get_node('hmc_buffer')
-        assert str(hmc_buffer.inputs.hmc_xforms).endswith('idmat.tfm')
+        assert str(hmc_buffer.inputs.hmc_xforms).endswith('_idmat.tfm')
         assert Path(hmc_buffer.inputs.hmc_xforms).exists()
         assert identity_xform_frames == [data.shape[-1]]
         petref_buffer = wf.get_node('petref_buffer')
@@ -1504,6 +1505,74 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkey
         assert '.nii_timeavgref' not in petref_name
         petref_img = nb.load(petref_buffer.inputs.petref)
         assert np.allclose(petref_img.get_fdata(), 14.0 / 6.0)
+
+
+def test_pet_fit_hmc_off_identity_xforms_use_image_frame_count(
+    bids_root: Path, tmp_path: Path, monkeypatch
+):
+    """Identity HMC transforms should follow image shape, not timing metadata length."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    data = np.zeros((2, 2, 2, 2), dtype=np.float32)
+    img = nb.Nifti1Image(data, np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    identity_xform_frames = []
+    write_identity_xforms = pet_fit._write_identity_xforms
+
+    def _record_identity_xforms(num_frames, filename):
+        identity_xform_frames.append(num_frames)
+        return write_identity_xforms(num_frames, filename)
+
+    monkeypatch.setattr(pet_fit, '_write_identity_xforms', _record_identity_xforms)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = True
+        config.workflow.petref = 'sum'
+        init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    assert identity_xform_frames == [data.shape[-1]]
+
+
+def test_pet_fit_hmc_off_identity_xforms_are_pet_specific(
+    bids_root: Path, tmp_path: Path, monkeypatch
+):
+    """Identity HMC transforms for one PET series should not overwrite another."""
+
+    pet_dir = bids_root / 'sub-01' / 'pet'
+    dynamic_pet = pet_dir / 'sub-01_task-rest_run-1_pet.nii.gz'
+    static_pet = pet_dir / 'sub-01_task-rest_run-2_pet.nii.gz'
+    nb.Nifti1Image(np.zeros((2, 2, 2, 32), dtype=np.float32), np.eye(4)).to_filename(dynamic_pet)
+    nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(static_pet)
+    dynamic_pet.with_suffix('').with_suffix('.json').write_text(
+        json.dumps(
+            {
+                'FrameTimesStart': list(range(32)),
+                'FrameDuration': [1] * 32,
+            }
+        )
+    )
+    static_pet.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = True
+        dynamic_wf = init_pet_fit_wf(pet_series=[str(dynamic_pet)], precomputed={}, omp_nthreads=1)
+        static_wf = init_pet_fit_wf(pet_series=[str(static_pet)], precomputed={}, omp_nthreads=1)
+
+        dynamic_xforms = Path(dynamic_wf.get_node('hmc_buffer').inputs.hmc_xforms)
+        static_xforms = Path(static_wf.get_node('hmc_buffer').inputs.hmc_xforms)
+
+        assert dynamic_xforms != static_xforms
+        assert dynamic_xforms.name == 'sub-01_task-rest_run-1_pet_idmat.tfm'
+        assert static_xforms.name == 'sub-01_task-rest_run-2_pet_idmat.tfm'
+        assert np.asarray(nt.linear.load(dynamic_xforms).matrix).shape == (32, 4, 4)
+        assert np.asarray(nt.linear.load(static_xforms).matrix).shape == (4, 4)
 
 
 @pytest.mark.parametrize(
@@ -1652,7 +1721,7 @@ def test_pet_fit_hmc_off_ignores_precomputed(bids_root: Path, tmp_path: Path):
     assert petref_buffer.inputs.petref != str(precomputed_petref)
     assert Path(petref_buffer.inputs.petref).name.endswith('_timeavgref.nii.gz')
     assert hmc_buffer.inputs.hmc_xforms != str(precomputed_hmc)
-    assert Path(hmc_buffer.inputs.hmc_xforms).name == 'idmat.tfm'
+    assert Path(hmc_buffer.inputs.hmc_xforms).name.endswith('_idmat.tfm')
 
 
 def test_pet_fit_picks_single_precomputed_derivative(bids_root: Path, tmp_path: Path):
@@ -1709,6 +1778,16 @@ def test_write_identity_xforms_minimum(tmp_path: Path):
 
     assert matrices.shape[0] == 1
     assert np.allclose(matrices[0], np.eye(4))
+
+
+def test_identity_xforms_path_is_pet_specific(tmp_path: Path):
+    """Identity transform filenames should distinguish PET series."""
+
+    pet_file = '/data/sub-01/ses-closed/pet/sub-01_ses-closed_task-rest_pet.nii.gz'
+
+    assert _identity_xforms_path(pet_file, tmp_path) == (
+        tmp_path / 'sub-01_ses-closed_task-rest_pet_idmat.tfm'
+    )
 
 
 def test_select_anatomical_reference_prefers_nu(tmp_path: Path):
