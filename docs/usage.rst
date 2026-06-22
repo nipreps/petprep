@@ -68,13 +68,14 @@ The combined sidecar is written on the first run's time scale:
 
 Using those offsets, *PETPrep* shifts ``FrameTimesStart`` and
 ``FrameReferenceTime`` into the combined time scale and concatenates
-``FrameDuration``. Frame-wise metadata arrays, such as ``ScaleFactor``,
-``ScatterFraction``, ``DecayFactor``, ``DecayCorrectionFactor``,
-``PromptRate``, ``SinglesRate``, and ``RandomRate``, are also concatenated when
-they can be matched to the number of frames in each run. Single-value arrays
-are expanded across all frames in that run; frame-wise arrays with incompatible
-lengths are omitted from the combined sidecar to avoid writing misleading
-metadata.
+``FrameDuration``. If an input sidecar also includes derivative-style
+``VolumeTiming`` metadata, that timing array is shifted in the same way as
+``FrameTimesStart``. Frame-wise metadata arrays, such as ``ScaleFactor``,
+``ScatterFraction``, ``DecayFactor``, ``DecayCorrectionFactor``, ``PromptRate``,
+``SinglesRate``, and ``RandomRate``, are also concatenated when they can be
+matched to the number of frames in each run. Single-value arrays are expanded
+across all frames in that run; frame-wise arrays with incompatible lengths are
+omitted from the combined sidecar to avoid writing misleading metadata.
 
 If all input runs are marked as decay-corrected and the sidecars include
 ``ImageDecayCorrectionTime``, *PETPrep* rescales each run's image data to the
@@ -86,7 +87,8 @@ fluorine-18, including forms such as ``C11``, ``11C``, ``Carbon11``, ``F18``,
 ``18F``, and ``18Fluorine``. The corresponding ``DecayFactor`` and
 ``DecayCorrectionFactor`` values are updated by the same rescaling factor. If
 the required decay metadata are incomplete, ambiguous, or inconsistent across
-runs, the images are concatenated without additional decay rescaling.
+runs, the images are concatenated without additional decay rescaling and
+decay-correction timing metadata are omitted from the combined sidecar.
 
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid

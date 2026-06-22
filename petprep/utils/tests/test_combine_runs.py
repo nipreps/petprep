@@ -228,10 +228,63 @@ def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
     assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == [1.0, 1.0]
 
 
+def test_merge_frame_metadata_drops_unresolved_decay_correction_metadata() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+    ]
+
+    merged = bids_utils._merge_frame_metadata(
+        metas,
+        run_offsets=[0.0, 600.0],
+        decay_rescale_factors=[1.0, 1.0],
+    )
+
+    assert 'ImageDecayCorrected' not in merged
+    assert 'ImageDecayCorrectionTime' not in merged
+
+
+def test_merge_frame_metadata_preserves_matching_decay_correction_metadata() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': -600.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+    ]
+
+    merged = bids_utils._merge_frame_metadata(
+        metas,
+        run_offsets=[0.0, 600.0],
+        decay_rescale_factors=[1.0, 1.0],
+    )
+
+    assert merged['ImageDecayCorrected'] is True
+    assert merged['ImageDecayCorrectionTime'] == 0.0
+
+
 def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
     metas = [
         {
             'FrameTimesStart': [0.0],
+            'VolumeTiming': [0.0],
             'FrameDuration': [1.0],
             'ScaleFactor': [1.0],
             'PromptRate': [10.0],
@@ -242,6 +295,7 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
         },
         {
             'FrameTimesStart': [0.0, 1.0],
+            'VolumeTiming': [0.0, 1.0],
             'FrameDuration': [1.0, 1.0],
             'ScaleFactor': [2.0],
             'PromptRate': [11.0, 12.0],
@@ -260,6 +314,7 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
     )
 
     assert merged['FrameTimesStart'] == [0.0, 10.0, 11.0]
+    assert merged['VolumeTiming'] == [0.0, 10.0, 11.0]
     assert merged['FrameDuration'] == [1.0, 1.0, 1.0]
     assert merged['ScaleFactor'] == [1.0, 2.0, 2.0]
     assert merged['PromptRate'] == [10.0, 11.0, 12.0]
@@ -268,6 +323,20 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
     assert merged['ScatterFraction'] == [0.1, 0.2, 0.3]
     assert merged['DecayFactor'] == [1.0, 2.0, 3.0]
     assert 'FrameReferenceTime' not in merged
+
+
+def test_merge_frame_metadata_drops_unmergeable_volume_timing() -> None:
+    metas = [
+        {'VolumeTiming': [0.0], 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+        {'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+    ]
+
+    merged = bids_utils._merge_frame_metadata(
+        metas,
+        run_offsets=[0.0, 1.0],
+    )
+
+    assert 'VolumeTiming' not in merged
 
 
 def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None:

@@ -246,6 +246,7 @@ _FRAMEWISE_METADATA = (
     'RandomRate',
 )
 _DECAY_FACTOR_METADATA = ('DecayFactor', 'DecayCorrectionFactor')
+_DECAY_CORRECTION_METADATA = ('ImageDecayCorrected', 'ImageDecayCorrectionTime')
 _RADIONUCLIDE_HALF_LIVES = {
     'C11': 1220.4,
     'F18': 6586.2,
@@ -366,34 +367,87 @@ def _metadata_half_life(meta: dict) -> float | None:
     return _RADIONUCLIDE_HALF_LIVES.get(radionuclide)
 
 
-def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
-    factors = [1.0] * len(metas)
+def _absolute_decay_correction_times(
+    metas: list[dict], run_offsets: list[float]
+) -> list[float] | None:
     if not metas or not all(meta.get('ImageDecayCorrected') is True for meta in metas):
-        return factors
+        return None
 
-    try:
-        target_decay_time = float(metas[0]['ImageDecayCorrectionTime'])
-    except (KeyError, TypeError, ValueError):
-        return factors
+    decay_times = []
+    for meta, run_offset in zip(metas, run_offsets, strict=True):
+        try:
+            decay_times.append(float(meta['ImageDecayCorrectionTime']) + run_offset)
+        except (KeyError, TypeError, ValueError):
+            return None
+    return decay_times
+
+
+def _decay_rescaling_available(metas: list[dict], run_offsets: list[float]) -> bool:
+    if _absolute_decay_correction_times(metas, run_offsets) is None:
+        return False
 
     half_lives = [_metadata_half_life(meta) for meta in metas]
     if any(half_life is None for half_life in half_lives):
-        return factors
+        return False
     half_life = half_lives[0]
-    if not all(
-        np.isclose(half_life, other_half_life, rtol=0.01) for other_half_life in half_lives
-    ):
+    return all(np.isclose(half_life, other_half_life, rtol=0.01) for other_half_life in half_lives)
+
+
+def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
+    factors = [1.0] * len(metas)
+    decay_times = _absolute_decay_correction_times(metas, run_offsets)
+    if decay_times is None:
         return factors
 
+    if not _decay_rescaling_available(metas, run_offsets):
+        return factors
+
+    half_life = _metadata_half_life(metas[0])
     decay_constant = np.log(2.0) / half_life
-    for i, (meta, run_offset) in enumerate(zip(metas, run_offsets, strict=True)):
-        try:
-            decay_time = float(meta['ImageDecayCorrectionTime']) + run_offset
-        except (KeyError, TypeError, ValueError):
-            return [1.0] * len(metas)
+    target_decay_time = decay_times[0]
+    for i, decay_time in enumerate(decay_times):
         factors[i] = float(np.exp(decay_constant * (decay_time - target_decay_time)))
 
     return factors
+
+
+def _can_preserve_decay_correction_metadata(metas: list[dict], run_offsets: list[float]) -> bool:
+    decay_times = _absolute_decay_correction_times(metas, run_offsets)
+    if decay_times is None:
+        return False
+    if np.allclose(decay_times, decay_times[0]):
+        return True
+    return _decay_rescaling_available(metas, run_offsets)
+
+
+def _merge_decay_correction_metadata(
+    merged: dict, metas: list[dict], run_offsets: list[float]
+) -> None:
+    corrected_values = [meta.get('ImageDecayCorrected') for meta in metas]
+    if all(value is False for value in corrected_values):
+        merged['ImageDecayCorrected'] = False
+        merged.pop('ImageDecayCorrectionTime', None)
+        return
+
+    if _can_preserve_decay_correction_metadata(metas, run_offsets):
+        merged['ImageDecayCorrected'] = True
+        merged['ImageDecayCorrectionTime'] = float(metas[0]['ImageDecayCorrectionTime'])
+        return
+
+    for key in _DECAY_CORRECTION_METADATA:
+        merged.pop(key, None)
+
+
+def _merge_offset_timing_metadata(
+    metas: list[dict], run_offsets: list[float], key: str
+) -> list[float] | None:
+    values = []
+    for meta, run_offset in zip(metas, run_offsets, strict=True):
+        starts = meta.get(key) or []
+        if not starts:
+            return None
+        values.extend([float(start) + run_offset for start in starts])
+    return values
 
 
 def _merge_frame_metadata(
@@ -403,25 +457,32 @@ def _merge_frame_metadata(
     decay_rescale_factors: list[float] | None = None,
 ) -> dict:
     merged = metas[0].copy()
-    frame_times = []
     frame_durations = []
     run_offsets = run_offsets or _run_time_offsets(metas)
     decay_rescale_factors = decay_rescale_factors or [1.0] * len(metas)
 
-    for meta, run_offset in zip(metas, run_offsets, strict=True):
-        starts = meta.get('FrameTimesStart') or []
+    frame_times = _merge_offset_timing_metadata(metas, run_offsets, 'FrameTimesStart')
+    volume_timing = _merge_offset_timing_metadata(metas, run_offsets, 'VolumeTiming')
+
+    for meta in metas:
         durations = meta.get('FrameDuration') or []
 
-        if starts:
-            frame_times.extend([float(start) + run_offset for start in starts])
         if durations:
             frame_durations.extend(durations)
 
     if frame_times:
         merged['FrameTimesStart'] = frame_times
+    else:
+        merged.pop('FrameTimesStart', None)
+    if volume_timing:
+        merged['VolumeTiming'] = volume_timing
+    else:
+        merged.pop('VolumeTiming', None)
     if frame_durations:
         merged['FrameDuration'] = frame_durations
         merged['AcquisitionDuration'] = float(sum(frame_durations))
+
+    _merge_decay_correction_metadata(merged, metas, run_offsets)
 
     for key in _FRAMEWISE_METADATA:
         values = []
