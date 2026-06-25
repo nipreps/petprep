@@ -277,9 +277,7 @@ configured with cubic B-spline interpolation.
     ])  # fmt:skip
 
     if nvols > 1:
-        motion_report = pe.Node(
-            MotionPlot(), name='motion_report', mem_gb=mem_gb['motion_report']
-        )
+        motion_report = pe.Node(MotionPlot(), name='motion_report', mem_gb=mem_gb['motion_report'])
         ds_motion_report = pe.Node(
             DerivativesDataSink(
                 base_directory=petprep_dir,
