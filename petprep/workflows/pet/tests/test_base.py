@@ -7,6 +7,7 @@ from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from .... import config
+from ....utils.misc import estimate_pet_mem_usage
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
 from ..base import init_pet_wf
@@ -114,6 +115,19 @@ def test_pet_wf_without_pvc(bids_root: Path):
         wf = init_pet_wf(pet_series=pet_series, precomputed={})
 
     assert not any(n.startswith('pet_pvc_wf') for n in wf.list_node_names())
+
+
+def test_motion_report_uses_estimated_memory(bids_root: Path):
+    """Motion reportlet reserves memory from the PET memory heuristic."""
+    pet_series = _prep_pet_series(bids_root)
+    _, mem_gb = estimate_pet_mem_usage(pet_series[0])
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_wf(pet_series=pet_series, precomputed={})
+
+    motion_report = wf.get_node('motion_report')
+    assert motion_report.mem_gb == mem_gb['motion_report']
+    assert motion_report.mem_gb > 0.1
 
 
 def test_pvc_entity_added(bids_root: Path):
