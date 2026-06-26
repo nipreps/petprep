@@ -83,9 +83,19 @@ def _estimate_pet_mem_usage_cached(
         'filesize': pet_size_gb,
         'resampled': pet_size_gb * 4,
         'largemem': pet_size_gb * (max(pet_tlen / 100, 1.0) + 4),
+        'motion_report': _estimate_motion_report_mem_gb(pet_size_gb, pet_tlen),
     }
 
     return pet_tlen, mem_gb
+
+
+def _estimate_motion_report_mem_gb(pet_size_gb: float, pet_tlen: int) -> float:
+    """Estimate memory for the animated motion-correction reportlet."""
+    # MotionPlot may touch the original and corrected 4D series, then retains
+    # rendered before/after PNG frames and a base64-encoded SVG payload.
+    image_buffers_gb = pet_size_gb * 2.5
+    rendered_frames_gb = max(int(pet_tlen), 1) * 0.03
+    return max(1.0, image_buffers_gb + rendered_frames_gb)
 
 
 estimate_pet_mem_usage.cache_clear = _estimate_pet_mem_usage_cached.cache_clear
