@@ -85,6 +85,34 @@ The equivalent command with explicit BIDS entity values is also valid: ::
 These filters apply to PET inputs only, so anatomical files are still resolved
 using the matching subject and session context.
 
+Filtering anat input by BIDS entities
+-------------------------------------
+When working with PET data it is common to have multiple T1w images for the
+same subject/session, for example one image with gradient nonlinearity
+correction applied and one without (see the
+`NonlinearGradientCorrection <https://bids-specification.readthedocs.io/en/stable/modality-specific-files/magnetic-resonance-imaging-data.html>`_
+field in the BIDS specification). In this case, the desired T1w image can
+be selected explicitly using :option:`--bids-filter-file`.
+
+For example, given a dataset containing both
+``sub-01_acq-mprage_rec-normdiscorr2d_T1w.nii.gz`` and
+``sub-01_acq-mprage_rec-norm_T1w.nii.gz``, a filter file, ``bids_filter.json``, can be used to
+select only the distortion-corrected image::
+
+    {
+      "t1w": {
+        "datatype": "anat",
+        "suffix": "T1w",
+        "acquisition": "mprage",
+        "reconstruction": "normdiscorr2d"
+      }
+    }
+
+The filter file is then passed on the command line::
+
+    petprep data/bids_root/ out/ participant \
+        --bids-filter-file bids_filter.json
+
 .. _fs_license:
 
 The FreeSurfer license
