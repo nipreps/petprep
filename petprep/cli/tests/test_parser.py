@@ -22,11 +22,14 @@
 #
 """Test parser."""
 
+import copy
+import json
 from argparse import ArgumentError
 
 import nibabel as nb
 import numpy as np
 import pytest
+from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES, collect_data
 from packaging.version import Version
 
 from ... import config
@@ -321,6 +324,69 @@ def test_bids_filter_file(tmp_path, capsys):
     err = capsys.readouterr().err
     assert 'JSON syntax error in:' in err
     _reset_config()
+
+
+def test_bids_filter_file_selects_anat_by_reconstruction(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    anat_dir = bids / 'sub-01' / 'anat'
+    anat_dir.mkdir(parents=True, exist_ok=True)
+    img3d.to_filename(anat_dir / 'sub-01_acq-mprage_rec-norm_T1w.nii.gz')
+    selected_t1w = anat_dir / 'sub-01_acq-mprage_rec-normdiscorr2d_T1w.nii.gz'
+    img3d.to_filename(selected_t1w)
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    bids_filter = tmp_path / 'bids_filter.json'
+    bids_filter.write_text(
+        json.dumps(
+            {
+                't1w': {
+                    'datatype': 'anat',
+                    'suffix': 'T1w',
+                    'acquisition': 'mprage',
+                    'reconstruction': 'normdiscorr2d',
+                }
+            }
+        )
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--bids-filter-file',
+                str(bids_filter),
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+        queries['t1w'].pop('datatype', None)
+        subject_data = collect_data(
+            config.execution.bids_dir,
+            '01',
+            bids_filters=config.execution.bids_filters,
+            queries=queries,
+        )[0]
+
+        assert subject_data['t1w'] == [str(selected_t1w)]
+    finally:
+        _reset_config()
 
 
 def test_derivatives(tmp_path):
