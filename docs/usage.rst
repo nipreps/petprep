@@ -57,14 +57,17 @@ then operates on these merged series rather than the original per-run inputs.
 
 The combined sidecar is written on the first run's time scale:
 
-* If ``TimeZero`` is available for each run, *PETPrep* uses the elapsed clock
-  time between each run's ``TimeZero`` and the first run's ``TimeZero`` as the
-  offset for that run.
-* If ``TimeZero`` cannot be used, but ``InjectionStart`` is available, *PETPrep*
-  uses the difference in ``InjectionStart`` values to place runs on the same
-  injection-relative clock.
-* If neither timing field is available, *PETPrep* falls back to treating runs
-  whose ``FrameTimesStart`` begins at zero as contiguous with the preceding run.
+* When both ``TimeZero`` and ``InjectionStart`` are available, *PETPrep* requires
+  them to imply the same offset. The ``InjectionStart`` difference is used so
+  elapsed days are retained even though ``TimeZero`` contains only a time of day.
+* If ``TimeZero`` is missing or malformed but ``InjectionStart`` is available,
+  *PETPrep* can still use the injection-relative difference. ``TimeZero`` alone
+  is not accepted because a time of day cannot distinguish same-day from
+  multi-day acquisitions or establish that the runs share an injection.
+* If an exact timing relationship cannot be determined, the runs overlap after
+  adjustment, or the timing fields disagree, *PETPrep* stops with an error.
+  It does not assume that runs are contiguous because doing so could erase a
+  real gap while the subject was outside the scanner.
 
 Using those offsets, *PETPrep* shifts ``FrameTimesStart`` and
 ``FrameReferenceTime`` into the combined time scale and concatenates
@@ -77,18 +80,21 @@ matched to the number of frames in each run. Single-value arrays are expanded
 across all frames in that run; frame-wise arrays with incompatible lengths are
 omitted from the combined sidecar to avoid writing misleading metadata.
 
-If all input runs are marked as decay-corrected and the sidecars include
-``ImageDecayCorrectionTime``, *PETPrep* rescales each run's image data to the
-first run's ``ImageDecayCorrectionTime`` before concatenating when it can
-determine a consistent radionuclide half-life. An explicit
-``RadionuclideHalfLife`` is used when available. Otherwise, *PETPrep* infers
-the half-life from clear ``TracerRadionuclide`` values for carbon-11 and
-fluorine-18, including forms such as ``C11``, ``11C``, ``Carbon11``, ``F18``,
-``18F``, and ``18Fluorine``. The corresponding ``DecayFactor`` and
-``DecayCorrectionFactor`` values are updated by the same rescaling factor. If
-the required decay metadata are incomplete, ambiguous, or inconsistent across
-runs, the images are concatenated without additional decay rescaling and
-decay-correction timing metadata are omitted from the combined sidecar.
+All runs must define ``ImageDecayCorrected`` and a finite
+``ImageDecayCorrectionTime``, and must agree on whether decay correction has
+been applied. If all runs are uncorrected, the combined series remains
+explicitly uncorrected; *PETPrep* does not apply a later decay correction
+itself. If all runs are corrected to the same absolute time, their image values
+are concatenated unchanged. If their absolute correction times differ,
+*PETPrep* rescales each image to the first run's ``ImageDecayCorrectionTime``
+and updates ``DecayFactor`` and ``DecayCorrectionFactor`` by the same factor.
+
+Rescaling requires a consistent radionuclide half-life. An explicit
+``RadionuclideHalfLife`` is used when available and consistent with a recognized
+``TracerRadionuclide``. Otherwise, *PETPrep* recognizes common forms of
+carbon-11, fluorine-18, nitrogen-13, and oxygen-15. Missing, mixed, ambiguous,
+or inconsistent decay metadata cause an error rather than producing a combined
+series whose quantitative values cannot be interpreted safely.
 
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid

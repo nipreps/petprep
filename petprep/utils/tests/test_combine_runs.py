@@ -19,6 +19,11 @@ def _write_nifti(path: Path, data: np.ndarray) -> None:
 
 
 def _write_metadata(path: Path, metadata: dict) -> None:
+    metadata = {
+        'ImageDecayCorrected': False,
+        'ImageDecayCorrectionTime': 0.0,
+        **metadata,
+    }
     path.write_text(json.dumps(metadata, indent=4))
 
 
@@ -32,25 +37,13 @@ def _write_dataset_description(path: Path) -> None:
     [
         ('11:19:37', 40777.0),
         (' 01:02:03.5 ', 3723.5),
+        ('25:00:00', None),
         ('not-a-time', None),
         (None, None),
     ],
 )
 def test_parse_timezero(value, expected) -> None:
     assert bids_utils._parse_timezero(value) == expected
-
-
-@pytest.mark.parametrize(
-    ('base_meta', 'meta', 'expected'),
-    [
-        ({'TimeZero': '11:19:37'}, {'TimeZero': '13:27:58'}, 7701.0),
-        ({'TimeZero': '23:55:00'}, {'TimeZero': '00:05:00'}, 600.0),
-        ({'TimeZero': '13:27:58'}, {'TimeZero': '11:19:37'}, None),
-        ({'TimeZero': 'bad'}, {'TimeZero': '13:27:58'}, None),
-    ],
-)
-def test_run_offset_from_timezero(base_meta, meta, expected) -> None:
-    assert bids_utils._run_offset_from_timezero(base_meta, meta) == expected
 
 
 @pytest.mark.parametrize(
@@ -88,6 +81,10 @@ def test_run_time_offsets_fallbacks() -> None:
     ]
 
     assert bids_utils._run_time_offsets(metas) == [0.0, 5.0, 0.0, 11.0]
+    assert bids_utils._run_time_offsets_with_reliability(metas) == (
+        [0.0, 5.0, 0.0, 11.0],
+        [True, False, False, False],
+    )
 
 
 def test_run_time_offsets_uses_injection_start_when_timezero_is_missing() -> None:
@@ -97,6 +94,70 @@ def test_run_time_offsets_uses_injection_start_when_timezero_is_missing() -> Non
     ]
 
     assert bids_utils._run_time_offsets(metas) == [0.0, 10.0]
+
+
+def test_run_time_offsets_does_not_treat_timezero_alone_as_exact() -> None:
+    metas = [
+        {'TimeZero': '12:00:00', 'FrameTimesStart': [0.0], 'FrameDuration': [5.0]},
+        {'TimeZero': '13:00:00', 'FrameTimesStart': [0.0], 'FrameDuration': [2.0]},
+    ]
+
+    assert bids_utils._run_time_offsets_with_reliability(metas) == (
+        [0.0, 5.0],
+        [True, False],
+    )
+
+
+def test_run_time_offsets_uses_injection_start_to_retain_elapsed_days() -> None:
+    metas = [
+        {
+            'TimeZero': '08:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [5.0],
+        },
+        {
+            'TimeZero': '09:00:00',
+            'InjectionStart': -90000.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [2.0],
+        },
+    ]
+
+    assert bids_utils._run_time_offsets_with_reliability(metas) == (
+        [0.0, 90000.0],
+        [True, True],
+    )
+
+
+def test_run_time_offsets_rejects_inconsistent_timing_references() -> None:
+    metas = [
+        {'TimeZero': '12:00:00', 'InjectionStart': 0.0},
+        {'TimeZero': '14:00:00', 'InjectionStart': 0.0},
+    ]
+
+    with pytest.raises(ValueError, match='different injections or incompatible timing references'):
+        bids_utils._run_time_offsets(metas)
+
+
+def test_run_time_offsets_rejects_overlapping_runs() -> None:
+    metas = [
+        {
+            'TimeZero': '12:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+        {
+            'TimeZero': '12:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [10.0],
+        },
+    ]
+
+    with pytest.raises(ValueError, match='frame times overlap'):
+        bids_utils._run_time_offsets(metas)
 
 
 @pytest.mark.parametrize(
@@ -125,6 +186,8 @@ def test_metadata_as_framewise(value, frame_count, expected) -> None:
         ('18Fluorine', 'F18'),
         ('fluorine-18', 'F18'),
         ('[18F]FDG', 'F18'),
+        ('nitrogen-13', 'N13'),
+        ('[15O]H2O', 'O15'),
         ('VAT', None),
         ('11C18F', None),
         (None, None),
@@ -137,9 +200,10 @@ def test_infer_radionuclide(value, expected) -> None:
 @pytest.mark.parametrize(
     ('meta', 'expected'),
     [
-        ({'RadionuclideHalfLife': 123.0, 'TracerRadionuclide': '18F'}, 123.0),
+        ({'RadionuclideHalfLife': 123.0, 'TracerRadionuclide': '18F'}, None),
         ({'RadionuclideHalfLife': 'bad', 'TracerRadionuclide': '18Fluorine'}, 6586.2),
         ({'RadionuclideHalfLife': 0.0, 'TracerRadionuclide': '11C'}, 1220.4),
+        ({'TracerRadionuclide': 'O15'}, 122.24),
         ({'TracerRadionuclide': 'unknown'}, None),
     ],
 )
@@ -147,12 +211,21 @@ def test_metadata_half_life(meta, expected) -> None:
     assert bids_utils._metadata_half_life(meta) == expected
 
 
-def test_decay_rescale_factors_fallbacks() -> None:
+def test_decay_rescale_factors_rejects_ambiguous_metadata() -> None:
     assert bids_utils._decay_rescale_factors([], []) == []
-    assert bids_utils._decay_rescale_factors([{}], [0.0]) == [1.0]
+    assert bids_utils._decay_rescale_factors(
+        [{'ImageDecayCorrected': False, 'ImageDecayCorrectionTime': 0.0}], [0.0]
+    ) == [1.0]
+
+    with pytest.raises(ValueError, match='ImageDecayCorrected'):
+        bids_utils._decay_rescale_factors([{}], [0.0])
+
+    with pytest.raises(ValueError, match='ImageDecayCorrectionTime'):
+        bids_utils._decay_rescale_factors([{'ImageDecayCorrected': False}], [0.0])
 
     corrected_missing_fields = [{'ImageDecayCorrected': True}]
-    assert bids_utils._decay_rescale_factors(corrected_missing_fields, [0.0]) == [1.0]
+    with pytest.raises(ValueError, match='ImageDecayCorrectionTime'):
+        bids_utils._decay_rescale_factors(corrected_missing_fields, [0.0])
 
     invalid_half_life = [
         {
@@ -171,10 +244,8 @@ def test_decay_rescale_factors_fallbacks() -> None:
         },
         {'ImageDecayCorrected': True, 'RadionuclideHalfLife': 10.0},
     ]
-    assert bids_utils._decay_rescale_factors(missing_run_decay_time, [0.0, 10.0]) == [
-        1.0,
-        1.0,
-    ]
+    with pytest.raises(ValueError, match='ImageDecayCorrectionTime'):
+        bids_utils._decay_rescale_factors(missing_run_decay_time, [0.0, 10.0])
 
 
 def test_decay_rescale_factors() -> None:
@@ -211,6 +282,23 @@ def test_decay_rescale_factors_uses_tracer_radionuclide_half_life() -> None:
     assert bids_utils._decay_rescale_factors(metas, [0.0, 6586.2]) == pytest.approx([1.0, 2.0])
 
 
+def test_decay_rescale_factors_supports_oxygen_15() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': 'O15',
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'TracerRadionuclide': '15O',
+        },
+    ]
+
+    assert bids_utils._decay_rescale_factors(metas, [0.0, 122.24]) == pytest.approx([1.0, 2.0])
+
+
 def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
     metas = [
         {
@@ -225,10 +313,11 @@ def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
         },
     ]
 
-    assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == [1.0, 1.0]
+    with pytest.raises(ValueError, match='inconsistent radionuclide half-lives'):
+        bids_utils._decay_rescale_factors(metas, [0.0, 10.0])
 
 
-def test_merge_frame_metadata_drops_unresolved_decay_correction_metadata() -> None:
+def test_merge_frame_metadata_rejects_unresolved_decay_correction_metadata() -> None:
     metas = [
         {
             'ImageDecayCorrected': True,
@@ -244,14 +333,12 @@ def test_merge_frame_metadata_drops_unresolved_decay_correction_metadata() -> No
         },
     ]
 
-    merged = bids_utils._merge_frame_metadata(
-        metas,
-        run_offsets=[0.0, 600.0],
-        decay_rescale_factors=[1.0, 1.0],
-    )
-
-    assert 'ImageDecayCorrected' not in merged
-    assert 'ImageDecayCorrectionTime' not in merged
+    with pytest.raises(ValueError, match='radionuclide half-life'):
+        bids_utils._merge_frame_metadata(
+            metas,
+            run_offsets=[0.0, 600.0],
+            decay_rescale_factors=[1.0, 1.0],
+        )
 
 
 def test_merge_frame_metadata_preserves_matching_decay_correction_metadata() -> None:
@@ -283,6 +370,9 @@ def test_merge_frame_metadata_preserves_matching_decay_correction_metadata() -> 
 def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
     metas = [
         {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
             'FrameTimesStart': [0.0],
             'VolumeTiming': [0.0],
             'FrameDuration': [1.0],
@@ -294,6 +384,9 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
             'DecayFactor': [1.0],
         },
         {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
             'FrameTimesStart': [0.0, 1.0],
             'VolumeTiming': [0.0, 1.0],
             'FrameDuration': [1.0, 1.0],
@@ -327,8 +420,19 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
 
 def test_merge_frame_metadata_drops_unmergeable_volume_timing() -> None:
     metas = [
-        {'VolumeTiming': [0.0], 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
-        {'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+        {
+            'ImageDecayCorrected': False,
+            'ImageDecayCorrectionTime': 0.0,
+            'VolumeTiming': [0.0],
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [1.0],
+        },
+        {
+            'ImageDecayCorrected': False,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [1.0],
+        },
     ]
 
     merged = bids_utils._merge_frame_metadata(
@@ -353,11 +457,21 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
 
     _write_metadata(
         run1_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [0.0, 1.0], 'FrameDuration': [1.0, 1.0]},
+        {
+            'TimeZero': '00:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0, 1.0],
+            'FrameDuration': [1.0, 1.0],
+        },
     )
     _write_metadata(
         run2_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [0.0], 'FrameDuration': [2.0]},
+        {
+            'TimeZero': '00:00:02',
+            'InjectionStart': -2.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [2.0],
+        },
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
@@ -389,6 +503,8 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
     assert combined_meta['FrameTimesStart'] == [0.0, 1.0, 2.0]
     assert combined_meta['FrameDuration'] == [1.0, 1.0, 2.0]
     assert combined_meta['AcquisitionDuration'] == 4.0
+    assert combined_meta['ImageDecayCorrected'] is False
+    assert combined_meta['ImageDecayCorrectionTime'] == 0.0
 
     run_sources = list(combined_dir.glob('**/*run-*'))
     assert run_sources == []
@@ -408,11 +524,21 @@ def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path, monkeypatch) -> None
 
     _write_metadata(
         run1_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [0.0], 'FrameDuration': [2.0]},
+        {
+            'TimeZero': '00:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [2.0],
+        },
     )
     _write_metadata(
         run2_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [2.0], 'FrameDuration': [3.0]},
+        {
+            'TimeZero': '00:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [2.0],
+            'FrameDuration': [3.0],
+        },
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
@@ -460,11 +586,21 @@ def test_combine_pet_runs_handles_mixed_dimensions(tmp_path: Path, monkeypatch) 
 
     _write_metadata(
         run1_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [0.0], 'FrameDuration': [5.0]},
+        {
+            'TimeZero': '00:00:00',
+            'InjectionStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [5.0],
+        },
     )
     _write_metadata(
         run2_img.with_suffix('').with_suffix('.json'),
-        {'FrameTimesStart': [0.0, 2.0], 'FrameDuration': [1.0, 1.5]},
+        {
+            'TimeZero': '00:00:05',
+            'InjectionStart': -5.0,
+            'FrameTimesStart': [0.0, 2.0],
+            'FrameDuration': [1.0, 1.5],
+        },
     )
 
     layout = BIDSLayout(bids_dir, validate=False)
@@ -641,6 +777,7 @@ def test_combine_pet_runs_rescales_decay_corrected_3d_runs(tmp_path: Path, monke
         {
             **common_metadata,
             'TimeZero': '00:00:00',
+            'InjectionStart': 0.0,
             'FrameTimesStart': [0.0],
         },
     )
@@ -649,6 +786,7 @@ def test_combine_pet_runs_rescales_decay_corrected_3d_runs(tmp_path: Path, monke
         {
             **common_metadata,
             'TimeZero': '00:00:10',
+            'InjectionStart': -10.0,
             'FrameTimesStart': [0.0],
         },
     )
@@ -671,3 +809,67 @@ def test_combine_pet_runs_rescales_decay_corrected_3d_runs(tmp_path: Path, monke
     data = combined_img.get_fdata()
     assert np.all(data[..., 0] == 1)
     assert np.allclose(data[..., 1], 4)
+
+
+def test_combine_pet_runs_rejects_unresolved_timing(tmp_path: Path, monkeypatch) -> None:
+    bids_dir = tmp_path / 'bids'
+    _write_dataset_description(bids_dir / 'dataset_description.json')
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    run1_img = pet_dir / 'sub-01_task-rest_run-01_pet.nii.gz'
+    run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
+    _write_nifti(run1_img, np.ones((2, 2, 2)))
+    _write_nifti(run2_img, np.ones((2, 2, 2)))
+    _write_metadata(
+        run1_img.with_suffix('').with_suffix('.json'),
+        {'FrameTimesStart': [0.0], 'FrameDuration': [10.0]},
+    )
+    _write_metadata(
+        run2_img.with_suffix('').with_suffix('.json'),
+        {'FrameTimesStart': [0.0], 'FrameDuration': [10.0]},
+    )
+    layout = BIDSLayout(bids_dir, validate=False)
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+
+    with pytest.raises(ValueError, match='exact timing offset'):
+        combine_pet_runs(
+            bids_dir=bids_dir,
+            layout=layout,
+            work_dir=tmp_path / 'work',
+            subjects=['01'],
+            bids_filters={},
+        )
+
+
+def test_combine_pet_runs_rejects_mixed_decay_correction(tmp_path: Path, monkeypatch) -> None:
+    bids_dir = tmp_path / 'bids'
+    _write_dataset_description(bids_dir / 'dataset_description.json')
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    run1_img = pet_dir / 'sub-01_task-rest_run-01_pet.nii.gz'
+    run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
+    _write_nifti(run1_img, np.ones((2, 2, 2)))
+    _write_nifti(run2_img, np.ones((2, 2, 2)))
+    common_metadata = {
+        'TimeZero': '12:00:00',
+        'InjectionStart': 0.0,
+        'FrameDuration': [10.0],
+        'ImageDecayCorrectionTime': 0.0,
+    }
+    _write_metadata(
+        run1_img.with_suffix('').with_suffix('.json'),
+        {**common_metadata, 'FrameTimesStart': [0.0], 'ImageDecayCorrected': True},
+    )
+    _write_metadata(
+        run2_img.with_suffix('').with_suffix('.json'),
+        {**common_metadata, 'FrameTimesStart': [10.0], 'ImageDecayCorrected': False},
+    )
+    layout = BIDSLayout(bids_dir, validate=False)
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+
+    with pytest.raises(ValueError, match='decay-corrected and uncorrected'):
+        combine_pet_runs(
+            bids_dir=bids_dir,
+            layout=layout,
+            work_dir=tmp_path / 'work',
+            subjects=['01'],
+            bids_filters={},
+        )

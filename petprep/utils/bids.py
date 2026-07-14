@@ -246,39 +246,34 @@ _FRAMEWISE_METADATA = (
     'RandomRate',
 )
 _DECAY_FACTOR_METADATA = ('DecayFactor', 'DecayCorrectionFactor')
-_DECAY_CORRECTION_METADATA = ('ImageDecayCorrected', 'ImageDecayCorrectionTime')
 _RADIONUCLIDE_HALF_LIVES = {
     'C11': 1220.4,
     'F18': 6586.2,
+    'N13': 597.9,
+    'O15': 122.24,
 }
 _RADIONUCLIDE_ALIASES = {
     'C11': ('C11', '11C', 'CARBON11', '11CARBON'),
     'F18': ('F18', '18F', 'FLUORINE18', '18FLUORINE'),
+    'N13': ('N13', '13N', 'NITROGEN13', '13NITROGEN'),
+    'O15': ('O15', '15O', 'OXYGEN15', '15OXYGEN'),
 }
+_SECONDS_PER_DAY = 24 * 3600
+_TIMING_TOLERANCE_SECONDS = 1.0
 
 
 def _parse_timezero(value) -> float | None:
     if not isinstance(value, str):
         return None
 
-    match = re.match(r'^\s*(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)\s*$', value)
+    match = re.match(
+        r'^\s*((?:2[0-3]|[01]?\d)):([0-5]\d):([0-5]\d(?:\.\d+)?)\s*$', value
+    )
     if not match:
         return None
 
     hours, minutes, seconds = match.groups()
     return int(hours) * 3600.0 + int(minutes) * 60.0 + float(seconds)
-
-
-def _run_offset_from_timezero(base_meta: dict, meta: dict) -> float | None:
-    base_time = _parse_timezero(base_meta.get('TimeZero'))
-    current_time = _parse_timezero(meta.get('TimeZero'))
-    if base_time is None or current_time is None:
-        return None
-
-    offset = current_time - base_time
-    if offset < -12 * 3600:
-        offset += 24 * 3600
-    return offset if offset >= 0 else None
 
 
 def _run_offset_from_injection_start(base_meta: dict, meta: dict) -> float | None:
@@ -288,7 +283,40 @@ def _run_offset_from_injection_start(base_meta: dict, meta: dict) -> float | Non
         offset = float(base_meta['InjectionStart']) - float(meta['InjectionStart'])
     except (TypeError, ValueError):
         return None
-    return offset if offset >= 0 else None
+    return offset if np.isfinite(offset) and offset >= 0 else None
+
+
+def _run_metadata_offset(base_meta: dict, meta: dict) -> float | None:
+    """Return an exact run offset, validating independent timing fields when possible."""
+    base_time = _parse_timezero(base_meta.get('TimeZero'))
+    current_time = _parse_timezero(meta.get('TimeZero'))
+    clock_offset = None
+    if base_time is not None and current_time is not None:
+        clock_offset = (current_time - base_time) % _SECONDS_PER_DAY
+
+    injection_offset = _run_offset_from_injection_start(base_meta, meta)
+    injection_fields_present = 'InjectionStart' in base_meta and 'InjectionStart' in meta
+    if injection_fields_present and injection_offset is None:
+        raise ValueError(
+            'InjectionStart values must be numeric and place runs in chronological order'
+        )
+
+    if clock_offset is not None and injection_offset is not None:
+        injection_clock_offset = injection_offset % _SECONDS_PER_DAY
+        clock_difference = abs(clock_offset - injection_clock_offset)
+        clock_difference = min(clock_difference, _SECONDS_PER_DAY - clock_difference)
+        if clock_difference > _TIMING_TOLERANCE_SECONDS:
+            raise ValueError(
+                'TimeZero and InjectionStart imply inconsistent offsets; the runs may use '
+                'different injections or incompatible timing references'
+            )
+        # InjectionStart retains elapsed-day information that a time-of-day value cannot encode.
+        return injection_offset
+
+    if injection_offset is not None:
+        return injection_offset
+    # TimeZero contains no date and cannot by itself distinguish same-day from multi-day runs.
+    return None
 
 
 def _frame_end(starts: list[float], durations: list[float]) -> float:
@@ -299,37 +327,69 @@ def _frame_end(starts: list[float], durations: list[float]) -> float:
     return 0.0
 
 
-def _run_time_offsets(metas: list[dict]) -> list[float]:
+def _run_time_offsets_with_reliability(metas: list[dict]) -> tuple[list[float], list[bool]]:
     offsets = []
+    reliable = []
     fallback_offset = 0.0
     base_meta = metas[0] if metas else {}
 
-    for meta in metas:
+    for run_index, meta in enumerate(metas):
         starts = [float(start) for start in (meta.get('FrameTimesStart') or [])]
         durations = [float(duration) for duration in (meta.get('FrameDuration') or [])]
         starts_are_relative = bool(starts) and np.isclose(min(starts), 0.0)
 
-        metadata_offset = _run_offset_from_timezero(base_meta, meta)
-        if metadata_offset is None:
-            metadata_offset = _run_offset_from_injection_start(base_meta, meta)
+        try:
+            metadata_offset = _run_metadata_offset(base_meta, meta)
+        except ValueError as exc:
+            raise ValueError(f'Cannot safely combine PET run {run_index + 1}: {exc}') from exc
 
         if metadata_offset is not None:
             offset = metadata_offset
             adjusted_starts = [start + offset for start in starts]
+            is_reliable = True
         elif starts_are_relative or not starts:
             offset = fallback_offset
             adjusted_starts = [start + offset for start in starts]
+            is_reliable = run_index == 0
         else:
             offset = 0.0
             adjusted_starts = starts
+            is_reliable = run_index == 0
+
+        if (
+            run_index > 0
+            and is_reliable
+            and adjusted_starts
+            and min(adjusted_starts) < fallback_offset - _TIMING_TOLERANCE_SECONDS
+        ):
+            raise ValueError(
+                f'Cannot safely combine PET run {run_index + 1}: adjusted frame times overlap '
+                'or precede the prior run'
+            )
 
         offsets.append(float(offset))
+        reliable.append(is_reliable)
         frame_end = _frame_end(adjusted_starts, durations)
         if not adjusted_starts and durations:
             frame_end = offset + float(sum(durations))
         fallback_offset = max(fallback_offset, frame_end)
 
-    return offsets
+    return offsets, reliable
+
+
+def _run_time_offsets(metas: list[dict]) -> list[float]:
+    return _run_time_offsets_with_reliability(metas)[0]
+
+
+def _require_reliable_run_timing(reliable: list[bool]) -> None:
+    unresolved_runs = [str(index + 1) for index, value in enumerate(reliable) if not value]
+    if unresolved_runs:
+        raise ValueError(
+            'Cannot safely combine PET runs because an exact timing offset could not be '
+            f'determined for run(s) {", ".join(unresolved_runs)}. Provide consistent TimeZero '
+            'and/or InjectionStart metadata; assuming contiguous runs could erase acquisition '
+            'gaps and produce incorrect decay correction.'
+        )
 
 
 def _metadata_as_framewise(value, frame_count: int) -> list | None:
@@ -360,11 +420,15 @@ def _metadata_half_life(meta: dict) -> float | None:
         half_life = float(meta['RadionuclideHalfLife'])
     except (KeyError, TypeError, ValueError):
         half_life = None
-    if half_life is not None and half_life > 0:
-        return half_life
-
     radionuclide = _infer_radionuclide(meta.get('TracerRadionuclide'))
-    return _RADIONUCLIDE_HALF_LIVES.get(radionuclide)
+    inferred_half_life = _RADIONUCLIDE_HALF_LIVES.get(radionuclide)
+    if half_life is not None and np.isfinite(half_life) and half_life > 0:
+        if inferred_half_life is not None and not np.isclose(
+            half_life, inferred_half_life, rtol=0.01
+        ):
+            return None
+        return half_life
+    return inferred_half_life
 
 
 def _absolute_decay_correction_times(
@@ -376,66 +440,99 @@ def _absolute_decay_correction_times(
     decay_times = []
     for meta, run_offset in zip(metas, run_offsets, strict=True):
         try:
-            decay_times.append(float(meta['ImageDecayCorrectionTime']) + run_offset)
+            decay_time = float(meta['ImageDecayCorrectionTime']) + run_offset
         except (KeyError, TypeError, ValueError):
             return None
+        if not np.isfinite(decay_time):
+            return None
+        decay_times.append(decay_time)
     return decay_times
-
-
-def _decay_rescaling_available(metas: list[dict], run_offsets: list[float]) -> bool:
-    if _absolute_decay_correction_times(metas, run_offsets) is None:
-        return False
-
-    half_lives = [_metadata_half_life(meta) for meta in metas]
-    if any(half_life is None for half_life in half_lives):
-        return False
-    half_life = half_lives[0]
-    return all(np.isclose(half_life, other_half_life, rtol=0.01) for other_half_life in half_lives)
 
 
 def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
     factors = [1.0] * len(metas)
+    if not metas:
+        return factors
+
+    corrected_values = [meta.get('ImageDecayCorrected') for meta in metas]
+    if not all(isinstance(value, bool) for value in corrected_values):
+        raise ValueError(
+            'Cannot safely combine PET runs unless ImageDecayCorrected is defined as a boolean '
+            'for every run'
+        )
+    correction_times_are_valid = True
+    for meta in metas:
+        try:
+            correction_time = float(meta['ImageDecayCorrectionTime'])
+        except (KeyError, TypeError, ValueError):
+            correction_times_are_valid = False
+            break
+        if not np.isfinite(correction_time):
+            correction_times_are_valid = False
+            break
+    if not correction_times_are_valid:
+        raise ValueError(
+            'Cannot safely combine PET runs unless ImageDecayCorrectionTime is defined as a '
+            'finite number for every run'
+        )
+    if all(value is False for value in corrected_values):
+        return factors
+    if not all(value is True for value in corrected_values):
+        raise ValueError('Cannot safely combine decay-corrected and uncorrected PET runs')
+
     decay_times = _absolute_decay_correction_times(metas, run_offsets)
     if decay_times is None:
+        raise ValueError(
+            'Cannot safely combine decay-corrected PET runs unless '
+            'ImageDecayCorrectionTime is defined for every run'
+        )
+
+    if np.allclose(
+        decay_times,
+        decay_times[0],
+        rtol=0.0,
+        atol=_TIMING_TOLERANCE_SECONDS,
+    ):
         return factors
 
-    if not _decay_rescaling_available(metas, run_offsets):
-        return factors
-
+    half_lives = [_metadata_half_life(meta) for meta in metas]
+    if any(half_life is None for half_life in half_lives):
+        raise ValueError(
+            'Cannot safely rescale decay-corrected PET runs with different correction times '
+            'because the radionuclide half-life is missing, unsupported, or inconsistent with '
+            'TracerRadionuclide'
+        )
     half_life = _metadata_half_life(metas[0])
+    half_lives_match = all(
+        np.isclose(half_life, other_half_life, rtol=0.01)
+        for other_half_life in half_lives
+    )
+    if not half_lives_match:
+        raise ValueError(
+            'Cannot safely rescale decay-corrected PET runs with inconsistent radionuclide '
+            'half-lives'
+        )
     decay_constant = np.log(2.0) / half_life
     target_decay_time = decay_times[0]
     for i, decay_time in enumerate(decay_times):
-        factors[i] = float(np.exp(decay_constant * (decay_time - target_decay_time)))
+        with np.errstate(over='ignore', under='ignore'):
+            factor = float(np.exp(decay_constant * (decay_time - target_decay_time)))
+        if not np.isfinite(factor) or factor == 0.0:
+            raise ValueError('Decay rescaling factor is outside the supported numeric range')
+        factors[i] = factor
 
     return factors
 
 
-def _can_preserve_decay_correction_metadata(metas: list[dict], run_offsets: list[float]) -> bool:
-    decay_times = _absolute_decay_correction_times(metas, run_offsets)
-    if decay_times is None:
-        return False
-    if np.allclose(decay_times, decay_times[0]):
-        return True
-    return _decay_rescaling_available(metas, run_offsets)
-
-
-def _merge_decay_correction_metadata(
-    merged: dict, metas: list[dict], run_offsets: list[float]
-) -> None:
+def _merge_decay_correction_metadata(merged: dict, metas: list[dict]) -> None:
     corrected_values = [meta.get('ImageDecayCorrected') for meta in metas]
     if all(value is False for value in corrected_values):
         merged['ImageDecayCorrected'] = False
-        merged.pop('ImageDecayCorrectionTime', None)
-        return
-
-    if _can_preserve_decay_correction_metadata(metas, run_offsets):
-        merged['ImageDecayCorrected'] = True
         merged['ImageDecayCorrectionTime'] = float(metas[0]['ImageDecayCorrectionTime'])
         return
 
-    for key in _DECAY_CORRECTION_METADATA:
-        merged.pop(key, None)
+    merged['ImageDecayCorrected'] = True
+    merged['ImageDecayCorrectionTime'] = float(metas[0]['ImageDecayCorrectionTime'])
 
 
 def _merge_offset_timing_metadata(
@@ -459,7 +556,11 @@ def _merge_frame_metadata(
     merged = metas[0].copy()
     frame_durations = []
     run_offsets = run_offsets or _run_time_offsets(metas)
-    decay_rescale_factors = decay_rescale_factors or [1.0] * len(metas)
+    expected_decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
+    if decay_rescale_factors is None:
+        decay_rescale_factors = expected_decay_rescale_factors
+    elif not np.allclose(decay_rescale_factors, expected_decay_rescale_factors):
+        raise ValueError('Decay rescale factors do not match the PET decay metadata')
 
     frame_times = _merge_offset_timing_metadata(metas, run_offsets, 'FrameTimesStart')
     volume_timing = _merge_offset_timing_metadata(metas, run_offsets, 'VolumeTiming')
@@ -482,7 +583,7 @@ def _merge_frame_metadata(
         merged['FrameDuration'] = frame_durations
         merged['AcquisitionDuration'] = float(sum(frame_durations))
 
-    _merge_decay_correction_metadata(merged, metas, run_offsets)
+    _merge_decay_correction_metadata(merged, metas)
 
     for key in _FRAMEWISE_METADATA:
         values = []
@@ -565,7 +666,8 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
-            run_offsets = _run_time_offsets(metas)
+            run_offsets, reliable_timing = _run_time_offsets_with_reliability(metas)
+            _require_reliable_run_timing(reliable_timing)
             decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
 
             if imgs:
