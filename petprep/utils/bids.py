@@ -266,9 +266,7 @@ def _parse_timezero(value) -> float | None:
     if not isinstance(value, str):
         return None
 
-    match = re.match(
-        r'^\s*((?:2[0-3]|[01]?\d)):([0-5]\d):([0-5]\d(?:\.\d+)?)\s*$', value
-    )
+    match = re.match(r'^\s*((?:2[0-3]|[01]?\d)):([0-5]\d):([0-5]\d(?:\.\d+)?)\s*$', value)
     if not match:
         return None
 
@@ -504,8 +502,7 @@ def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[
         )
     half_life = _metadata_half_life(metas[0])
     half_lives_match = all(
-        np.isclose(half_life, other_half_life, rtol=0.01)
-        for other_half_life in half_lives
+        np.isclose(half_life, other_half_life, rtol=0.01) for other_half_life in half_lives
     )
     if not half_lives_match:
         raise ValueError(
