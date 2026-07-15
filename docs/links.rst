@@ -26,6 +26,8 @@
 .. _`T2* workflow`: https://tedana.readthedocs.io/en/latest/generated/tedana.workflows.t2smap_workflow.html#tedana.workflows.t2smap_workflow  # noqa
 .. _`citation boilerplate`: https://www.nipreps.org/intro/transparency/#citation-boilerplates
 .. _PETSurfer: https://surfer.nmr.mgh.harvard.edu/fswiki/PetSurfer
+.. _PETFit: https://petfit.readthedocs.io/en/latest/
+.. _PETSurfer-BIDS: https://github.com/freesurfer/petsurfer-bids
 .. _PETPVC: https://github.com/UCL/PETPVC
 .. _kinfitr: https://github.com/mathesong/kinfitr
 .. _PMOD: https://www.pmod.com/
