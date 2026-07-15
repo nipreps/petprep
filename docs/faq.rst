@@ -136,10 +136,12 @@ directory for each job.
 This keeps Nipype's intermediate files isolated and avoids multiple processes
 writing to the same workflow cache.
 
-When running many subjects at the same time, make sure that each job either
-writes to a separate output directory that will be merged later, or that your
-execution environment prevents two jobs from processing the same subject into
-the same output tree at once.
+When running many subjects at the same time, each job must also write to a
+separate output directory.
+Even jobs processing different subjects write shared root-level metadata and
+citation files, so using one output tree for concurrent jobs can result in race
+conditions.
+Merge the derivative datasets only after all jobs have finished.
 Shared FreeSurfer derivatives may be reused with ``--fs-subjects-dir``, but they
 should not be generated simultaneously by multiple jobs for the same subject.
 
@@ -160,22 +162,6 @@ reference-region TAC extraction is enabled.
 For larger dynamic acquisitions, atlas segmentations, or PVC workflows, allocate
 additional memory and inspect the first few subjects before scaling out to the
 whole dataset.
-
-Below are some benchmark data that have been computed on a high performance cluster compute node with Intel E5-2683 v4
-CPUs and 64 GB of physical memory:
-
-.. figure:: _static/petprep_benchmark.svg
-
-**Compute Time**: time in hours to complete the preprocessing for all subjects. **Physical Memory**: the maximum of RAM usage
-used across all *PETPrep* processes as reported by the HCP job manager. **Virtual Memory**: the maximum of virtual memory used
-across all *PETPrep* processes as reported by the HCP job manager. **Threads**: the maximum number of threads per process as
-specified with ``–omp-nthreads`` in the PETPrep command.
-
-The above figure illustrates that processing 2 subjects in 2 *PETPrep* instances with 8 CPUs each is approximately as fast as
-processing 2 subjects in one *PETPrep* instance with 16 CPUs. However, on a distributed compute cluster, the two 8 CPU
-instances may be allocated faster than the single 16 CPU instance, thus completing faster in practice. If more than one
-subject is processed in a single *PETPrep* instance, then limiting the number of threads per process to roughly the
-number of CPUs divided by the number of subjects is most efficient.
 
 .. _upgrading:
 
@@ -343,8 +329,8 @@ The `segmentation <usage.html#segmentation>`__ options determine which regional
 time-activity curves (TACs) are extracted, and the
 `reference region mask <usage.html#reference-region-masks>`__ options can
 additionally write TACs for a reference region.
-The resulting ``*_desc-preproc_tacs.tsv`` files are documented in
-`Time activity curves <outputs.html#time-activity-curves>`__.
+The resulting ``*_desc-preproc_tacs.tsv`` files are documented under
+:ref:`Time activity curves <time-activity-curves>`.
 
 When planning a modeling workflow, decide the segmentation, reference region,
 partial volume correction, and output spaces before processing the full dataset.
@@ -426,8 +412,11 @@ When rerunning, keep the same *PETPrep* version, command-line options, output
 directory, and working directory unless you intentionally want to recompute the
 workflow.
 Before restarting, inspect the crashfiles and logs under
-``<output dir>/sub-<participant_label>/log`` to identify whether the failure was
-caused by a data issue, missing dependency, resource limit, or interrupted job.
+``<output dir>/sub-<participant_label>/log/<run_uuid>``.
+For sessionwise runs, they are stored under
+``<output dir>/sub-<participant_label>/ses-<session_label>/log/<run_uuid>``.
+Use these files to identify whether the failure was caused by a data issue,
+missing dependency, resource limit, or interrupted job.
 
 How can I reuse derivatives safely across staged or session-split workflows?
 -----------------------------------------------------------------------------
@@ -447,8 +436,8 @@ in the output metadata as a dataset link.
 It can refer to derivatives from an earlier *PETPrep* run or to another
 compatible BIDS Derivatives dataset, such as sMRIPrep outputs.
 If the nickname is omitted, *PETPrep* uses the directory name.
-Do not have multiple jobs generate or update the same subject/session outputs in
-the same derivative tree at the same time.
+Do not have multiple jobs write to the same derivative tree at the same time,
+even when they process different subjects or sessions.
 Shared FreeSurfer outputs may be reused with ``--fs-subjects-dir``, but they
 should not be generated concurrently for the same subject.
 
@@ -517,7 +506,7 @@ Some examples follow:
   at NeuroStars.org
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__,
   it is theoretically possible to leverage the *anatomical fast-track* along with the
-  ``--bids-filters`` option to process sessions fully independently, or grouped by
+  ``--bids-filter-file`` option to process sessions fully independently, or grouped by
   some study-design criteria.
   Please check the `link
   <https://neurostars.org/t/petprep-how-to-reuse-longitudinal-and-pre-run-freesurfer/4585/15>`__
