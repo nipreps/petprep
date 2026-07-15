@@ -245,7 +245,6 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
     from niworkflows.interfaces.bids import BIDSDataGrabber, BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION
     from niworkflows.interfaces.utility import KeySelect
-    from niworkflows.utils.bids import collect_data
     from niworkflows.utils.spaces import Reference
     from smriprep.workflows.anatomical import init_anat_fit_wf
     from smriprep.workflows.outputs import (
@@ -262,6 +261,7 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
     )
 
     from petprep.interfaces.segmentation import ensure_mcr2019b_available
+    from petprep.utils.bids import collect_subject_data
     from petprep.workflows.pet.base import init_pet_wf
     from petprep.workflows.pet.segmentation import init_segmentation_wf
 
@@ -299,22 +299,14 @@ It is released under the [CC0]\
 ### References
 
 """
-    import copy
-
-    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
-
-    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
-    queries['t1w'].pop('datatype', None)
-
-    subject_data = collect_data(
+    subject_data = collect_subject_data(
         config.execution.bids_dir,
         subject_id,
         session_id=session_id
         if config.workflow.subject_anatomical_reference == 'sessionwise'
         else None,
         bids_filters=_session_bids_filters(session_id),
-        queries=queries,
-    )[0]
+    )
 
     if 'flair' in config.workflow.ignore:
         subject_data['flair'] = []
