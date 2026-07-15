@@ -211,6 +211,21 @@ def test_metadata_half_life(meta, expected) -> None:
     assert bids_utils._metadata_half_life(meta) == expected
 
 
+@pytest.mark.parametrize(
+    ('metas', 'run_offsets'),
+    [
+        ([], []),
+        ([{'ImageDecayCorrected': False, 'ImageDecayCorrectionTime': 0.0}], [0.0]),
+        ([{'ImageDecayCorrected': True}], [0.0]),
+        ([{'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 'bad'}], [0.0]),
+    ],
+)
+def test_absolute_decay_correction_times_rejects_invalid_metadata(
+    metas, run_offsets
+) -> None:
+    assert bids_utils._absolute_decay_correction_times(metas, run_offsets) is None
+
+
 def test_decay_rescale_factors_rejects_ambiguous_metadata() -> None:
     assert bids_utils._decay_rescale_factors([], []) == []
     assert bids_utils._decay_rescale_factors(
@@ -246,6 +261,26 @@ def test_decay_rescale_factors_rejects_ambiguous_metadata() -> None:
     ]
     with pytest.raises(ValueError, match='ImageDecayCorrectionTime'):
         bids_utils._decay_rescale_factors(missing_run_decay_time, [0.0, 10.0])
+
+
+@pytest.mark.parametrize('correction_time', [np.nan, np.inf, -np.inf])
+def test_decay_rescale_factors_rejects_nonfinite_correction_times(correction_time) -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': correction_time,
+        }
+    ]
+
+    with pytest.raises(ValueError, match='finite number'):
+        bids_utils._decay_rescale_factors(metas, [0.0])
+
+
+def test_decay_rescale_factors_rejects_nonfinite_absolute_correction_time() -> None:
+    metas = [{'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 0.0}]
+
+    with pytest.raises(ValueError, match='defined for every run'):
+        bids_utils._decay_rescale_factors(metas, [np.inf])
 
 
 def test_decay_rescale_factors() -> None:
@@ -317,6 +352,25 @@ def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
         bids_utils._decay_rescale_factors(metas, [0.0, 10.0])
 
 
+@pytest.mark.parametrize('run_offsets', [[0.0, 2000.0], [2000.0, 0.0]])
+def test_decay_rescale_factors_rejects_out_of_range_factors(run_offsets) -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 1.0,
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 1.0,
+        },
+    ]
+
+    with pytest.raises(ValueError, match='outside the supported numeric range'):
+        bids_utils._decay_rescale_factors(metas, run_offsets)
+
+
 def test_merge_frame_metadata_rejects_unresolved_decay_correction_metadata() -> None:
     metas = [
         {
@@ -337,6 +391,28 @@ def test_merge_frame_metadata_rejects_unresolved_decay_correction_metadata() -> 
         bids_utils._merge_frame_metadata(
             metas,
             run_offsets=[0.0, 600.0],
+            decay_rescale_factors=[1.0, 1.0],
+        )
+
+
+def test_merge_frame_metadata_rejects_incorrect_decay_rescale_factors() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
+        },
+        {
+            'ImageDecayCorrected': True,
+            'ImageDecayCorrectionTime': 0.0,
+            'RadionuclideHalfLife': 10.0,
+        },
+    ]
+
+    with pytest.raises(ValueError, match='do not match the PET decay metadata'):
+        bids_utils._merge_frame_metadata(
+            metas,
+            run_offsets=[0.0, 10.0],
             decay_rescale_factors=[1.0, 1.0],
         )
 
@@ -441,6 +517,26 @@ def test_merge_frame_metadata_drops_unmergeable_volume_timing() -> None:
     )
 
     assert 'VolumeTiming' not in merged
+
+
+def test_merge_frame_metadata_drops_unmergeable_frame_times_without_durations() -> None:
+    metas = [
+        {
+            'ImageDecayCorrected': False,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+        },
+        {
+            'ImageDecayCorrected': False,
+            'ImageDecayCorrectionTime': 0.0,
+        },
+    ]
+
+    merged = bids_utils._merge_frame_metadata(metas, run_offsets=[0.0, 1.0])
+
+    assert 'FrameTimesStart' not in merged
+    assert 'FrameDuration' not in merged
+    assert 'AcquisitionDuration' not in merged
 
 
 def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None:
