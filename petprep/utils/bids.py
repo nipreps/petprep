@@ -390,13 +390,43 @@ def _require_reliable_run_timing(reliable: list[bool]) -> None:
         )
 
 
+def _validate_combined_run_metadata(metas: list[dict], frame_counts: list[int]) -> None:
+    units = [meta.get('Units') for meta in metas]
+    if not all(isinstance(unit, str) and unit.strip() for unit in units):
+        raise ValueError(
+            'Cannot safely combine PET runs unless Units is defined as a non-empty string '
+            'for every run'
+        )
+    if any(unit != units[0] for unit in units[1:]):
+        raise ValueError('Cannot safely combine PET runs with different Units')
+
+    for run_index, (meta, frame_count) in enumerate(
+        zip(metas, frame_counts, strict=True),
+        start=1,
+    ):
+        for key in ('FrameTimesStart', 'FrameDuration'):
+            values = meta.get(key)
+            if not isinstance(values, list) or len(values) != frame_count:
+                raise ValueError(
+                    f'Cannot safely combine PET run {run_index}: {key} must contain exactly '
+                    f'one value per image frame ({frame_count} expected)'
+                )
+            try:
+                values_are_finite = all(np.isfinite(float(value)) for value in values)
+            except (TypeError, ValueError):
+                values_are_finite = False
+            if not values_are_finite:
+                raise ValueError(
+                    f'Cannot safely combine PET run {run_index}: {key} must contain only '
+                    'finite numbers'
+                )
+
+
 def _metadata_as_framewise(value, frame_count: int) -> list | None:
     if frame_count == 0 or not isinstance(value, list):
         return None
     if len(value) == frame_count:
         return value
-    if len(value) == 1:
-        return value * frame_count
     return None
 
 
@@ -429,24 +459,6 @@ def _metadata_half_life(meta: dict) -> float | None:
     return inferred_half_life
 
 
-def _absolute_decay_correction_times(
-    metas: list[dict], run_offsets: list[float]
-) -> list[float] | None:
-    if not metas or not all(meta.get('ImageDecayCorrected') is True for meta in metas):
-        return None
-
-    decay_times = []
-    for meta, run_offset in zip(metas, run_offsets, strict=True):
-        try:
-            decay_time = float(meta['ImageDecayCorrectionTime']) + run_offset
-        except (KeyError, TypeError, ValueError):
-            return None
-        if not np.isfinite(decay_time):
-            return None
-        decay_times.append(decay_time)
-    return decay_times
-
-
 def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[float]:
     factors = [1.0] * len(metas)
     if not metas:
@@ -458,17 +470,18 @@ def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[
             'Cannot safely combine PET runs unless ImageDecayCorrected is defined as a boolean '
             'for every run'
         )
-    correction_times_are_valid = True
+    correction_times = []
     for meta in metas:
         try:
             correction_time = float(meta['ImageDecayCorrectionTime'])
         except (KeyError, TypeError, ValueError):
-            correction_times_are_valid = False
+            correction_times = []
             break
         if not np.isfinite(correction_time):
-            correction_times_are_valid = False
+            correction_times = []
             break
-    if not correction_times_are_valid:
+        correction_times.append(correction_time)
+    if len(correction_times) != len(metas):
         raise ValueError(
             'Cannot safely combine PET runs unless ImageDecayCorrectionTime is defined as a '
             'finite number for every run'
@@ -478,12 +491,10 @@ def _decay_rescale_factors(metas: list[dict], run_offsets: list[float]) -> list[
     if not all(value is True for value in corrected_values):
         raise ValueError('Cannot safely combine decay-corrected and uncorrected PET runs')
 
-    decay_times = _absolute_decay_correction_times(metas, run_offsets)
-    if decay_times is None:
-        raise ValueError(
-            'Cannot safely combine decay-corrected PET runs unless '
-            'ImageDecayCorrectionTime is defined for every run'
-        )
+    with np.errstate(over='ignore', invalid='ignore'):
+        decay_times = np.add(correction_times, run_offsets)
+    if not np.all(np.isfinite(decay_times)):
+        raise ValueError('Absolute decay correction time is outside the supported numeric range')
 
     if np.allclose(
         decay_times,
@@ -544,6 +555,16 @@ def _merge_offset_timing_metadata(
     return values
 
 
+def _merge_frame_durations(metas: list[dict]) -> list[float] | None:
+    values = []
+    for meta in metas:
+        durations = meta.get('FrameDuration')
+        if not isinstance(durations, list) or not durations:
+            return None
+        values.extend(durations)
+    return values
+
+
 def _merge_frame_metadata(
     metas: list[dict],
     *,
@@ -551,7 +572,6 @@ def _merge_frame_metadata(
     decay_rescale_factors: list[float] | None = None,
 ) -> dict:
     merged = metas[0].copy()
-    frame_durations = []
     run_offsets = run_offsets or _run_time_offsets(metas)
     expected_decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
     if decay_rescale_factors is None:
@@ -561,12 +581,7 @@ def _merge_frame_metadata(
 
     frame_times = _merge_offset_timing_metadata(metas, run_offsets, 'FrameTimesStart')
     volume_timing = _merge_offset_timing_metadata(metas, run_offsets, 'VolumeTiming')
-
-    for meta in metas:
-        durations = meta.get('FrameDuration') or []
-
-        if durations:
-            frame_durations.extend(durations)
+    frame_durations = _merge_frame_durations(metas)
 
     if frame_times:
         merged['FrameTimesStart'] = frame_times
@@ -579,6 +594,9 @@ def _merge_frame_metadata(
     if frame_durations:
         merged['FrameDuration'] = frame_durations
         merged['AcquisitionDuration'] = float(sum(frame_durations))
+    else:
+        merged.pop('FrameDuration', None)
+        merged.pop('AcquisitionDuration', None)
 
     _merge_decay_correction_metadata(merged, metas)
 
@@ -663,9 +681,6 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             )
             imgs = [nb.load(file) for file in files]
             metas = [layout.get_metadata(file) for file in files]
-            run_offsets, reliable_timing = _run_time_offsets_with_reliability(metas)
-            _require_reliable_run_timing(reliable_timing)
-            decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
 
             if imgs:
                 shapes = [img.shape for img in imgs]
@@ -678,6 +693,12 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                     raise ValueError(
                         'PET images must match in spatial dimensions when combining runs'
                     )
+                frame_counts = [shape[3] if len(shape) == 4 else 1 for shape in shapes]
+                _validate_combined_run_metadata(metas, frame_counts)
+
+            run_offsets, reliable_timing = _run_time_offsets_with_reliability(metas)
+            _require_reliable_run_timing(reliable_timing)
+            decay_rescale_factors = _decay_rescale_factors(metas, run_offsets)
 
             original = Path(files[0])
             rel_path = original.relative_to(bids_dir)

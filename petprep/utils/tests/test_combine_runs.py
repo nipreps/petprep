@@ -22,6 +22,7 @@ def _write_metadata(path: Path, metadata: dict) -> None:
     metadata = {
         'ImageDecayCorrected': False,
         'ImageDecayCorrectionTime': 0.0,
+        'Units': 'Bq/mL',
         **metadata,
     }
     path.write_text(json.dumps(metadata, indent=4))
@@ -160,11 +161,65 @@ def test_run_time_offsets_rejects_overlapping_runs() -> None:
         bids_utils._run_time_offsets(metas)
 
 
+def test_validate_combined_run_metadata() -> None:
+    metas = [
+        {'Units': 'Bq/mL', 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+        {'Units': 'Bq/mL', 'FrameTimesStart': [0.0, 1.0], 'FrameDuration': [1.0, 1.0]},
+    ]
+
+    bids_utils._validate_combined_run_metadata(metas, [1, 2])
+
+
+@pytest.mark.parametrize(
+    ('metas', 'frame_counts', 'message'),
+    [
+        (
+            [{'FrameTimesStart': [0.0], 'FrameDuration': [1.0]}],
+            [1],
+            'Units is defined',
+        ),
+        (
+            [
+                {'Units': 'Bq/mL', 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+                {'Units': 'SUV', 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
+            ],
+            [1, 1],
+            'different Units',
+        ),
+        (
+            [{'Units': 'Bq/mL', 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]}],
+            [2],
+            'one value per image frame',
+        ),
+        (
+            [{'Units': 'Bq/mL', 'FrameTimesStart': [0.0]}],
+            [1],
+            'FrameDuration',
+        ),
+        (
+            [{'Units': 'Bq/mL', 'FrameTimesStart': [np.nan], 'FrameDuration': [1.0]}],
+            [1],
+            'finite numbers',
+        ),
+        (
+            [{'Units': 'Bq/mL', 'FrameTimesStart': ['bad'], 'FrameDuration': [1.0]}],
+            [1],
+            'finite numbers',
+        ),
+    ],
+)
+def test_validate_combined_run_metadata_rejects_incompatible_metadata(
+    metas, frame_counts, message
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        bids_utils._validate_combined_run_metadata(metas, frame_counts)
+
+
 @pytest.mark.parametrize(
     ('value', 'frame_count', 'expected'),
     [
         ([1.0, 2.0], 2, [1.0, 2.0]),
-        ([1.0], 3, [1.0, 1.0, 1.0]),
+        ([1.0], 3, None),
         ([1.0, 2.0], 3, None),
         ('not-framewise', 1, None),
         ([1.0], 0, None),
@@ -209,19 +264,6 @@ def test_infer_radionuclide(value, expected) -> None:
 )
 def test_metadata_half_life(meta, expected) -> None:
     assert bids_utils._metadata_half_life(meta) == expected
-
-
-@pytest.mark.parametrize(
-    ('metas', 'run_offsets'),
-    [
-        ([], []),
-        ([{'ImageDecayCorrected': False, 'ImageDecayCorrectionTime': 0.0}], [0.0]),
-        ([{'ImageDecayCorrected': True}], [0.0]),
-        ([{'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 'bad'}], [0.0]),
-    ],
-)
-def test_absolute_decay_correction_times_rejects_invalid_metadata(metas, run_offsets) -> None:
-    assert bids_utils._absolute_decay_correction_times(metas, run_offsets) is None
 
 
 def test_decay_rescale_factors_rejects_ambiguous_metadata() -> None:
@@ -274,11 +316,14 @@ def test_decay_rescale_factors_rejects_nonfinite_correction_times(correction_tim
         bids_utils._decay_rescale_factors(metas, [0.0])
 
 
-def test_decay_rescale_factors_rejects_nonfinite_absolute_correction_time() -> None:
-    metas = [{'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 0.0}]
+def test_decay_rescale_factors_rejects_out_of_range_absolute_correction_time() -> None:
+    metas = [
+        {'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 0.0},
+        {'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 1e308},
+    ]
 
-    with pytest.raises(ValueError, match='defined for every run'):
-        bids_utils._decay_rescale_factors(metas, [np.inf])
+    with pytest.raises(ValueError, match='Absolute decay correction time'):
+        bids_utils._decay_rescale_factors(metas, [0.0, 1e308])
 
 
 def test_decay_rescale_factors() -> None:
@@ -350,18 +395,24 @@ def test_decay_rescale_factors_requires_matching_radionuclides() -> None:
         bids_utils._decay_rescale_factors(metas, [0.0, 10.0])
 
 
-@pytest.mark.parametrize('run_offsets', [[0.0, 2000.0], [2000.0, 0.0]])
-def test_decay_rescale_factors_rejects_out_of_range_factors(run_offsets) -> None:
+@pytest.mark.parametrize(
+    ('correction_times', 'run_offsets'),
+    [
+        ([0.0, 0.0], [0.0, 1_000_000.0]),
+        ([1_000_000.0, 0.0], [0.0, 10.0]),
+    ],
+)
+def test_decay_rescale_factors_rejects_out_of_range_factors(correction_times, run_offsets) -> None:
     metas = [
         {
             'ImageDecayCorrected': True,
-            'ImageDecayCorrectionTime': 0.0,
-            'RadionuclideHalfLife': 1.0,
+            'ImageDecayCorrectionTime': correction_times[0],
+            'TracerRadionuclide': 'O15',
         },
         {
             'ImageDecayCorrected': True,
-            'ImageDecayCorrectionTime': 0.0,
-            'RadionuclideHalfLife': 1.0,
+            'ImageDecayCorrectionTime': correction_times[1],
+            'TracerRadionuclide': 'O15',
         },
     ]
 
@@ -464,7 +515,7 @@ def test_merge_frame_metadata_merges_and_drops_framewise_metadata() -> None:
             'FrameTimesStart': [0.0, 1.0],
             'VolumeTiming': [0.0, 1.0],
             'FrameDuration': [1.0, 1.0],
-            'ScaleFactor': [2.0],
+            'ScaleFactor': [2.0, 2.0],
             'PromptRate': [11.0, 12.0],
             'SinglesRate': [21.0, 22.0],
             'RandomRate': [31.0, 32.0],
@@ -517,12 +568,14 @@ def test_merge_frame_metadata_drops_unmergeable_volume_timing() -> None:
     assert 'VolumeTiming' not in merged
 
 
-def test_merge_frame_metadata_drops_unmergeable_frame_times_without_durations() -> None:
+def test_merge_frame_metadata_drops_incomplete_timing_and_duration_metadata() -> None:
     metas = [
         {
             'ImageDecayCorrected': False,
             'ImageDecayCorrectionTime': 0.0,
             'FrameTimesStart': [0.0],
+            'FrameDuration': [1.0],
+            'AcquisitionDuration': 1.0,
         },
         {
             'ImageDecayCorrected': False,

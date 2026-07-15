@@ -76,9 +76,14 @@ Using those offsets, *PETPrep* shifts ``FrameTimesStart`` and
 ``FrameTimesStart``. Frame-wise metadata arrays, such as ``ScaleFactor``,
 ``ScatterFraction``, ``DecayFactor``, ``DecayCorrectionFactor``, ``PromptRate``,
 ``SinglesRate``, and ``RandomRate``, are also concatenated when they can be
-matched to the number of frames in each run. Single-value arrays are expanded
-across all frames in that run; frame-wise arrays with incompatible lengths are
-omitted from the combined sidecar to avoid writing misleading metadata.
+matched exactly to the number of frames in each run. Frame-wise arrays with
+incompatible lengths are omitted from the combined sidecar to avoid writing
+misleading metadata.
+
+Every run must use the same non-empty ``Units`` value. ``FrameTimesStart`` and
+``FrameDuration`` must each contain exactly one finite value per image frame.
+PETPrep stops with an error rather than concatenating images with incompatible
+quantitative units or incomplete required timing metadata.
 
 All runs must define ``ImageDecayCorrected`` and a finite
 ``ImageDecayCorrectionTime``, and must agree on whether decay correction has
