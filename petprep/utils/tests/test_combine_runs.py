@@ -220,9 +220,7 @@ def test_metadata_half_life(meta, expected) -> None:
         ([{'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 'bad'}], [0.0]),
     ],
 )
-def test_absolute_decay_correction_times_rejects_invalid_metadata(
-    metas, run_offsets
-) -> None:
+def test_absolute_decay_correction_times_rejects_invalid_metadata(metas, run_offsets) -> None:
     assert bids_utils._absolute_decay_correction_times(metas, run_offsets) is None
 
 
