@@ -574,6 +574,12 @@ class workflow(_Config):
     """PET-to-anatomical registration method (mri_coreg, robust, ants, or auto)."""
     pet2anat_method_specified: bool = False
     """Flag indicating whether ``--pet2anat-method`` was explicitly provided."""
+    pet2anat_crop: bool = True
+    """Crop the anatomical reference before PET-to-anatomical registration."""
+    pet2anat_crop_fallback: bool = True
+    """Try uncropped anatomical registration when auto-mode cropped registration scores poorly."""
+    pet2anat_crop_fallback_threshold: float = -0.05
+    """Similarity threshold for triggering uncropped anatomical registration fallback."""
     anatref: str = 'auto'
     """Anatomical reference for PET-to-T1w registration (``'t1w'``, ``'nu'``, or ``'auto'``)."""
     petref: str = 'auto'
@@ -582,8 +588,8 @@ class workflow(_Config):
     """Flag indicating whether ``--petref`` was explicitly provided."""
     cifti_output = None
     """Generate HCP Grayordinates, accepts either ``'91k'`` (default) or ``'170k'``."""
-    hires = None
-    """Run FreeSurfer ``recon-all`` with the ``-hires`` flag."""
+    hires = False
+    """Allow FreeSurfer ``recon-all`` to use the ``-hires`` flag for submillimeter T1w."""
     fs_no_resume = None
     """Adjust pipeline to reuse base template of existing longitudinal freesurfer"""
     ignore = None
@@ -628,6 +634,8 @@ class workflow(_Config):
     """Index of initial frame for head-motion estimation ('auto' selects highest uptake)."""
     hmc_fix_frame: bool = False
     """Whether to fix the reference frame during head-motion estimation."""
+    hmc_memory_policy: str = 'auto'
+    """Policy for automatic HMC memory safeguards ('auto' or 'off')."""
     hmc_off: bool = False
     """Disable head-motion correction and keep data uncorrected."""
     seg = 'gtm'

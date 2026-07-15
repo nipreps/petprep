@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import nibabel as nb
@@ -10,6 +11,7 @@ from nipype.pipeline.engine.utils import generate_expanded_graph
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from .... import config, data
+from ....interfaces.registration import PETCoregistrationFallback
 from ....utils import bids
 from ...tests import mock_config
 from ...tests.test_base import BASE_LAYOUT
@@ -20,6 +22,7 @@ from ..fit import (
     _extract_first5min_image,
     _extract_sum_image,
     _extract_twa_image,
+    _identity_xforms_path,
     _select_anatomical_reference,
     _select_best_petref,
     _write_identity_xforms,
@@ -27,6 +30,7 @@ from ..fit import (
     init_pet_native_wf,
 )
 from ..outputs import init_refmask_report_wf
+from ..registration import init_pet_reg_wf
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -174,6 +178,9 @@ def test_pet_fit_mask_connections(bids_root: Path, tmp_path: Path):
 
     for path in pet_series:
         img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
 
     with mock_config(bids_dir=bids_root):
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
@@ -475,6 +482,142 @@ def test_pet_fit_stage1_inclusion(bids_root: Path, tmp_path: Path):
     assert not any(name.startswith('pet_hmc_wf') for name in wf2.list_node_names())
 
 
+def test_pet_fit_hmc_policy_does_not_depend_on_requested_resources(
+    bids_root: Path,
+):
+    """Stage 1 should not change HMC settings only because --mem is tight."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.nipype.memory_gb = 0.00001
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    assert robust_node.inputs.fixed_timepoint is False
+    assert robust_node.inputs.no_iteration is False
+    assert robust_node.inputs.subsample_threshold is Undefined
+
+
+@pytest.mark.parametrize(
+    ('subsample_threshold', 'expected_subsample_msg'),
+    [
+        (None, ''),
+        (159, ' with --subsample 159'),
+    ],
+)
+def test_pet_fit_logs_high_memory_hmc_policy(
+    bids_root: Path,
+    monkeypatch,
+    subsample_threshold,
+    expected_subsample_msg,
+):
+    """Stage 1 should log data-driven high-memory HMC settings."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    def _fake_plan_hmc_resource_policy(*_args, **_kwargs):
+        return {
+            'estimated_memory_gb': 40.1,
+            'planned_memory_gb': 15.0,
+            'frame_memory_gb': 0.1,
+            'selected_frames': 41,
+            'start_frame': 0,
+            'total_frames': 41,
+            'subsample_threshold': subsample_threshold,
+            'fixed_frame': True,
+            'auto_limited': True,
+            'reason': '41 selected frames',
+        }
+
+    monkeypatch.setattr(pet_fit, 'plan_hmc_resource_policy', _fake_plan_hmc_resource_policy)
+
+    warnings = []
+    with mock_config(bids_dir=bids_root):
+        monkeypatch.setattr(
+            config.loggers.workflow,
+            'warning',
+            lambda message, *_args, **_kwargs: warnings.append(message),
+        )
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    assert robust_node.mem_gb == 15.0
+    assert robust_node.inputs.fixed_timepoint is True
+    assert robust_node.inputs.no_iteration is True
+    if subsample_threshold is None:
+        assert robust_node.inputs.subsample_threshold is Undefined
+    else:
+        assert robust_node.inputs.subsample_threshold == subsample_threshold
+
+    assert len(warnings) == 1
+    warning = warnings[0]
+    assert 'selected high-memory settings' in warning
+    assert 'estimated 40.10 GB' in warning
+    assert '41/41 selected frames' in warning
+    assert 'planned estimate 15.00 GB' in warning
+    assert expected_subsample_msg in warning
+    if subsample_threshold is None:
+        assert 'with --subsample' not in warning
+
+
+def test_pet_fit_hmc_memory_policy_off_disables_auto_safeguards(
+    bids_root: Path,
+    monkeypatch,
+):
+    """``--hmc-memory-policy off`` should leave HMC settings user-controlled."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((5, 5, 5, 4), dtype=np.float32), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1, 2, 3], "FrameDuration": [1, 1, 1, 1]}'
+        )
+
+    def _unexpected_plan_hmc_resource_policy(*_args, **_kwargs):
+        raise AssertionError('memory policy planner should not run when disabled')
+
+    monkeypatch.setattr(pet_fit, 'plan_hmc_resource_policy', _unexpected_plan_hmc_resource_policy)
+
+    messages = []
+    with mock_config(bids_dir=bids_root):
+        monkeypatch.setattr(
+            config.loggers.workflow,
+            'info',
+            lambda message, *_args, **_kwargs: messages.append(message),
+        )
+        config.workflow.hmc_memory_policy = 'off'
+        config.workflow.hmc_off = False
+        config.workflow.hmc_fix_frame = False
+        config.workflow.petref = 'template'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    robust_node = next(node for node in wf._get_all_nodes() if node.name == 'est_robust_hmc')
+    hmc_wf = wf.get_node('pet_hmc_wf')
+
+    assert robust_node.inputs.fixed_timepoint is False
+    assert robust_node.inputs.no_iteration is False
+    assert robust_node.inputs.subsample_threshold is Undefined
+    assert '--hmc-memory-policy off' in hmc_wf.__desc__
+    assert any('PET HMC memory policy disabled' in message for message in messages)
+
+
 def test_pet_fit_robust_registration(bids_root: Path, tmp_path: Path):
     """Robust PET-to-anatomical registration swaps in mri_robust_register."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
@@ -651,6 +794,676 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
+def test_pet_reg_no_crop_removes_robust_fov():
+    """Disabling anatomical cropping should bypass the robustfov node."""
+
+    wf = init_pet_reg_wf(
+        pet2anat_dof=6,
+        mem_gb=1,
+        omp_nthreads=1,
+        pet2anat_method='mri_coreg',
+        crop_anat=False,
+    )
+
+    node_names = wf.list_node_names()
+    assert 'robust_fov' not in node_names
+    assert 'convert_anat' in node_names
+    assert 'crop_anat_mask' in node_names
+
+
+def _touch(path):
+    path.write_text('x')
+    return str(path)
+
+
+def _fallback_interface(tmp_path, **inputs):
+    base_inputs = {
+        'ref_pet_brain': _touch(tmp_path / 'petref.nii.gz'),
+        'anat_preproc': _touch(tmp_path / 'anat.nii.gz'),
+        'anat_mask': _touch(tmp_path / 'mask.nii.gz'),
+        'fallback_threshold': -0.05,
+        'pet2anat_dof': 6,
+        'pet2anat_method': 'mri_coreg',
+        'mem_gb': 1.0,
+        'omp_nthreads': 1,
+    }
+    base_inputs.update(inputs)
+    return PETCoregistrationFallback(**base_inputs)
+
+
+def test_pet_coreg_fallback_keeps_good_cropped_score(monkeypatch, tmp_path):
+    """Acceptable cropped registration should return before running fallback."""
+
+    monkeypatch.chdir(tmp_path)
+
+    def _unexpected_fallback(*args, **kwargs):
+        raise AssertionError('Fallback should not run when cropped score passes.')
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _unexpected_fallback)
+
+    cropped = _touch(tmp_path / 'cropped.txt')
+    cropped_inv = _touch(tmp_path / 'cropped_inv.txt')
+    result = _fallback_interface(
+        tmp_path,
+        cropped_transform=cropped,
+        cropped_inv_transform=cropped_inv,
+        cropped_winner='freesurfer',
+        cropped_score=-0.15,
+    ).run()
+
+    assert result.outputs.best_transform == cropped
+    assert result.outputs.best_inv_transform == cropped_inv
+    assert result.outputs.best_winner == 'freesurfer'
+    assert result.outputs.best_score == -0.15
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
+
+
+def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
+    """Weak cropped registration should run uncropped fallback and keep better score."""
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def _fake_fallback(self, cwd):
+        calls.append((self.inputs.ref_pet_brain, self.inputs.anat_preproc, self.inputs.anat_mask))
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.15,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+        sloppy=True,
+    ).run()
+
+    assert len(calls) == 1
+    assert result.outputs.best_winner == 'ants'
+    assert result.outputs.best_score == -0.15
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+    assert result.outputs.registration_winner == 'ants'
+    assert result.outputs.registration_score == -0.15
+
+
+@pytest.mark.parametrize('fs_score', [-0.0502957, -0.049])
+def test_pet_coreg_fallback_rounds_scores_before_threshold_check(monkeypatch, tmp_path, fs_score):
+    """Scores that round to the threshold should trigger fallback."""
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def _fake_fallback(self, cwd):
+        calls.append(cwd)
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.12,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.036469,
+        cropped_fs_score=fs_score,
+    ).run()
+
+    assert calls == [str(tmp_path)]
+    assert result.outputs.best_winner == 'ants'
+    assert result.outputs.best_score == -0.12
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+
+    scores = json.loads(Path(result.outputs.fallback_scores).read_text())
+    assert scores['cropped'] == {
+        'ants': -0.04,
+        'freesurfer': -0.05,
+        'score': -0.05,
+        'winner': 'freesurfer',
+    }
+    assert scores['selected'] == {
+        'anat_reference': 'uncropped',
+        'fallback': True,
+        'score': -0.12,
+        'winner': 'ants',
+    }
+
+
+class _FakeFallbackWorkflow:
+    def __init__(self, calls):
+        self.inputs = type('inputs', (), {})()
+        self.inputs.inputnode = type('inputnode', (), {})()
+        self.calls = calls
+        self.base_dir = None
+        self.name = 'pet_reg_uncropped_fallback_wf'
+
+    def run(self, plugin):
+        self.calls['plugin'] = plugin
+        self.calls['base_dir'] = self.base_dir
+        self.calls['inputs'] = (
+            self.inputs.inputnode.ref_pet_brain,
+            self.inputs.inputnode.anat_preproc,
+            self.inputs.inputnode.anat_mask,
+        )
+        return None
+
+
+def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_path):
+    """Fallback interface should run an uncropped registration workflow lazily."""
+
+    calls = {}
+
+    def _fake_init_pet_reg_wf(**kwargs):
+        calls['kwargs'] = kwargs
+        return _FakeFallbackWorkflow(calls)
+
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        _fake_init_pet_reg_wf,
+    )
+    ants_xfm = _touch(tmp_path / 'uncropped_ants.txt')
+    ants_inv = _touch(tmp_path / 'uncropped_ants_inv.txt')
+    fs_xfm = _touch(tmp_path / 'uncropped_fs.txt')
+    fs_inv = _touch(tmp_path / 'uncropped_fs_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
+            'result',
+            (),
+            {
+                'outputs': type('outputs', (), outputs)(),
+            },
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm_ants' in path:
+            return _fake_result(out_xfm=ants_xfm, out_inv=ants_inv)
+        if 'convert_xfm_fs' in path:
+            return _fake_result(out_xfm=fs_xfm, out_inv=fs_inv)
+        if 'score_ants' in path:
+            return _fake_result(similarity=-0.15)
+        if 'score_fs' in path:
+            return _fake_result(similarity=-0.01)
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
+
+    interface = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+        mem_gb=1.5,
+        omp_nthreads=2,
+        sloppy=True,
+    )
+
+    assert interface._run_uncropped_fallback(str(tmp_path)) == (
+        ants_xfm,
+        ants_inv,
+        'ants',
+        -0.15,
+    )
+    assert calls['plugin'] == 'Linear'
+    assert calls['inputs'] == (
+        interface.inputs.ref_pet_brain,
+        interface.inputs.anat_preproc,
+        interface.inputs.anat_mask,
+    )
+    assert calls['kwargs'] == {
+        'pet2anat_dof': 6,
+        'mem_gb': 1.5,
+        'omp_nthreads': 2,
+        'pet2anat_method': 'auto',
+        'crop_anat': False,
+        'sloppy': True,
+        'name': 'pet_reg_uncropped_fallback_wf',
+    }
+
+
+def test_pet_coreg_fallback_interface_reads_manual_uncropped_outputs(monkeypatch, tmp_path):
+    """Manual fallback should load transform and score outputs from the uncropped workflow."""
+
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        lambda **kwargs: _FakeFallbackWorkflow({}),
+    )
+    xfm = _touch(tmp_path / 'uncropped.txt')
+    inv_xfm = _touch(tmp_path / 'uncropped_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
+            'result',
+            (),
+            {
+                'outputs': type('outputs', (), outputs)(),
+            },
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm' in path:
+            return _fake_result(out_xfm=xfm, out_inv=inv_xfm)
+        if 'score_registration' in path:
+            return _fake_result(similarity=-0.12)
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
+
+    interface = _fallback_interface(
+        tmp_path,
+        cropped_transform=_touch(tmp_path / 'cropped.txt'),
+        cropped_inv_transform=_touch(tmp_path / 'cropped_inv.txt'),
+        cropped_score=-0.01,
+    )
+
+    assert interface._run_uncropped_fallback(str(tmp_path)) == (xfm, inv_xfm, None, -0.12)
+    assert interface._score_summary['uncropped'] == {
+        'mri_coreg': -0.12,
+        'winner': None,
+        'score': -0.12,
+    }
+
+
+def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeypatch, tmp_path):
+    """FreeSurfer fallback should report score and synthesize a missing inverse."""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        'petprep.workflows.pet.registration.init_pet_reg_wf',
+        lambda **kwargs: _FakeFallbackWorkflow({}),
+    )
+
+    ants_xfm = _touch(tmp_path / 'uncropped_ants.txt')
+    ants_inv = _touch(tmp_path / 'uncropped_ants_inv.txt')
+    fs_xfm = _touch(tmp_path / 'uncropped_fs.txt')
+    synthetic_inv = _touch(tmp_path / 'synth_inv.txt')
+
+    def _fake_result(**outputs):
+        return type(
+            'result',
+            (),
+            {
+                'outputs': type('outputs', (), outputs)(),
+            },
+        )()
+
+    def _fake_loadpkl(path):
+        if 'convert_xfm_ants' in path:
+            return _fake_result(out_xfm=ants_xfm, out_inv=ants_inv)
+        if 'convert_xfm_fs' in path:
+            return _fake_result(out_xfm=fs_xfm, out_inv=Undefined)
+        if 'score_ants' in path:
+            return _fake_result(similarity=-0.01)
+        if 'score_fs' in path:
+            return _fake_result(similarity=-0.2)
+        raise AssertionError(f'Unexpected pickle path: {path}')  # pragma: no cover
+
+    monkeypatch.setattr('nipype.utils.filemanip.loadpkl', _fake_loadpkl)
+    monkeypatch.setattr(
+        PETCoregistrationFallback,
+        '_ensure_inverse_transform',
+        lambda self, xfm, inv_xfm: synthetic_inv,
+    )
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=-0.01,
+        cropped_fs_score=-0.02,
+    ).run()
+
+    assert Path(result.outputs.best_transform).name == 'best_transform.txt'
+    assert Path(result.outputs.best_inv_transform).name == 'best_inv_transform.txt'
+    assert Path(result.outputs.best_transform).read_text() == Path(fs_xfm).read_text()
+    assert Path(result.outputs.best_inv_transform).read_text() == Path(synthetic_inv).read_text()
+    assert result.outputs.best_winner == 'freesurfer'
+    assert result.outputs.best_score == -0.2
+    assert result.outputs.registration_winner == 'freesurfer'
+    assert result.outputs.registration_score == -0.2
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
+
+    scores = json.loads(Path(result.outputs.fallback_scores).read_text())
+    assert scores['cropped'] == {
+        'ants': -0.01,
+        'freesurfer': -0.02,
+        'score': -0.02,
+        'winner': 'freesurfer',
+    }
+    assert scores['uncropped'] == {
+        'ants': -0.01,
+        'freesurfer': -0.2,
+        'score': -0.2,
+        'winner': 'freesurfer',
+    }
+    assert scores['selected'] == {
+        'anat_reference': 'uncropped',
+        'fallback': True,
+        'score': -0.2,
+        'winner': 'freesurfer',
+    }
+
+
+def test_pet_coreg_fallback_reuses_existing_inverse(tmp_path):
+    """Existing inverse transform outputs should be returned without synthesis."""
+
+    xfm = _touch(tmp_path / 'xfm.txt')
+    inv_xfm = _touch(tmp_path / 'inv_xfm.txt')
+
+    interface = _fallback_interface(tmp_path)
+
+    assert interface._ensure_inverse_transform(xfm, inv_xfm) == inv_xfm
+
+
+def test_pet_coreg_fallback_synthesizes_missing_inverse(tmp_path):
+    """Missing inverse transform outputs should be generated from the forward transform."""
+
+    xfm = tmp_path / 'xfm.tfm'
+    nt.linear.Affine(
+        np.array(
+            [
+                [1.0, 0.0, 0.0, 2.0],
+                [0.0, 1.0, 0.0, 3.0],
+                [0.0, 0.0, 1.0, 4.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+    ).to_filename(xfm, fmt='itk')
+
+    interface = _fallback_interface(tmp_path)
+    interface._runtime_cwd = str(tmp_path)
+
+    inv_xfm = interface._ensure_inverse_transform(str(xfm), Undefined)
+
+    assert Path(inv_xfm) == tmp_path / 'out_inv.tfm'
+    assert Path(inv_xfm).exists()
+    assert np.allclose(
+        nt.linear.load(inv_xfm, fmt='itk').matrix,
+        np.array(
+            [
+                [1.0, 0.0, 0.0, -2.0],
+                [0.0, 1.0, 0.0, -3.0],
+                [0.0, 0.0, 1.0, -4.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ('xfm', 'inv_xfm', 'score', 'message'),
+    [
+        (Undefined, 'inv_xfm.txt', -0.1, 'best_transform'),
+        ('xfm.txt', Undefined, -0.1, 'best_inv_transform'),
+        ('xfm.txt', 'inv_xfm.txt', None, 'best_score'),
+        (Undefined, Undefined, None, 'best_transform, best_inv_transform, best_score'),
+    ],
+)
+def test_pet_coreg_fallback_rejects_incomplete_selected_outputs(
+    tmp_path, xfm, inv_xfm, score, message
+):
+    """Fallback selection should fail loudly when the chosen result is incomplete."""
+
+    interface = _fallback_interface(tmp_path)
+
+    with pytest.raises(ValueError, match=message):
+        interface._require_selected_outputs(xfm, inv_xfm, score)
+
+
+def test_pet_coreg_fallback_keeps_cropped_when_uncropped_is_worse(monkeypatch, tmp_path):
+    """Weak cropped registration should still win if uncropped score is worse."""
+
+    monkeypatch.chdir(tmp_path)
+
+    def _fake_fallback(self, cwd):
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            'ants',
+            -0.005,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    cropped = _touch(tmp_path / 'cropped.txt')
+    cropped_inv = _touch(tmp_path / 'cropped_inv.txt')
+    result = _fallback_interface(
+        tmp_path,
+        cropped_transform=cropped,
+        cropped_inv_transform=cropped_inv,
+        cropped_winner='freesurfer',
+        cropped_score=-0.01,
+    ).run()
+
+    assert result.outputs.best_transform == cropped
+    assert result.outputs.best_inv_transform == cropped_inv
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
+
+
+@pytest.mark.parametrize(
+    ('ants_score', 'fs_score', 'expected_winner'),
+    [
+        (-0.15, -0.01, 'ants'),
+        (-0.01, -0.15, 'freesurfer'),
+    ],
+)
+def test_pet_coreg_auto_fallback_keeps_cropped_when_one_backend_passes(
+    monkeypatch, tmp_path, ants_score, fs_score, expected_winner
+):
+    """Auto fallback should stop when either cropped backend score is acceptable."""
+
+    monkeypatch.chdir(tmp_path)
+
+    def _unexpected_fallback(*args, **kwargs):
+        raise AssertionError('Fallback should not run when one cropped backend passes.')
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _unexpected_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        pet2anat_method='auto',
+        cropped_ants_transform=_touch(tmp_path / 'cropped_ants.txt'),
+        cropped_fs_transform=_touch(tmp_path / 'cropped_fs.txt'),
+        cropped_ants_inv_transform=_touch(tmp_path / 'cropped_ants_inv.txt'),
+        cropped_fs_inv_transform=_touch(tmp_path / 'cropped_fs_inv.txt'),
+        cropped_ants_score=ants_score,
+        cropped_fs_score=fs_score,
+    ).run()
+
+    assert result.outputs.best_winner == expected_winner
+    assert result.outputs.best_score == min(ants_score, fs_score)
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'cropped'
+
+
+def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
+    """Explicitly disabling crop should re-run registration and propagate to the graph."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    deriv_root = tmp_path / 'derivs'
+    petref = deriv_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_desc-hmc_petref.nii.gz'
+    hmc_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-orig_to-petref_mode-image_xfm.txt'
+    )
+    petref2anat_xfm = (
+        deriv_root
+        / 'sub-01'
+        / 'pet'
+        / 'sub-01_task-rest_run-1_from-petref_to-anat_mode-image_xfm.txt'
+    )
+
+    petref.parent.mkdir(parents=True)
+    img.to_filename(petref)
+    np.savetxt(hmc_xfm, np.eye(4))
+    np.savetxt(petref2anat_xfm, np.eye(4))
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    entities = bids.extract_entities(pet_series)
+    precomputed = bids.collect_derivatives(derivatives_dir=deriv_root, entities=entities)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_crop = False
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
+    )
+    assert not any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
+    assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
+
+
+def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tmp_path: Path):
+    """Default cropped registration should add the uncropped fallback selector."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
+    assert any(name.startswith('select_crop_fallback') for name in node_names)
+    assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
+
+    provenance_nodes = [
+        name
+        for name in node_names
+        if name.startswith('select_crop_fallback') and name.endswith('_provenance')
+    ]
+    assert provenance_nodes
+    for provenance_name in provenance_nodes:
+        selector_name = provenance_name.removesuffix('_provenance')
+        assert selector_name in node_names
+        edge = wf._graph.get_edge_data(
+            wf.get_node(selector_name),
+            wf.get_node(provenance_name),
+        )
+        assert ('best_inv_transform', 'best_inv_transform') in edge['connect']
+        assert ('best_score', 'best_score') in edge['connect']
+        assert ('registration_winner', 'registration_winner') in edge['connect']
+        assert ('registration_score', 'registration_score') in edge['connect']
+        assert ('fallback_scores', 'fallback_scores') in edge['connect']
+
+
+def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path, tmp_path: Path):
+    """Disabling the fallback should keep cropped registration as a simple graph."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_crop_fallback = False
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
+    )
+    assert not any(name.startswith('select_crop_fallback') for name in node_names)
+
+
+def test_pet_fit_omits_uncropped_fallback_selector_for_manual_method(
+    bids_root: Path, tmp_path: Path
+):
+    """Manual PET-to-anatomical registration should keep the requested cropped method."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'template'
+        config.workflow.pet2anat_method = 'mri_coreg'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
+
+    node_names = wf.list_node_names()
+    assert 'select_crop_fallback' not in node_names
+    assert 'pet_reg_wf.robust_fov' in node_names
+    assert any(
+        name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
+    )
+
+
+def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method(
+    bids_root: Path, tmp_path: Path
+):
+    """Manual PET-to-anatomical registration should not add fallback for auto PET refs."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.petref = 'auto'
+        config.workflow.pet2anat_method = 'mri_coreg'
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
+
+    node_names = wf.list_node_names()
+    assert not any(name.startswith('select_crop_fallback') for name in node_names)
+    for label in ('template', 'twa', 'sum', 'first5min'):
+        assert f'pet_reg_wf_{label}.mri_coreg' in node_names
+
+
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):
     """Disabling HMC should skip Stage 1 and use identity transforms."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
@@ -683,7 +1496,7 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkey
 
         assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
         hmc_buffer = wf.get_node('hmc_buffer')
-        assert str(hmc_buffer.inputs.hmc_xforms).endswith('idmat.tfm')
+        assert str(hmc_buffer.inputs.hmc_xforms).endswith('_idmat.tfm')
         assert Path(hmc_buffer.inputs.hmc_xforms).exists()
         assert identity_xform_frames == [data.shape[-1]]
         petref_buffer = wf.get_node('petref_buffer')
@@ -692,6 +1505,74 @@ def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkey
         assert '.nii_timeavgref' not in petref_name
         petref_img = nb.load(petref_buffer.inputs.petref)
         assert np.allclose(petref_img.get_fdata(), 14.0 / 6.0)
+
+
+def test_pet_fit_hmc_off_identity_xforms_use_image_frame_count(
+    bids_root: Path, tmp_path: Path, monkeypatch
+):
+    """Identity HMC transforms should follow image shape, not timing metadata length."""
+
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    data = np.zeros((2, 2, 2, 2), dtype=np.float32)
+    img = nb.Nifti1Image(data, np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+
+    sidecar = Path(pet_series[0]).with_suffix('').with_suffix('.json')
+    sidecar.write_text('{"FrameTimesStart": [0], "FrameDuration": [1]}')
+
+    identity_xform_frames = []
+    write_identity_xforms = pet_fit._write_identity_xforms
+
+    def _record_identity_xforms(num_frames, filename):
+        identity_xform_frames.append(num_frames)
+        return write_identity_xforms(num_frames, filename)
+
+    monkeypatch.setattr(pet_fit, '_write_identity_xforms', _record_identity_xforms)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = True
+        config.workflow.petref = 'sum'
+        init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    assert identity_xform_frames == [data.shape[-1]]
+
+
+def test_pet_fit_hmc_off_identity_xforms_are_pet_specific(
+    bids_root: Path, tmp_path: Path, monkeypatch
+):
+    """Identity HMC transforms for one PET series should not overwrite another."""
+
+    pet_dir = bids_root / 'sub-01' / 'pet'
+    dynamic_pet = pet_dir / 'sub-01_task-rest_run-1_pet.nii.gz'
+    static_pet = pet_dir / 'sub-01_task-rest_run-2_pet.nii.gz'
+    nb.Nifti1Image(np.zeros((2, 2, 2, 32), dtype=np.float32), np.eye(4)).to_filename(dynamic_pet)
+    nb.Nifti1Image(np.zeros((2, 2, 2), dtype=np.float32), np.eye(4)).to_filename(static_pet)
+    dynamic_pet.with_suffix('').with_suffix('.json').write_text(
+        json.dumps(
+            {
+                'FrameTimesStart': list(range(32)),
+                'FrameDuration': [1] * 32,
+            }
+        )
+    )
+    static_pet.with_suffix('').with_suffix('.json').write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.hmc_off = True
+        dynamic_wf = init_pet_fit_wf(pet_series=[str(dynamic_pet)], precomputed={}, omp_nthreads=1)
+        static_wf = init_pet_fit_wf(pet_series=[str(static_pet)], precomputed={}, omp_nthreads=1)
+
+        dynamic_xforms = Path(dynamic_wf.get_node('hmc_buffer').inputs.hmc_xforms)
+        static_xforms = Path(static_wf.get_node('hmc_buffer').inputs.hmc_xforms)
+
+        assert dynamic_xforms != static_xforms
+        assert dynamic_xforms.name == 'sub-01_task-rest_run-1_pet_idmat.tfm'
+        assert static_xforms.name == 'sub-01_task-rest_run-2_pet_idmat.tfm'
+        assert np.asarray(nt.linear.load(dynamic_xforms).matrix).shape == (32, 4, 4)
+        assert np.asarray(nt.linear.load(static_xforms).matrix).shape == (4, 4)
 
 
 @pytest.mark.parametrize(
@@ -840,7 +1721,7 @@ def test_pet_fit_hmc_off_ignores_precomputed(bids_root: Path, tmp_path: Path):
     assert petref_buffer.inputs.petref != str(precomputed_petref)
     assert Path(petref_buffer.inputs.petref).name.endswith('_timeavgref.nii.gz')
     assert hmc_buffer.inputs.hmc_xforms != str(precomputed_hmc)
-    assert Path(hmc_buffer.inputs.hmc_xforms).name == 'idmat.tfm'
+    assert Path(hmc_buffer.inputs.hmc_xforms).name.endswith('_idmat.tfm')
 
 
 def test_pet_fit_picks_single_precomputed_derivative(bids_root: Path, tmp_path: Path):
@@ -897,6 +1778,16 @@ def test_write_identity_xforms_minimum(tmp_path: Path):
 
     assert matrices.shape[0] == 1
     assert np.allclose(matrices[0], np.eye(4))
+
+
+def test_identity_xforms_path_is_pet_specific(tmp_path: Path):
+    """Identity transform filenames should distinguish PET series."""
+
+    pet_file = '/data/sub-01/ses-closed/pet/sub-01_ses-closed_task-rest_pet.nii.gz'
+
+    assert _identity_xforms_path(pet_file, tmp_path) == (
+        tmp_path / 'sub-01_ses-closed_task-rest_pet_idmat.tfm'
+    )
 
 
 def test_select_anatomical_reference_prefers_nu(tmp_path: Path):

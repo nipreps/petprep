@@ -423,6 +423,17 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         '"ants" uses ANTs rigid registration (6 DoF only).',
     )
     g_conf.add_argument(
+        '--pet2anat-no-anat-crop',
+        dest='pet2anat_crop',
+        action='store_false',
+        default=True,
+        help=(
+            'Disable robust FOV cropping of the anatomical reference before '
+            'PET-to-T1w registration. This also disables the auto-mode '
+            'uncropped anatomical fallback.'
+        ),
+    )
+    g_conf.add_argument(
         '--anatref',
         action='store',
         default='auto',
@@ -582,11 +593,19 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         help='Path to FreeSurfer license key file. Get it (for free) by registering'
         ' at https://surfer.nmr.mgh.harvard.edu/registration.html',
     )
-    g_fs.add_argument(
+    fs_hires = g_fs.add_mutually_exclusive_group()
+    fs_hires.add_argument(
+        '--submm-recon',
+        action='store_true',
+        dest='hires',
+        default=False,
+        help='Enable FreeSurfer sub-millimeter (hires) reconstruction.',
+    )
+    fs_hires.add_argument(
         '--no-submm-recon',
         action='store_false',
         dest='hires',
-        help='Disable sub-millimeter (hires) reconstruction',
+        help='Disable FreeSurfer sub-millimeter (hires) reconstruction.',
     )
     fs_mutex = g_fs.add_mutually_exclusive_group()
     fs_mutex.add_argument(
@@ -642,6 +661,16 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         dest='hmc_fix_frame',
         action='store_true',
         help=('Keep the chosen initial reference frame fixed during head-motion estimation.'),
+    )
+    g_hmc.add_argument(
+        '--hmc-memory-policy',
+        choices=['auto', 'off'],
+        default='auto',
+        help=(
+            "Policy for automatic HMC memory safeguards. 'auto' estimates robust-template "
+            'memory from the PET data and enables fixed-frame/subsample safeguards for '
+            "high-risk scans; 'off' disables these automatic safeguards."
+        ),
     )
     g_hmc.add_argument(
         '--hmc-off',

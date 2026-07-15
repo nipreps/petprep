@@ -135,6 +135,12 @@ would be equivalent to the latest example: ::
         /data /out participant
     ...
 
+FreeSurfer submillimeter reconstruction is disabled by default in *PETPrep*.
+This avoids very large anatomical and GTM segmentation grids when PET data are
+resampled into anatomical space. To opt in for submillimeter T1w inputs, pass
+``--submm-recon``. The ``--no-submm-recon`` flag can be used to explicitly keep
+the default behavior.
+
 
 .. _prev_derivs:
 
@@ -159,6 +165,10 @@ components will be recomputed.
 You can use the ``--fs-subjects-dir`` flag to specify a different location to save
 FreeSurfer outputs.
 If precomputed results are found, they will be reused.
+If those precomputed results were generated with submillimeter reconstruction,
+``--no-submm-recon`` will not downsample or rebuild them; use a fresh
+``--fs-subjects-dir`` or rebuild the FreeSurfer subject without submillimeter
+reconstruction to avoid high-resolution GTM/PET resampling.
 
 BIDS Derivatives reuse
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -218,6 +228,23 @@ manual) fixed during robust template estimation to improve reproducibility.
 Iterations are automatically disabled to reduce runtime when :option:`--hmc-init-frame-fix` is
 used.
 
+For PET series with many selected frames or large spatial dimensions, *PETPrep*
+estimates the memory required by ``mri_robust_template`` after applying
+:option:`--hmc-start-time`. With the default :option:`--hmc-memory-policy`
+``auto``, if the data-driven estimate is high, *PETPrep* automatically fixes the
+selected initial frame, disabling robust-template iterations, and uses a
+FreeSurfer ``--subsample`` threshold when the spatial dimensions support safe
+subsampling. The threshold is at most 200 and is lowered below the smallest
+spatial dimension when needed so FreeSurfer's all-axis subsampling condition can
+take effect, but is not lowered below 150 voxels. This keeps the workflow as a
+single robust-template step while reducing peak memory pressure for long or
+high-resolution dynamic PET acquisitions without forcing a very coarse
+registration grid. The estimate, selected frame count and reason for the
+decision are recorded in the workflow log; the chosen HMC settings are reflected
+in the workflow boilerplate. Use :option:`--hmc-memory-policy` ``off`` to disable
+these automatic memory safeguards and run HMC with only the explicitly requested
+``mri_robust_template`` settings.
+
 When motion correction is undesirable, use :option:`--hmc-off` to disable head motion
 correction entirely and keep the data unmodified apart from downstream
 processing steps.
@@ -226,6 +253,7 @@ Examples: ::
 
     $ petprep /data/bids_root /out participant --hmc-fwhm 8 --hmc-start-time 60
     $ petprep /data/bids_root /out participant --hmc-init-frame 10 --hmc-init-frame-fix
+    $ petprep /data/bids_root /out participant --hmc-memory-policy off
     $ petprep /data/bids_root /out participant --hmc-off
 
 
@@ -269,8 +297,14 @@ Anatomical co-registration
 --------------------------
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
 deriving downstream outputs. The anatomical image is first trimmed with
-FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration to brain voxels. Choose
-the registration backend with :option:`--pet2anat-method`: ``auto``
+FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration
+to brain voxels. In ``auto`` mode, if all cropped registration scores are weak
+for a PET reference, PETPrep evaluates an uncropped anatomical fallback and keeps
+it if the score improves. Use :option:`--pet2anat-no-anat-crop` to disable both
+the anatomical ``robustfov`` trim and the uncropped fallback when testing
+datasets where non-brain uptake may help guide co-registration. Choose the
+registration backend with
+:option:`--pet2anat-method`: ``auto``
 (default; runs both FreeSurfer and ANTs and selects the better result),
 ``mri_coreg`` (FreeSurfer co-registration), ``robust`` (FreeSurfer
 ``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid

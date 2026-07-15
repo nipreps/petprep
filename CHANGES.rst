@@ -1,3 +1,28 @@
+0.0.8 (June 04, 2026)
+=====================
+Bug-fix release in the 0.0.x series.
+
+  * MAINT: Bump CircleCI Docker registry cache key (#322)
+
+
+0.0.7 (June 03, 2026)
+=====================
+Bug-fix release in the 0.0.x series.
+
+  * ENH: Add uncropped anatomical fallback for PET-to-anatomical registration (#304)
+  * FIX: Disable submillimeter FreeSurfer recon by default for PET workflows (#321)
+  *  (#318)
+  * MAINT: Stabilize HMC-off workflow test (#317)
+  * ENH: Update longitudinal anatomical reference processing (#301)
+  * ENH: Add aparc+aseg segmentation and corpus callosum reference mask (#314)
+  * FIX: Update PETPrep outputs docs to match PET workflow derivatives (#310)
+  * FIX: Align workflow documentation with PETPrep processing pipeline (#309)
+  * FIX: Clarify usage docs and align PET filtering options (#308)
+  * FIX: Update output-spaces documentation (#307)
+  * FIX: Collapse --petref auto to template for 3D PET inputs (#306)
+  * ENH: Use session-aware sMRIPrep derivative collection (#302)
+
+
 0.0.6 (May 05, 2026)
 ====================
 Bug-fix release in the 0.0.x series.

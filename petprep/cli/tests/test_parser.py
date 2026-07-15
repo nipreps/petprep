@@ -71,6 +71,21 @@ def test_parser_valid(tmp_path, args):
     assert opts.bids_dir == datapath
 
 
+def test_submm_recon_flags(tmp_path):
+    """Check FreeSurfer submillimeter reconstruction defaults and overrides."""
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+    base_args = [str(datapath)] + MIN_ARGS[1:]
+    parser = _build_parser()
+
+    assert parser.parse_args(base_args).hires is False
+    assert parser.parse_args(base_args + ['--submm-recon']).hires is True
+    assert parser.parse_args(base_args + ['--no-submm-recon']).hires is False
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(base_args + ['--submm-recon', '--no-submm-recon'])
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [
@@ -99,6 +114,17 @@ def test_memory_arg(tmp_path, argval, gb):
     opts = _build_parser().parse_args(args)
 
     assert opts.memory_gb == gb
+
+
+def test_pet2anat_no_anat_crop_arg(tmp_path):
+    """Check PET-to-anat anatomical crop toggle parsing."""
+
+    datapath = tmp_path / 'data'
+    datapath.mkdir(exist_ok=True)
+
+    opts = _build_parser().parse_args([str(datapath)] + MIN_ARGS[1:] + ['--pet2anat-no-anat-crop'])
+
+    assert opts.pet2anat_crop is False
 
 
 @pytest.mark.parametrize(('current', 'latest'), [('1.0.0', '1.3.2'), ('1.3.2', '1.3.2')])
@@ -885,3 +911,22 @@ def test_hmc_off_flag(tmp_path):
 
     opts = parser.parse_args(base_args + ['--hmc-off'])
     assert opts.hmc_off is True
+
+
+def test_hmc_memory_policy_parsing(tmp_path):
+    """Ensure HMC memory policy choices are parsed correctly."""
+    datapath = tmp_path / 'data'
+    outpath = tmp_path / 'out'
+    datapath.mkdir()
+
+    parser = _build_parser()
+    base_args = [str(datapath), str(outpath), 'participant']
+
+    opts = parser.parse_args(base_args)
+    assert opts.hmc_memory_policy == 'auto'
+
+    opts = parser.parse_args(base_args + ['--hmc-memory-policy', 'off'])
+    assert opts.hmc_memory_policy == 'off'
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(base_args + ['--hmc-memory-policy', 'aggressive'])

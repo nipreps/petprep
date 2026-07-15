@@ -13,16 +13,23 @@ from niworkflows.utils.bids import collect_data as original_collect_data
 from niworkflows.utils.testing import generate_bids_skeleton
 
 from ... import config
+from .. import base as base_module
 from ..base import (
     _build_pvc_boilerplate,
     _build_reference_mask_boilerplate,
     _build_segmentation_boilerplate,
+    _detect_existing_highres_freesurfer,
     _fix_multi_source_name,
     _fmt_group,
+    _format_geometry,
+    _freesurfer_subjects_dir,
+    _image_geometry,
+    _is_submillimeter_anat,
     _prefix,
     _session_bids_filters,
     _stringify_sessions,
     _subject_fs_id,
+    _warn_about_submillimeter_recon,
     init_petprep_wf,
     init_single_subject_wf,
 )
@@ -305,6 +312,221 @@ def test_subject_id_helpers():
     assert _subject_fs_id('976', 'wave1') == 'sub-976_ses-wave1'
     assert _subject_fs_id('976', 'ses-wave1') == 'sub-976_ses-wave1'
     assert _subject_fs_id('sub-976', ['ses-01', 'ses-02']) == 'sub-976_ses-01_02'
+
+
+def test_image_geometry_and_format(tmp_path):
+    image = tmp_path / 'sub-01_T1w.nii.gz'
+    nb.Nifti1Image(np.zeros((4, 5, 6)), np.diag([0.5, 1.0, 2.25, 1])).to_filename(image)
+
+    shape, zooms = _image_geometry(image)
+
+    assert shape == (4, 5, 6)
+    assert zooms == (0.5, 1.0, 2.25)
+    assert _format_geometry(shape, zooms) == '4 x 5 x 6 @ 0.5 x 1 x 2.25 mm'
+
+
+def test_is_submillimeter_anat(tmp_path):
+    submm = tmp_path / 'submm_T1w.nii.gz'
+    anisotropic = tmp_path / 'anisotropic_T1w.nii.gz'
+
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 0.5, 1])).to_filename(submm)
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 1.0, 1])).to_filename(anisotropic)
+
+    assert _is_submillimeter_anat(submm)
+    assert not _is_submillimeter_anat(anisotropic)
+
+
+def test_is_submillimeter_anat_handles_unreadable_image(bids_root, tmp_path, monkeypatch):
+    messages = []
+
+    with mock_config(bids_dir=bids_root):
+        monkeypatch.setattr(config.loggers.workflow, 'warning', messages.append)
+
+        assert not _is_submillimeter_anat(tmp_path / 'missing_T1w.nii.gz')
+
+    assert len(messages) == 1
+    assert 'Could not inspect T1w resolution' in messages[0]
+
+
+def _raise_runtime_error(_image_file):
+    raise RuntimeError
+
+
+def test_freesurfer_subjects_dir_defaults_to_output_dir(bids_root, tmp_path):
+    with mock_config(bids_dir=bids_root):
+        config.execution.output_dir = tmp_path
+        config.execution.fs_subjects_dir = None
+
+        assert _freesurfer_subjects_dir() == tmp_path / 'freesurfer'
+
+        config.execution.fs_subjects_dir = tmp_path / 'custom-fs'
+
+        assert _freesurfer_subjects_dir() == (tmp_path / 'custom-fs').absolute()
+
+
+def test_detect_existing_highres_freesurfer(bids_root, tmp_path):
+    with mock_config(bids_dir=bids_root):
+        config.execution.output_dir = tmp_path
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        nu = mri_dir / 'nu.mgz'
+        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.diag([0.5, 0.5, 0.5, 1])).to_filename(
+            nu
+        )
+
+        detected = _detect_existing_highres_freesurfer('sub-01')
+
+    assert detected is not None
+    detected_file, shape, zooms = detected
+    assert detected_file == nu
+    assert shape == (10, 10, 10)
+    assert max(zooms) == 0.5
+
+
+def test_detect_existing_highres_freesurfer_ignores_standard_grid(bids_root, tmp_path):
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.eye(4)).to_filename(mri_dir / 'nu.mgz')
+
+        assert _detect_existing_highres_freesurfer('sub-01') is None
+
+
+def test_detect_existing_highres_freesurfer_handles_unreadable_outputs(
+    bids_root, tmp_path, monkeypatch
+):
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        (mri_dir / 'nu.mgz').write_text('not an image')
+        monkeypatch.setattr(base_module, '_image_geometry', _raise_runtime_error)
+
+        assert _detect_existing_highres_freesurfer('sub-01') is None
+
+
+def test_detect_existing_highres_freesurfer_flags_large_gtmseg(bids_root, tmp_path, monkeypatch):
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        gtmseg = mri_dir / 'gtmseg.mgz'
+        gtmseg.write_text('placeholder')
+
+        def fake_geometry(image_file):
+            assert Path(image_file).name == 'gtmseg.mgz'
+            return (682, 762, 820), (0.244, 0.244, 0.244)
+
+        monkeypatch.setattr(base_module, '_image_geometry', fake_geometry)
+
+        detected = _detect_existing_highres_freesurfer('sub-01')
+
+    assert detected == (gtmseg, (682, 762, 820), (0.244, 0.244, 0.244))
+
+
+def test_detect_existing_highres_freesurfer_handles_unreadable_gtmseg(
+    bids_root, tmp_path, monkeypatch
+):
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        (mri_dir / 'gtmseg.mgz').write_text('not an image')
+        monkeypatch.setattr(base_module, '_image_geometry', _raise_runtime_error)
+
+        assert _detect_existing_highres_freesurfer('sub-01') is None
+
+
+def test_warn_about_submillimeter_recon_branches(bids_root, tmp_path, monkeypatch):
+    messages = []
+    submm = tmp_path / 'submm_T1w.nii.gz'
+    standard = tmp_path / 'standard_T1w.nii.gz'
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.diag([0.5, 0.5, 0.5, 1])).to_filename(submm)
+    nb.Nifti1Image(np.zeros((10, 10, 10)), np.eye(4)).to_filename(standard)
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.run_reconall = False
+        monkeypatch.setattr(config.loggers.workflow, 'warning', messages.append)
+
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[submm], pet_runs=['pet1']
+        )
+
+        assert messages == []
+
+        config.workflow.run_reconall = True
+        config.execution.fs_subjects_dir = tmp_path / 'empty-fs'
+        config.workflow.hires = False
+
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[], pet_runs=['pet1']
+        )
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[standard], pet_runs=['pet1']
+        )
+
+        assert messages == []
+
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[submm], pet_runs=['pet1']
+        )
+
+        assert len(messages) == 1
+        assert 'will run FreeSurfer without submillimeter reconstruction' in messages[-1]
+
+        config.workflow.hires = True
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id='ses-01', t1w_files=[submm], pet_runs=['pet1', 'pet2']
+        )
+
+        assert len(messages) == 2
+        assert 'Submillimeter FreeSurfer reconstruction is enabled' in messages[-1]
+        assert '2 PET run(s)' in messages[-1]
+
+
+def test_warn_about_submillimeter_recon_existing_highres(bids_root, tmp_path, monkeypatch):
+    messages = []
+
+    with mock_config(bids_dir=bids_root):
+        config.execution.fs_subjects_dir = tmp_path / 'freesurfer'
+        config.workflow.run_reconall = True
+        monkeypatch.setattr(config.loggers.workflow, 'warning', messages.append)
+        mri_dir = tmp_path / 'freesurfer' / 'sub-01' / 'mri'
+        mri_dir.mkdir(parents=True)
+        nb.MGHImage(np.zeros((10, 10, 10), dtype='f4'), np.diag([0.5, 0.5, 0.5, 1])).to_filename(
+            mri_dir / 'nu.mgz'
+        )
+
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[], pet_runs=['pet1']
+        )
+
+    assert len(messages) == 1
+    assert 'Existing high-resolution FreeSurfer outputs were detected' in messages[0]
+    assert '--no-submm-recon only affects new recon-all runs' in messages[0]
+
+
+def test_warn_about_submillimeter_recon_handles_geometry_failure(bids_root, tmp_path, monkeypatch):
+    messages = []
+    submm = tmp_path / 'submm_T1w.nii.gz'
+    submm.write_text('placeholder')
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.run_reconall = True
+        config.workflow.hires = False
+        config.execution.fs_subjects_dir = tmp_path / 'empty-fs'
+        monkeypatch.setattr(config.loggers.workflow, 'warning', messages.append)
+        monkeypatch.setattr(base_module, '_is_submillimeter_anat', lambda _image_file: True)
+        monkeypatch.setattr(base_module, '_image_geometry', _raise_runtime_error)
+
+        _warn_about_submillimeter_recon(
+            subject_id='01', session_id=None, t1w_files=[submm], pet_runs=[]
+        )
+
+    assert len(messages) == 1
+    assert f'Submillimeter T1w image detected for sub-01: {submm}' in messages[0]
 
 
 def test_session_helpers_format_groups_and_bids_filters(bids_root):

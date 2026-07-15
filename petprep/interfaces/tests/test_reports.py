@@ -131,6 +131,27 @@ def test_functional_summary_auto_select(winner, expected):
     assert f'Automatic selection between FreeSurfer and ANTs (best score: {expected})' in segment
 
 
+def test_functional_summary_auto_select_reports_similarity_metric():
+    from ..reports import PETSummary
+
+    summary = PETSummary(
+        registration='auto_select',
+        registration_dof=6,
+        orientation='RAS',
+        anatref_strategy='t1w',
+        petref_strategy='template',
+        metadata={},
+        registration_winner='freesurfer',
+        registration_score=-0.1,
+    )
+
+    segment = summary._generate_segment()
+    assert (
+        'Automatic selection between FreeSurfer and ANTs '
+        '(best score: FreeSurfer; similarity metric: -0.1)' in segment
+    )
+
+
 def test_atlas_rois_report(tmp_path):
     import nibabel as nb
     import numpy as np

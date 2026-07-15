@@ -75,7 +75,7 @@ single reference template (see `Longitudinal processing`_).
     wf = init_anat_preproc_wf(
         bids_root='.',
         freesurfer=True,
-        hires=True,
+        hires=False,
         longitudinal=False,
         omp_nthreads=1,
         output_dir='.',
@@ -256,9 +256,12 @@ Reconstructed white and pial surfaces are included in the report.
 
     Surface reconstruction (FreeSurfer)
 
-If T1w voxel sizes are less than 1mm in all dimensions (rounding to nearest
-.1mm), `submillimeter reconstruction`_ is used, unless disabled with
-``--no-submm-recon``.
+FreeSurfer `submillimeter reconstruction`_ is disabled by default in *PETPrep*
+because PET resampling and GTM time-activity-curve extraction can become very
+memory intensive on submillimeter anatomical grids. Use ``--submm-recon`` to opt
+in for T1w images with voxel sizes less than 1mm in all dimensions (rounding to
+nearest .1mm). The ``--no-submm-recon`` flag may be used to explicitly keep this
+default behavior.
 
 If T2w or FLAIR images are available, and you do not want them included in
 FreeSurfer reconstruction, use ``--ignore t2w`` or ``--ignore flair``,
@@ -284,7 +287,7 @@ packages, including FreeSurfer and the `Connectome Workbench`_.
 
     from smriprep.workflows.surfaces import init_surface_recon_wf
     wf = init_surface_recon_wf(
-        omp_nthreads=1, hires=True, precomputed={}, fs_no_resume=False,
+        omp_nthreads=1, hires=False, precomputed={}, fs_no_resume=False,
     )
 
 See also *sMRIPrep*'s
@@ -406,6 +409,17 @@ frame fixed during robust template estimation and disables iterations to
 reduce runtime. A 10 mm FWHM Gaussian is applied and estimation begins at
 120 s unless otherwise specified.
 
+For long or high-resolution series, PETPrep estimates robust-template memory
+from the selected frames. With the default :option:`--hmc-memory-policy` ``auto``,
+high-risk HMC runs automatically use fixed initial-frame registration and, when
+spatial dimensions support safe subsampling, a dynamic FreeSurfer ``--subsample``
+threshold of at most 200. The threshold is lowered below the smallest spatial
+dimension when needed so FreeSurfer's all-axis subsampling condition can take
+effect, but is not lowered below 150 voxels. This decision is data-driven and is
+recorded in the workflow log; the selected HMC settings are reflected in the
+workflow boilerplate. Use :option:`--hmc-memory-policy` ``off`` to disable these
+automatic memory safeguards.
+
 Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :py:func:`~petprep.workflows.pet.fit.init_pet_native_wf`
@@ -452,6 +466,12 @@ The PET reference volume is aligned to the skull-stripped anatomical image
 using the method selected via :option:`--pet2anat-method`. The anatomical image
 is first cropped with FSL's ``robustfov`` and masked to focus the alignment on
 brain tissue (ANTs receives the unmasked cropped image together with its mask).
+Use :option:`--pet2anat-no-anat-crop` to bypass anatomical ``robustfov`` and
+register against the full anatomical field of view. In ``auto`` mode, when
+cropping is enabled and all cropped registration scores are weak for a PET
+reference, PETPrep evaluates an uncropped anatomical fallback and keeps it if the
+score improves; disabling anatomical cropping also disables this crop-triggered
+fallback.
 By default, the workflow runs ``auto`` mode (``--pet2anat-method auto``),
 which executes both FreeSurfer and ANTs registrations in parallel, applies the
 resulting transforms to the PET reference, computes a similarity score within
