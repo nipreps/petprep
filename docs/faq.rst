@@ -41,7 +41,7 @@ If the T1w image has already been skull-stripped or otherwise modified, these
 steps may become less reproducible because *PETPrep* can no longer control the
 full anatomical preprocessing workflow.
 
-For user-supplied data, we recommend reverting to the original, defaced T1w
+For user-supplied data, we recommend reverting to the original T1w
 images whenever possible.
 If only preprocessed anatomical images are available, document the upstream
 processing carefully and inspect the PET-to-anatomical registration, segmentation,
