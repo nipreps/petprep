@@ -55,6 +55,52 @@ files is merged with adjusted offsets, and the combined image and metadata are
 written without the ``run`` entity in their filenames. Subsequent preprocessing
 then operates on these merged series rather than the original per-run inputs.
 
+The combined sidecar is written on the first run's time scale:
+
+* When both ``TimeZero`` and ``InjectionStart`` are available, *PETPrep* requires
+  them to imply the same offset. The ``InjectionStart`` difference is used so
+  elapsed days are retained even though ``TimeZero`` contains only a time of day.
+* If ``TimeZero`` is missing or malformed but ``InjectionStart`` is available,
+  *PETPrep* can still use the injection-relative difference. ``TimeZero`` alone
+  is not accepted because a time of day cannot distinguish same-day from
+  multi-day acquisitions or establish that the runs share an injection.
+* If an exact timing relationship cannot be determined, the runs overlap after
+  adjustment, or the timing fields disagree, *PETPrep* stops with an error.
+  It does not assume that runs are contiguous because doing so could erase a
+  real gap while the subject was outside the scanner.
+
+Using those offsets, *PETPrep* shifts ``FrameTimesStart`` and
+``FrameReferenceTime`` into the combined time scale and concatenates
+``FrameDuration``. If an input sidecar also includes derivative-style
+``VolumeTiming`` metadata, that timing array is shifted in the same way as
+``FrameTimesStart``. Frame-wise metadata arrays, such as ``ScaleFactor``,
+``ScatterFraction``, ``DecayFactor``, ``DecayCorrectionFactor``, ``PromptRate``,
+``SinglesRate``, and ``RandomRate``, are also concatenated when they can be
+matched exactly to the number of frames in each run. Frame-wise arrays with
+incompatible lengths are omitted from the combined sidecar to avoid writing
+misleading metadata.
+
+Every run must use the same non-empty ``Units`` value. ``FrameTimesStart`` and
+``FrameDuration`` must each contain exactly one finite value per image frame.
+PETPrep stops with an error rather than concatenating images with incompatible
+quantitative units or incomplete required timing metadata.
+
+All runs must define ``ImageDecayCorrected`` and a finite
+``ImageDecayCorrectionTime``, and must agree on whether decay correction has
+been applied. If all runs are uncorrected, the combined series remains
+explicitly uncorrected; *PETPrep* does not apply a later decay correction
+itself. If all runs are corrected to the same absolute time, their image values
+are concatenated unchanged. If their absolute correction times differ,
+*PETPrep* rescales each image to the first run's ``ImageDecayCorrectionTime``
+and updates ``DecayFactor`` and ``DecayCorrectionFactor`` by the same factor.
+
+Rescaling requires a consistent radionuclide half-life. An explicit
+``RadionuclideHalfLife`` is used when available and consistent with a recognized
+``TracerRadionuclide``. Otherwise, *PETPrep* recognizes common forms of
+carbon-11, fluorine-18, nitrogen-13, and oxygen-15. Missing, mixed, ambiguous,
+or inconsistent decay metadata cause an error rather than producing a combined
+series whose quantitative values cannot be interpreted safely.
+
 Because :option:`--combine-runs` removes the ``run`` entity before querying PET
 files, it is intended for processing all runs in each matching group. Avoid
 combining it with :option:`--run-label` unless you explicitly want run labels
