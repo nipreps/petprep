@@ -335,12 +335,12 @@ def test_bids_filter_file_selects_gradient_corrected_anat(tmp_path):
     img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
     anat_dir = bids / 'sub-01' / 'anat'
     anat_dir.mkdir(parents=True, exist_ok=True)
-    uncorrected_t1w = anat_dir / 'sub-01_acq-mprage_rec-norm_T1w.nii.gz'
+    uncorrected_t1w = anat_dir / 'sub-01_acq-mprage_rec-a_T1w.nii.gz'
     img3d.to_filename(uncorrected_t1w)
     uncorrected_t1w.with_suffix('').with_suffix('.json').write_text(
         json.dumps({'NonlinearGradientCorrection': False})
     )
-    selected_t1w = anat_dir / 'sub-01_acq-mprage_rec-normdiscorr2d_T1w.nii.gz'
+    selected_t1w = anat_dir / 'sub-01_acq-mprage_rec-b_T1w.nii.gz'
     img3d.to_filename(selected_t1w)
     selected_t1w.with_suffix('').with_suffix('.json').write_text(
         json.dumps({'NonlinearGradientCorrection': True})
@@ -387,6 +387,7 @@ def test_bids_filter_file_selects_gradient_corrected_anat(tmp_path):
         )
 
         assert subject_data['t1w'] == [str(selected_t1w)]
+        assert str(uncorrected_t1w) not in subject_data['t1w']
     finally:
         _reset_config()
 
