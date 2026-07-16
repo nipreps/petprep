@@ -742,6 +742,27 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
     return combined_root, combined_files
 
 
+def collect_subject_data(
+    bids_dir: Path | BIDSLayout,
+    subject_id: str,
+    *,
+    session_id: str | list[str] | None = None,
+    bids_filters: dict | None = None,
+) -> dict[str, list[str]]:
+    """Collect subject inputs using PETPrep's anatomical query conventions."""
+    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES, collect_data
+
+    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
+    queries['t1w'].pop('datatype', None)
+    return collect_data(
+        bids_dir,
+        subject_id,
+        session_id=session_id,
+        bids_filters=bids_filters,
+        queries=queries,
+    )[0]
+
+
 def get_subject_modality_status(
     bids_dir: Path,
     subject_id: str,
@@ -751,16 +772,11 @@ def get_subject_modality_status(
     anat_only: bool = False,
 ) -> dict[str, bool]:
     """Return subject-level PET/T1w availability after applying active filters."""
-    from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES, collect_data
-
-    queries = copy.deepcopy(DEFAULT_BIDS_QUERIES)
-    queries['t1w'].pop('datatype', None)
-    subject_data = collect_data(
+    subject_data = collect_subject_data(
         bids_dir,
         subject_id,
         bids_filters=bids_filters,
-        queries=queries,
-    )[0]
+    )
 
     has_pet = anat_only or bool(subject_data['pet'])
     has_t1w = bool(subject_data['t1w'])

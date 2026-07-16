@@ -128,8 +128,49 @@ The equivalent command with explicit BIDS entity values is also valid: ::
 
     petprep data/bids_root/ out/ participant --rec-label rec-FBP rec-OSEM
 
-These filters apply to PET inputs only, so anatomical files are still resolved
-using the matching subject and session context.
+The convenience filters above apply to PET inputs only, so anatomical files are
+otherwise resolved using the matching subject and session context. To constrain
+anatomical inputs, provide an explicit query with :option:`--bids-filter-file`,
+as shown below.
+
+Filtering anatomical inputs by BIDS entities
+---------------------------------------------
+When working with PET data it is common to have multiple T1w images for the
+same subject/session, for example one image with gradient nonlinearity
+correction applied and one without (see the
+`NonlinearGradientCorrection <https://bids-specification.readthedocs.io/en/stable/modality-specific-files/magnetic-resonance-imaging-data.html>`_
+field in the BIDS specification). In this case, the desired T1w image can
+be selected explicitly using :option:`--bids-filter-file`.
+
+For example, when the JSON sidecars distinguish corrected and uncorrected images
+with ``"NonlinearGradientCorrection": true`` and
+``"NonlinearGradientCorrection": false``, respectively, the following
+``bids_filter.json`` selects only the distortion-corrected T1w image::
+
+    {
+      "t1w": {
+        "datatype": "anat",
+        "suffix": "T1w",
+        "NonlinearGradientCorrection": true
+      }
+    }
+
+The filter file is then passed on the command line::
+
+    petprep data/bids_root/ out/ participant \
+        --bids-filter-file bids_filter.json
+
+Metadata field names are case-sensitive. If correction status is not available
+in the JSON sidecars but is encoded in a filename entity, that entity can be
+used instead. For example, a dataset that uses
+``rec-normdiscorr2d`` specifically for corrected images can replace the
+``NonlinearGradientCorrection`` entry above with::
+
+    "reconstruction": "normdiscorr2d"
+
+Reconstruction labels are dataset-specific, so verify their meaning before
+using them as a filter. The same approach can be applied to T2w images by using
+the ``t2w`` query and ``T2w`` suffix.
 
 .. _fs_license:
 
