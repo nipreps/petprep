@@ -404,6 +404,26 @@ def _validate_combined_run_metadata(metas: list[dict], frame_counts: list[int]) 
         zip(metas, frame_counts, strict=True),
         start=1,
     ):
+        if _parse_timezero(meta.get('TimeZero')) is None:
+            raise ValueError(
+                f'Cannot safely combine PET run {run_index}: TimeZero must be defined in '
+                'hh:mm:ss format'
+            )
+
+        timing_values = {}
+        for key in ('ScanStart', 'InjectionStart', 'ImageDecayCorrectionTime'):
+            raw_value = meta.get(key)
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                value = None
+            if isinstance(raw_value, bool) or value is None or not np.isfinite(value):
+                raise ValueError(
+                    f'Cannot safely combine PET run {run_index}: {key} must be defined as a '
+                    'finite number'
+                )
+            timing_values[key] = value
+
         for key in ('FrameTimesStart', 'FrameDuration'):
             values = meta.get(key)
             if not isinstance(values, list) or len(values) != frame_count:
@@ -420,6 +440,15 @@ def _validate_combined_run_metadata(metas: list[dict], frame_counts: list[int]) 
                     f'Cannot safely combine PET run {run_index}: {key} must contain only '
                     'finite numbers'
                 )
+
+        frame_starts = [float(value) for value in meta['FrameTimesStart']]
+        if frame_starts and min(frame_starts) < (
+            timing_values['ScanStart'] - _TIMING_TOLERANCE_SECONDS
+        ):
+            raise ValueError(
+                f'Cannot safely combine PET run {run_index}: FrameTimesStart cannot precede '
+                'ScanStart'
+            )
 
 
 def _metadata_as_framewise(value, frame_count: int) -> list | None:
