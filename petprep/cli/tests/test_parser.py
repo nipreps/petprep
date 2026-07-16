@@ -22,6 +22,7 @@
 #
 """Test parser."""
 
+import json
 from argparse import ArgumentError
 
 import nibabel as nb
@@ -31,6 +32,7 @@ from packaging.version import Version
 
 from ... import config
 from ...tests.test_config import _reset_config
+from ...utils.bids import collect_subject_data
 from .. import version as _version
 from ..parser import _build_parser, create_processing_groups, parse_args
 
@@ -321,6 +323,73 @@ def test_bids_filter_file(tmp_path, capsys):
     err = capsys.readouterr().err
     assert 'JSON syntax error in:' in err
     _reset_config()
+
+
+def test_bids_filter_file_selects_gradient_corrected_anat(tmp_path):
+    bids = tmp_path / 'bids'
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+    bids.mkdir()
+    (bids / 'dataset_description.json').write_text('{"Name": "Test", "BIDSVersion": "1.8.0"}')
+
+    img3d = nb.Nifti1Image(np.zeros((5, 5, 5)), np.eye(4))
+    anat_dir = bids / 'sub-01' / 'anat'
+    anat_dir.mkdir(parents=True, exist_ok=True)
+    uncorrected_t1w = anat_dir / 'sub-01_acq-mprage_rec-a_T1w.nii.gz'
+    img3d.to_filename(uncorrected_t1w)
+    uncorrected_t1w.with_suffix('').with_suffix('.json').write_text(
+        json.dumps({'NonlinearGradientCorrection': False})
+    )
+    selected_t1w = anat_dir / 'sub-01_acq-mprage_rec-b_T1w.nii.gz'
+    img3d.to_filename(selected_t1w)
+    selected_t1w.with_suffix('').with_suffix('.json').write_text(
+        json.dumps({'NonlinearGradientCorrection': True})
+    )
+
+    pet_path = bids / 'sub-01' / 'pet' / 'sub-01_pet.nii.gz'
+    pet_path.parent.mkdir(parents=True, exist_ok=True)
+    nb.Nifti1Image(np.zeros((5, 5, 5, 1)), np.eye(4)).to_filename(pet_path)
+    (pet_path.with_suffix('').with_suffix('.json')).write_text(
+        '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+    )
+
+    bids_filter = tmp_path / 'bids_filter.json'
+    bids_filter.write_text(
+        json.dumps(
+            {
+                't1w': {
+                    'datatype': 'anat',
+                    'suffix': 'T1w',
+                    'NonlinearGradientCorrection': True,
+                }
+            }
+        )
+    )
+
+    try:
+        parse_args(
+            args=[
+                str(bids),
+                str(out_dir),
+                'participant',
+                '--bids-filter-file',
+                str(bids_filter),
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        subject_data = collect_subject_data(
+            config.execution.bids_dir,
+            '01',
+            bids_filters=config.execution.bids_filters,
+        )
+
+        assert subject_data['t1w'] == [str(selected_t1w)]
+        assert str(uncorrected_t1w) not in subject_data['t1w']
+    finally:
+        _reset_config()
 
 
 def test_derivatives(tmp_path):
