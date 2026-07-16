@@ -57,13 +57,16 @@ then operates on these merged series rather than the original per-run inputs.
 
 The combined sidecar is written on the first run's time scale:
 
-* When both ``TimeZero`` and ``InjectionStart`` are available, *PETPrep* requires
-  them to imply the same offset. The ``InjectionStart`` difference is used so
-  elapsed days are retained even though ``TimeZero`` contains only a time of day.
-* If ``TimeZero`` is missing or malformed but ``InjectionStart`` is available,
-  *PETPrep* can still use the injection-relative difference. ``TimeZero`` alone
-  is not accepted because a time of day cannot distinguish same-day from
-  multi-day acquisitions or establish that the runs share an injection.
+* Every run must provide a valid ``TimeZero`` and finite ``ScanStart``,
+  ``InjectionStart``, and ``ImageDecayCorrectionTime`` values. These fields are
+  required by PET-BIDS and *PETPrep* does not infer missing timing references.
+* ``TimeZero`` and ``InjectionStart`` must imply the same run offset. The
+  ``InjectionStart`` difference is used so elapsed days are retained even though
+  ``TimeZero`` contains only a time of day. ``TimeZero`` alone cannot distinguish
+  same-day from multi-day acquisitions or establish that the runs share an
+  injection.
+* ``ScanStart`` is checked against the frame timing within each run but is not
+  used as a cross-run anchor because separate runs have different scan starts.
 * If an exact timing relationship cannot be determined, the runs overlap after
   adjustment, or the timing fields disagree, *PETPrep* stops with an error.
   It does not assume that runs are contiguous because doing so could erase a

@@ -22,6 +22,7 @@ def _write_metadata(path: Path, metadata: dict) -> None:
     metadata = {
         'ImageDecayCorrected': False,
         'ImageDecayCorrectionTime': 0.0,
+        'ScanStart': 0.0,
         'Units': 'Bq/mL',
         **metadata,
     }
@@ -163,8 +164,24 @@ def test_run_time_offsets_rejects_overlapping_runs() -> None:
 
 def test_validate_combined_run_metadata() -> None:
     metas = [
-        {'Units': 'Bq/mL', 'FrameTimesStart': [0.0], 'FrameDuration': [1.0]},
-        {'Units': 'Bq/mL', 'FrameTimesStart': [0.0, 1.0], 'FrameDuration': [1.0, 1.0]},
+        {
+            'Units': 'Bq/mL',
+            'TimeZero': '12:00:00',
+            'ScanStart': 0.0,
+            'InjectionStart': 0.0,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [1.0],
+        },
+        {
+            'Units': 'Bq/mL',
+            'TimeZero': '12:00:00',
+            'ScanStart': 0.0,
+            'InjectionStart': 0.0,
+            'ImageDecayCorrectionTime': 0.0,
+            'FrameTimesStart': [0.0, 1.0],
+            'FrameDuration': [1.0, 1.0],
+        },
     ]
 
     bids_utils._validate_combined_run_metadata(metas, [1, 2])
@@ -211,8 +228,62 @@ def test_validate_combined_run_metadata() -> None:
 def test_validate_combined_run_metadata_rejects_incompatible_metadata(
     metas, frame_counts, message
 ) -> None:
+    required_timing = {
+        'TimeZero': '12:00:00',
+        'ScanStart': 0.0,
+        'InjectionStart': 0.0,
+        'ImageDecayCorrectionTime': 0.0,
+    }
+    metas = [{**required_timing, **meta} for meta in metas]
+
     with pytest.raises(ValueError, match=message):
         bids_utils._validate_combined_run_metadata(metas, frame_counts)
+
+
+@pytest.mark.parametrize(
+    ('metadata', 'message'),
+    [
+        ({'TimeZero': 'not-a-time'}, 'TimeZero'),
+        ({'ScanStart': None}, 'ScanStart'),
+        ({'InjectionStart': np.inf}, 'InjectionStart'),
+        ({'ImageDecayCorrectionTime': 'bad'}, 'ImageDecayCorrectionTime'),
+        ({'ScanStart': 10.0, 'FrameTimesStart': [0.0]}, 'cannot precede ScanStart'),
+    ],
+)
+def test_validate_combined_run_metadata_rejects_invalid_required_timing(metadata, message) -> None:
+    valid_metadata = {
+        'Units': 'Bq/mL',
+        'TimeZero': '12:00:00',
+        'ScanStart': 0.0,
+        'InjectionStart': 0.0,
+        'ImageDecayCorrectionTime': 0.0,
+        'FrameTimesStart': [0.0],
+        'FrameDuration': [1.0],
+        **metadata,
+    }
+
+    with pytest.raises(ValueError, match=message):
+        bids_utils._validate_combined_run_metadata([valid_metadata], [1])
+
+
+@pytest.mark.parametrize(
+    'key',
+    ['TimeZero', 'ScanStart', 'InjectionStart', 'ImageDecayCorrectionTime'],
+)
+def test_validate_combined_run_metadata_rejects_missing_required_timing(key) -> None:
+    metadata = {
+        'Units': 'Bq/mL',
+        'TimeZero': '12:00:00',
+        'ScanStart': 0.0,
+        'InjectionStart': 0.0,
+        'ImageDecayCorrectionTime': 0.0,
+        'FrameTimesStart': [0.0],
+        'FrameDuration': [1.0],
+    }
+    metadata.pop(key)
+
+    with pytest.raises(ValueError, match=key):
+        bids_utils._validate_combined_run_metadata([metadata], [1])
 
 
 @pytest.mark.parametrize(
@@ -341,6 +412,15 @@ def test_decay_rescale_factors() -> None:
     ]
 
     assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == pytest.approx([1.0, 2.0])
+
+
+def test_decay_rescale_factors_preserves_shared_injection_correction_time() -> None:
+    metas = [
+        {'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': 0.0},
+        {'ImageDecayCorrected': True, 'ImageDecayCorrectionTime': -10.0},
+    ]
+
+    assert bids_utils._decay_rescale_factors(metas, [0.0, 10.0]) == [1.0, 1.0]
 
 
 def test_decay_rescale_factors_uses_tracer_radionuclide_half_life() -> None:
@@ -831,13 +911,66 @@ def test_combine_pet_runs_aligns_runs_to_common_timezero(tmp_path: Path, monkeyp
     combined_meta = json.loads(expected_json.read_text())
 
     assert combined_meta['TimeZero'] == '11:19:37'
+    assert combined_meta['ScanStart'] == 0.0
     assert combined_meta['InjectionStart'] == 0.0
     assert combined_meta['FrameTimesStart'] == [0.0, 600.0, 7701.0, 8301.0]
     assert combined_meta['FrameDuration'] == [600.0, 105.552, 600.0, 101.016]
     assert combined_meta['FrameReferenceTime'] == [300.0, 652.776, 8001.0, 8351.508]
 
 
-def test_combine_pet_runs_rescales_decay_corrected_runs(tmp_path: Path, monkeypatch) -> None:
+def test_combine_pet_runs_uses_common_injection_timezero(tmp_path: Path, monkeypatch) -> None:
+    bids_dir = tmp_path / 'bids'
+    _write_dataset_description(bids_dir / 'dataset_description.json')
+
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    run1_img = pet_dir / 'sub-01_task-rest_run-01_pet.nii.gz'
+    run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
+    _write_nifti(run1_img, np.ones((2, 2, 2)))
+    _write_nifti(run2_img, np.full((2, 2, 2), 2))
+
+    common_metadata = {'TimeZero': '11:19:37', 'InjectionStart': 0.0}
+    _write_metadata(
+        run1_img.with_suffix('').with_suffix('.json'),
+        {
+            **common_metadata,
+            'ScanStart': 0.0,
+            'FrameTimesStart': [0.0],
+            'FrameDuration': [600.0],
+        },
+    )
+    _write_metadata(
+        run2_img.with_suffix('').with_suffix('.json'),
+        {
+            **common_metadata,
+            'ScanStart': 7701.0,
+            'FrameTimesStart': [7701.0],
+            'FrameDuration': [600.0],
+        },
+    )
+
+    layout = BIDSLayout(bids_dir, validate=False)
+    monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+
+    combined_dir, _ = combine_pet_runs(
+        bids_dir=bids_dir,
+        layout=layout,
+        work_dir=tmp_path / 'work',
+        subjects=['01'],
+        bids_filters={},
+    )
+
+    combined_meta = json.loads(
+        (combined_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.json').read_text()
+    )
+    assert combined_meta['TimeZero'] == '11:19:37'
+    assert combined_meta['ScanStart'] == 0.0
+    assert combined_meta['InjectionStart'] == 0.0
+    assert combined_meta['FrameTimesStart'] == [0.0, 7701.0]
+
+
+def test_combine_pet_runs_rescales_runs_corrected_to_each_scan_start(
+    tmp_path: Path, monkeypatch
+) -> None:
     bids_dir = tmp_path / 'bids'
     dataset_description = bids_dir / 'dataset_description.json'
     _write_dataset_description(dataset_description)
@@ -958,7 +1091,7 @@ def test_combine_pet_runs_rescales_decay_corrected_3d_runs(tmp_path: Path, monke
     assert np.allclose(data[..., 1], 4)
 
 
-def test_combine_pet_runs_rejects_unresolved_timing(tmp_path: Path, monkeypatch) -> None:
+def test_combine_pet_runs_rejects_missing_required_timing(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     _write_dataset_description(bids_dir / 'dataset_description.json')
     pet_dir = bids_dir / 'sub-01' / 'pet'
@@ -977,7 +1110,7 @@ def test_combine_pet_runs_rejects_unresolved_timing(tmp_path: Path, monkeypatch)
     layout = BIDSLayout(bids_dir, validate=False)
     monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
 
-    with pytest.raises(ValueError, match='exact timing offset'):
+    with pytest.raises(ValueError, match='TimeZero'):
         combine_pet_runs(
             bids_dir=bids_dir,
             layout=layout,
