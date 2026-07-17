@@ -28,6 +28,8 @@ import os
 import re
 import time
 from collections import Counter
+from html import escape
+from pathlib import Path
 from uuid import uuid4
 
 import nibabel as nb
@@ -182,6 +184,11 @@ SUBJECT_TEMPLATE = """\
 \t<ul class="elem-desc">
 \t\t<li>Subject ID: {subject_id}</li>
 \t\t<li>Structural images: {n_t1s:d} T1-weighted {t2w}</li>
+\t\t<li>Anatomical source files:
+\t\t\t<ul class="elem-desc">
+{anat_sources}
+\t\t\t</ul>
+\t\t</li>
 \t\t<li>PET series: {n_pet:d}</li>
 {tasks}
 \t\t<li>Standard output spaces: {std_spaces}</li>
@@ -189,6 +196,33 @@ SUBJECT_TEMPLATE = """\
 \t\t<li>FreeSurfer reconstruction: {freesurfer_status}</li>
 \t</ul>
 """
+
+
+def _format_anat_source(source_file):
+    """Format an anatomical source as a portable, HTML-safe path."""
+    source_path = Path(source_file)
+    for index, part in enumerate(source_path.parts):
+        if re.fullmatch(r'sub-[a-zA-Z0-9]+', part):
+            source_path = Path(*source_path.parts[index:])
+            break
+    else:
+        source_path = Path(source_path.name)
+
+    return escape(source_path.as_posix())
+
+
+def _format_anat_sources(t1w_files, t2w_files):
+    """Create report entries for each anatomical source file."""
+    t1w_files = t1w_files if isdefined(t1w_files) else []
+    t2w_files = t2w_files if isdefined(t2w_files) else []
+    entries = [('T1w', source_file) for source_file in t1w_files] + [
+        ('T2w', source_file) for source_file in t2w_files
+    ]
+    return '\n'.join(
+        f'\t\t\t\t<li>{modality}: <code>{_format_anat_source(source_file)}</code></li>'
+        for modality, source_file in entries
+    )
+
 
 PET_TEMPLATE = """\
 \t\t<details open>
@@ -316,6 +350,7 @@ class SubjectSummary(SummaryInterface):
             subject_id=self.inputs.subject_id,
             n_t1s=len(self.inputs.t1w),
             t2w=t2w_seg,
+            anat_sources=_format_anat_sources(self.inputs.t1w, self.inputs.t2w),
             n_pet=len(pet_series),
             tasks=tasks,
             std_spaces=', '.join(self.inputs.std_spaces),

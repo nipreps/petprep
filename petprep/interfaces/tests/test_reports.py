@@ -74,6 +74,40 @@ def test_subject_summary_handles_missing_task(tmp_path):
     assert 'PET series: 2' in segment
     assert 'Task: rest (1 run)' in segment
     assert 'Task: <none> (1 run)' in segment
+    assert '<li>T1w: <code>sub-01_T1w.nii.gz</code></li>' in segment
+
+
+def test_subject_summary_reports_anatomical_sources(tmp_path):
+    from ..reports import SubjectSummary
+
+    anat_dir = tmp_path / 'sub-01' / 'ses-baseline' / 'anat'
+    anat_dir.mkdir(parents=True)
+    t1w = anat_dir / 'sub-01_ses-baseline_T1w.nii.gz'
+    t2w = [
+        anat_dir / 'sub-01_ses-baseline_acq-TSE_T2w.nii.gz',
+        anat_dir / 'sub-01_ses-baseline_acq-TSE4_T2w.nii.gz',
+        anat_dir / 'sub-01_ses-baseline_acq-TSE5_T2w.nii.gz',
+    ]
+    for source_file in [t1w, *t2w]:
+        source_file.write_text('')
+
+    summary = SubjectSummary(
+        subject_id='01',
+        t1w=[str(t1w)],
+        t2w=[str(source_file) for source_file in t2w],
+        pet=[],
+        std_spaces=[],
+        nstd_spaces=[],
+    )
+
+    segment = summary._generate_segment()
+    assert 'Structural images: 1 T1-weighted (+ 3 T2-weighted)' in segment
+    assert 'Anatomical source files:' in segment
+    expected_t1w = 'sub-01/ses-baseline/anat/sub-01_ses-baseline_T1w.nii.gz'
+    assert f'<li>T1w: <code>{expected_t1w}</code></li>' in segment
+    for source_file in t2w:
+        expected = f'sub-01/ses-baseline/anat/{source_file.name}'
+        assert f'<li>T2w: <code>{expected}</code></li>' in segment
 
 
 @pytest.mark.parametrize(
