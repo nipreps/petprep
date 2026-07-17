@@ -1,4 +1,5 @@
 import json
+import os
 
 import nibabel as nb
 import numpy as np
@@ -8,6 +9,7 @@ from nipype.interfaces.base import (
     File,
     SimpleInterface,
     TraitedSpec,
+    isdefined,
     traits,
 )
 from nipype.utils.filemanip import fname_presuffix
@@ -148,4 +150,82 @@ class ExtractRefTAC(SimpleInterface):
         return runtime
 
 
-__all__ = ('ExtractTACs', 'ExtractRefTAC')
+class _ReferenceTACPlotInputSpec(BaseInterfaceInputSpec):
+    tacs_file = File(exists=True, mandatory=True, desc='Reference-region TAC TSV file')
+    confounds_file = File(
+        exists=True,
+        desc='Optional confounds TSV file containing a global_signal column',
+    )
+
+
+class _ReferenceTACPlotOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc='Reference-region TAC plot')
+
+
+class ReferenceTACPlot(SimpleInterface):
+    """Plot a reference-region time-activity curve and optional whole-brain signal."""
+
+    input_spec = _ReferenceTACPlotInputSpec
+    output_spec = _ReferenceTACPlotOutputSpec
+
+    def _run_interface(self, runtime):
+        import matplotlib as mpl
+
+        mpl.use('Agg', force=True)
+        from matplotlib import pyplot as plt
+
+        tacs = pd.read_csv(self.inputs.tacs_file, sep='\t', na_values='n/a')
+        timing_columns = {'frame_start', 'frame_end'}
+        activity_columns = [column for column in tacs.columns if column not in timing_columns]
+        if len(activity_columns) != 1:
+            raise ValueError(
+                'Reference TAC file must contain frame_start, frame_end, and one activity column'
+            )
+
+        missing_timing = timing_columns.difference(tacs.columns)
+        if missing_timing:
+            raise ValueError(
+                f'Reference TAC file is missing timing column(s): {sorted(missing_timing)}'
+            )
+
+        frame_midpoints = (tacs['frame_start'] + tacs['frame_end']) / 2.0
+        frame_midpoints_min = frame_midpoints / 60.0
+        reference_name = activity_columns[0]
+
+        fig, ax = plt.subplots(figsize=(10, 3.2))
+        ax.plot(
+            frame_midpoints_min,
+            tacs[reference_name],
+            color='#D55E00',
+            marker='o',
+            markersize=4,
+            linewidth=1.8,
+            label=reference_name.replace('_', ' '),
+        )
+
+        if isdefined(self.inputs.confounds_file):
+            confounds = pd.read_csv(self.inputs.confounds_file, sep='\t', na_values='n/a')
+            if 'global_signal' in confounds.columns and len(confounds) == len(tacs):
+                ax.plot(
+                    frame_midpoints_min,
+                    confounds['global_signal'],
+                    color='#0072B2',
+                    linewidth=1.5,
+                    label='whole brain',
+                )
+
+        ax.set_xlabel('Time (min)')
+        ax.set_ylabel('Mean PET signal')
+        ax.grid(axis='y', color='0.9', linewidth=0.8)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.legend(frameon=False)
+        fig.tight_layout()
+
+        out_file = os.path.abspath('reference_tac.svg')
+        fig.savefig(out_file, format='svg', bbox_inches='tight')
+        plt.close(fig)
+        self._results['out_file'] = out_file
+        return runtime
+
+
+__all__ = ('ExtractTACs', 'ExtractRefTAC', 'ReferenceTACPlot')

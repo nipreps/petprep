@@ -10,7 +10,7 @@ import pytest
 from nipype.pipeline import engine as pe
 from nipype.pipeline.engine.nodes import NodeExecutionError
 
-from petprep.interfaces.tacs import ExtractRefTAC, ExtractTACs
+from petprep.interfaces.tacs import ExtractRefTAC, ExtractTACs, ReferenceTACPlot
 from petprep.workflows.pet.ref_tacs import init_pet_ref_tacs_wf, resample_mask_to_pet
 from petprep.workflows.pet.tacs import init_pet_tacs_wf
 
@@ -201,6 +201,34 @@ def test_ExtractRefTAC(tmp_path):
     out = pd.read_csv(res.outputs.out_file, sep='\t')
     assert list(out.columns) == ['frame_start', 'frame_end', 'ref']
     assert np.allclose(out['ref'], [1, 2])
+
+
+def test_ReferenceTACPlot(tmp_path):
+    tacs_file = tmp_path / 'ref_tacs.tsv'
+    pd.DataFrame(
+        {
+            'frame_start': [0, 60, 120],
+            'frame_end': [60, 120, 180],
+            'cerebellum': [1.0, 2.0, 1.5],
+        }
+    ).to_csv(tacs_file, sep='\t', index=False)
+    confounds_file = tmp_path / 'confounds.tsv'
+    pd.DataFrame({'global_signal': [1.2, 2.2, 1.7]}).to_csv(confounds_file, sep='\t', index=False)
+
+    result = ReferenceTACPlot(
+        tacs_file=str(tacs_file),
+        confounds_file=str(confounds_file),
+    ).run(cwd=tmp_path)
+
+    svg = Path(result.outputs.out_file).read_text()
+    assert 'cerebellum' in svg
+    assert 'whole brain' in svg
+    assert 'Time (min)' in svg
+
+    without_confounds = tmp_path / 'without_confounds'
+    without_confounds.mkdir()
+    result = ReferenceTACPlot(tacs_file=str(tacs_file)).run(cwd=without_confounds)
+    assert Path(result.outputs.out_file).exists()
 
 
 def test_ExtractRefTAC_mismatched_meta(tmp_path):

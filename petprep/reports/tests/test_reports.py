@@ -138,6 +138,13 @@ def test_pet_report(tmp_path, monkeypatch):
     ]:
         shutil.copy2(pet_source / fl, sub_dir / fl)
 
+    (sub_dir / 'sub-01_label-cerebellum_desc-ref_pet.svg').write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>Reference mask</text></svg>'
+    )
+    (sub_dir / 'sub-01_label-cerebellum_desc-reftac_pet.svg').write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>Reference TAC</text></svg>'
+    )
+
     monkeypatch.setattr(config.execution, 'aggr_ses_reports', 4)
     monkeypatch.setattr(config.execution, 'layout', BIDSLayout(data_dir / 'ds000005'))
     monkeypatch.setattr(config.execution, 'bids_filters', {'pet': {'session': ['baseline']}})
@@ -149,6 +156,9 @@ def test_pet_report(tmp_path, monkeypatch):
     assert html_file.is_file()
     html_content = html_file.read_text()
     assert '<div id="PET"' in html_content
+    assert html_content.index('Reference mask check') < html_content.index(
+        'Reference region time-activity curve'
+    )
 
 
 def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):

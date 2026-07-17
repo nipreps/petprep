@@ -1903,6 +1903,15 @@ def test_reports_spec_contains_refmask():
         )
 
 
+def test_reports_spec_places_reference_tac_after_mask():
+    """Check that the reference TAC follows the reference-mask figure."""
+    for fname in ('reports-spec.yml', 'reports-spec-pet.yml'):
+        spec = yaml.safe_load((data.load.readable(fname)).read_text())
+        pet_section = next(s for s in spec['sections'] if s['name'] == 'PET')
+        descriptions = [r.get('bids', {}).get('desc') for r in pet_section['reportlets']]
+        assert descriptions.index('reftac') == descriptions.index('ref') + 1
+
+
 def test_refmask_reports_omitted(bids_root: Path, tmp_path: Path):
     """Ensure reference mask reportlets are omitted when no reference mask is configured."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]

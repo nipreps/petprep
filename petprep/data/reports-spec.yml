@@ -72,6 +72,10 @@ sections:
     caption: Reference region mask overlaid on the PET reference and anatomical.
     static: false
     subtitle: Reference mask check
+  - bids: {datatype: figures, desc: reftac, suffix: pet}
+    caption: Mean PET signal in the selected reference region over time. The whole-brain global signal is also shown when PET confounds were computed.
+    static: true
+    subtitle: Reference region time-activity curve
 - name: About
   nested: true
   reportlets:

@@ -40,7 +40,7 @@ from niworkflows.interfaces.utility import DictMerge
 from niworkflows.utils.connections import listify
 
 from ... import config
-from ...interfaces import DerivativesDataSink, MotionPlot
+from ...interfaces import DerivativesDataSink, MotionPlot, ReferenceTACPlot
 from ...utils.misc import estimate_pet_mem_usage
 
 # PET workflows
@@ -821,6 +821,30 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
             (pet_ref_tacs_wf, ds_ref_tacs, [('outputnode.timeseries', 'in_file')]),
         ])  # fmt:skip
 
+        ref_tac_plot = pe.Node(ReferenceTACPlot(), name='ref_tac_plot')
+        ds_report_ref_tac = pe.Node(
+            DerivativesDataSink(
+                base_directory=petprep_dir,
+                datatype='figures',
+                desc='reftac',
+                label=config.workflow.ref_mask_name,
+                allowed_entities=('label',),
+                suffix='pet',
+                extension='svg',
+            ),
+            name='ds_report_ref_tac',
+            run_without_submitting=True,
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+        ds_report_ref_tac.inputs.source_file = pet_file
+
+        workflow.connect([
+            (pet_ref_tacs_wf, ref_tac_plot, [
+                ('outputnode.timeseries', 'tacs_file'),
+            ]),
+            (ref_tac_plot, ds_report_ref_tac, [('out_file', 'in_file')]),
+        ])  # fmt:skip
+
     if nvols > 2:  # run these only if PET has at least 3 frames
         pet_confounds_wf = init_pet_confs_wf(
             mem_gb=mem_gb['largemem'],
@@ -861,6 +885,14 @@ Non-gridded (surface) resamplings were performed using `mri_vol2surf`
                 ('outputnode.confounds_metadata', 'meta_dict'),
             ]),
         ])  # fmt:skip
+
+        if config.workflow.ref_mask_name:
+            workflow.connect(
+                pet_confounds_wf,
+                'outputnode.confounds_file',
+                ref_tac_plot,
+                'confounds_file',
+            )
 
         if nvols > 1:
             workflow.connect(

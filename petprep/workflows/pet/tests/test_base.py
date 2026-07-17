@@ -266,6 +266,21 @@ def test_pet_ref_tacs_wf_connections(bids_root: Path):
     edge_ds = wf._graph.get_edge_data(wf.get_node('pet_ref_tacs_wf'), wf.get_node('ds_ref_tacs'))
     assert ('outputnode.timeseries', 'in_file') in edge_ds['connect']
 
+    edge_plot = wf._graph.get_edge_data(
+        wf.get_node('pet_ref_tacs_wf'), wf.get_node('ref_tac_plot')
+    )
+    assert ('outputnode.timeseries', 'tacs_file') in edge_plot['connect']
+
+    ds_plot = wf.get_node('ds_report_ref_tac')
+    assert ds_plot.inputs.desc == 'reftac'
+    assert ds_plot.inputs.label == 'cerebellum'
+    assert ds_plot.inputs.suffix == 'pet'
+
+    edge_confounds = wf._graph.get_edge_data(
+        wf.get_node('pet_confounds_wf'), wf.get_node('ref_tac_plot')
+    )
+    assert ('outputnode.confounds_file', 'confounds_file') in edge_confounds['connect']
+
 
 def test_psf_metadata_propagation(bids_root: Path):
     """PSF values should be passed to datasinks when using AGTM."""

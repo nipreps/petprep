@@ -5,7 +5,7 @@ from niworkflows.interfaces.bids import DerivativesDataSink as _DDSink
 from .cifti import GeneratePetCifti
 from .motion import MotionPlot
 from .reports import AtlasROIsReport
-from .tacs import ExtractRefTAC, ExtractTACs
+from .tacs import ExtractRefTAC, ExtractTACs, ReferenceTACPlot
 
 
 class DerivativesDataSink(_DDSink):
@@ -17,6 +17,7 @@ __all__ = (
     'GeneratePetCifti',
     'ExtractTACs',
     'ExtractRefTAC',
+    'ReferenceTACPlot',
     'MotionPlot',
     'AtlasROIsReport',
 )
