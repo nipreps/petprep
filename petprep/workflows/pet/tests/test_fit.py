@@ -736,22 +736,20 @@ def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
     np.savetxt(hmc_xfm, np.eye(4))
 
     # Only petref provided
-    with mock_config(bids_dir=bids_root):
-        with pytest.raises(ValueError):  # noqa: PT011
-            init_pet_fit_wf(
-                pet_series=pet_series,
-                precomputed={'petref': str(ref_file)},
-                omp_nthreads=1,
-            )
+    with mock_config(bids_dir=bids_root), pytest.raises(ValueError):  # noqa: PT011
+        init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={'petref': str(ref_file)},
+            omp_nthreads=1,
+        )
 
     # Only hmc transforms provided
-    with mock_config(bids_dir=bids_root):
-        with pytest.raises(ValueError):  # noqa: PT011
-            init_pet_fit_wf(
-                pet_series=pet_series,
-                precomputed={'transforms': {'hmc': str(hmc_xfm)}},
-                omp_nthreads=1,
-            )
+    with mock_config(bids_dir=bids_root), pytest.raises(ValueError):  # noqa: PT011
+        init_pet_fit_wf(
+            pet_series=pet_series,
+            precomputed={'transforms': {'hmc': str(hmc_xfm)}},
+            omp_nthreads=1,
+        )
 
 
 def test_pet_fit_stage1_with_cached_baseline(bids_root: Path, tmp_path: Path):
@@ -1001,7 +999,6 @@ class _FakeFallbackWorkflow:
             self.inputs.inputnode.anat_preproc,
             self.inputs.inputnode.anat_mask,
         )
-        return None
 
 
 def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_path):
@@ -1634,7 +1631,7 @@ def test_extract_twa_image_validation(
     pet_file = tmp_path / 'pet.nii.gz'
     pet_img.to_filename(pet_file)
 
-    with pytest.raises(ValueError, match=message):  # noqa: PT011
+    with pytest.raises(ValueError, match=message):
         _extract_twa_image(
             str(pet_file),
             tmp_path / 'out',

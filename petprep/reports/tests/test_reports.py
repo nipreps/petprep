@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from bids.layout import BIDSLayout
 
-import petprep.reports.core as core
+from petprep.reports import core
 from petprep.reports.core import generate_reports
 
 from ... import config, data
@@ -164,7 +164,6 @@ def test_reportlets_dir_scoped_to_subject(tmp_path, monkeypatch):
 
     def _record_reportlets_dir(*args, reportlets_dir=None, **kwargs):
         recorded_reportlets.append(reportlets_dir)
-        return None
 
     monkeypatch.setattr(core, 'run_reports', _record_reportlets_dir)
     monkeypatch.setattr(config.execution, 'aggr_ses_reports', 4)
@@ -185,7 +184,6 @@ def test_generate_reports_uses_indexed_session_entities(tmp_path, monkeypatch):
 
     def _record_report(*args, session=None, **kwargs):
         recorded_sessions.append(session)
-        return None
 
     class _Layout:
         def get(self, return_type='object', subject=None, session=None, **kwargs):
@@ -218,7 +216,6 @@ def test_generate_reports_sessionwise_includes_anatomical_per_session(tmp_path, 
                 'session': session,
             }
         )
-        return None
 
     class _Layout:
         def get_sessions(self, subject=None, **kwargs):

@@ -39,7 +39,7 @@ def generate_reference_region(
         mask = binary_erosion(mask, ball(config['erode_by_voxels'])).astype(np.uint8)
 
     # Step 3: Optional exclusion
-    if 'exclude_indices' in config and config['exclude_indices']:
+    if config.get('exclude_indices'):
         exclude = np.isin(data, config['exclude_indices'])  # bool mask
         if 'dilate_by_voxels' in config and config['dilate_by_voxels'] > 0:
             exclude = binary_dilation(exclude, ball(config['dilate_by_voxels']))

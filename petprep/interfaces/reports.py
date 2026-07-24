@@ -672,7 +672,7 @@ class AtlasROIsReport(SimpleInterface):
             if isinstance(legend_text, (bytes, bytearray)):
                 legend_text = legend_text.decode('utf-8')
             legend_text = legend_text.split('\n', 1)[-1]
-            inner_match = re.search(r'<svg[^>]*>(.*)</svg>', legend_text, re.S)
+            inner_match = re.search(r'<svg[^>]*>(.*)</svg>', legend_text, re.DOTALL)
             legend_body = inner_match.group(1) if inner_match else legend_text
             legend_width, legend_height = _extract_dims_from_text(legend_text)
             scale = width / legend_width if legend_width else 1.0
