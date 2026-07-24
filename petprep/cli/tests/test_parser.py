@@ -88,6 +88,44 @@ def test_submm_recon_flags(tmp_path):
         parser.parse_args(base_args + ['--submm-recon', '--no-submm-recon'])
 
 
+def test_pet2anat_identity_method(tmp_path):
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    parser = _build_parser()
+    base_args = [str(datapath)] + MIN_ARGS[1:]
+
+    assert parser.parse_args(base_args + ['--pet2anat-method', 'identity']).pet2anat_method == (
+        'identity'
+    )
+    assert parser.parse_args(base_args + ['--pet2anat-method=identity']).pet2anat_method == (
+        'identity'
+    )
+
+
+def test_parse_args_tracks_equals_form_pet2anat_method(tmp_path, minimal_bids):
+    out_dir = tmp_path / 'out'
+    work_dir = tmp_path / 'work'
+
+    try:
+        parse_args(
+            args=[
+                str(minimal_bids),
+                str(out_dir),
+                'participant',
+                '--pet2anat-method=identity',
+                '--skip-bids-validation',
+                '-w',
+                str(work_dir),
+            ]
+        )
+
+        assert config.workflow.pet2anat_method == 'identity'
+        assert config.workflow.pet2anat_method_specified is True
+    finally:
+        _reset_config()
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [

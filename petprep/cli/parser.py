@@ -415,12 +415,14 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         '--pet2anat-method',
         action='store',
         default='auto',
-        choices=['mri_coreg', 'robust', 'ants', 'auto'],
+        choices=['mri_coreg', 'robust', 'ants', 'auto', 'identity'],
         help='Method for PET-to-anatomical registration. '
         '"auto" runs both FreeSurfer and ANTs and selects the best. '
         '"mri_coreg" uses FreeSurfer mri_coreg. '
         '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
-        '"ants" uses ANTs rigid registration (6 DoF only).',
+        '"ants" uses ANTs rigid registration (6 DoF only). '
+        '"identity" trusts the PET and anatomical image headers and performs no '
+        'registration optimization.',
     )
     g_conf.add_argument(
         '--pet2anat-no-anat-crop',
@@ -905,8 +907,11 @@ def parse_args(args=None, namespace=None):
     config.from_dict(vars(opts), init=['nipype'])
     config.workflow.longitudinal = config.workflow.subject_anatomical_reference == 'unbiased'
 
-    config.workflow.petref_specified = '--petref' in argv
-    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
+    def _option_was_specified(option):
+        return any(arg == option or arg.startswith(f'{option}=') for arg in argv)
+
+    config.workflow.petref_specified = _option_was_specified('--petref')
+    config.workflow.pet2anat_method_specified = _option_was_specified('--pet2anat-method')
 
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}

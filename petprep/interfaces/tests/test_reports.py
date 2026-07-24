@@ -152,6 +152,22 @@ def test_functional_summary_auto_select_reports_similarity_metric():
     )
 
 
+def test_functional_summary_identity_registration():
+    from ..reports import PETSummary
+
+    summary = PETSummary(
+        registration='identity',
+        registration_dof=6,
+        orientation='RAS',
+        anatref_strategy='t1w',
+        petref_strategy='template',
+        metadata={},
+    )
+
+    segment = summary._generate_segment()
+    assert 'Header-defined identity transformation (no registration optimization)' in segment
+
+
 def test_atlas_rois_report(tmp_path):
     import nibabel as nb
     import numpy as np

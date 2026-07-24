@@ -398,7 +398,10 @@ registration backend with
 (default; runs both FreeSurfer and ANTs and selects the better result),
 ``mri_coreg`` (FreeSurfer co-registration), ``robust`` (FreeSurfer
 ``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid
-registration that consumes the unmasked T1w and a separate mask). The
+registration that consumes the unmasked T1w and a separate mask). Use
+``identity`` only when PET and anatomy are known to share the same physical
+coordinate system; this trusts their image headers and does not optimize a
+registration transform. The
 :option:`--pet2anat-dof` flag controls the degrees of freedom; ``robust`` and
 ``ants`` are limited to rigid-body alignment and therefore require
 ``--pet2anat-dof 6``. All modes emit paired ITK transforms for reuse in later

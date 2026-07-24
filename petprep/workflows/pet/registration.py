@@ -52,6 +52,24 @@ def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score
     return xfm_fs, inv_fs, 'freesurfer', score_fs
 
 
+def _write_identity_transform(reference_file):
+    """Write forward and inverse identity transforms in ITK format."""
+    from pathlib import Path
+
+    import nitransforms as nt
+
+    # Accepting the reference file makes this node depend on PET validation/reference
+    # generation even though an identity transform is independent of image content.
+    if not Path(reference_file).exists():
+        raise FileNotFoundError(reference_file)
+
+    out_xfm = Path.cwd() / 'pet2anat_identity.tfm'
+    out_inv = Path.cwd() / 'anat2pet_identity.tfm'
+    nt.Affine().to_filename(out_xfm, fmt='itk')
+    nt.Affine().to_filename(out_inv, fmt='itk')
+    return str(out_xfm), str(out_inv)
+
+
 def init_pet_reg_wf(
     *,
     pet2anat_dof: AffineDOF,
@@ -92,7 +110,9 @@ def init_pet_reg_wf(
         (default FreeSurfer co-registration), 'robust' (uses FreeSurfer
         mri_robust_register with NMI, 6 DoF only), 'ants' (uses ANTs rigid
         registration, 6 DoF only), or 'auto' (runs FreeSurfer and ANTs in
-        parallel, selecting the best-performing transform).
+        parallel, selecting the best-performing transform). 'identity' trusts
+        the physical coordinates encoded in the image headers and performs no
+        registration optimization.
     crop_anat : :obj:`bool`
         Crop the anatomical reference with FSL's ``robustfov`` before
         registration.
@@ -163,7 +183,8 @@ def init_pet_reg_wf(
     outputnode.inputs.registration_winner = None
     outputnode.inputs.registration_score = None
     outputnode.inputs.fallback = False
-    outputnode.inputs.anat_reference = 'cropped' if crop_anat else 'uncropped'
+    effective_crop_anat = crop_anat and pet2anat_method != 'identity'
+    outputnode.inputs.anat_reference = 'cropped' if effective_crop_anat else 'uncropped'
 
     convert_anat = pe.Node(MRIConvert(out_type='niigz'), name='convert_anat')
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
@@ -174,7 +195,7 @@ def init_pet_reg_wf(
         (inputnode, convert_anat, [('anat_preproc', 'in_file')]),
         (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
     ]
-    if crop_anat:
+    if effective_crop_anat:
         robust_fov = pe.Node(RobustFOV(output_type='NIFTI_GZ'), name='robust_fov')
         anat_ref = robust_fov
         anat_ref_output = 'out_roi'
@@ -182,6 +203,51 @@ def init_pet_reg_wf(
             (convert_anat, robust_fov, [('out_file', 'in_file')]),
             (robust_fov, crop_anat_mask, [('out_roi', 'reslice_like')]),
         ]
+
+    if pet2anat_method == 'identity':
+        identity = pe.Node(
+            niu.Function(
+                function=_write_identity_transform,
+                input_names=['reference_file'],
+                output_names=['out_xfm', 'out_inv'],
+            ),
+            name='identity_transform',
+        )
+        warp_for_score = pe.Node(ApplyTransforms(float=True), name='warp_for_score')
+        similarity = pe.Node(
+            MeasureImageSimilarity(
+                metric='Mattes',
+                dimension=3,
+                radius_or_number_of_bins=32,
+                sampling_strategy='Regular',
+                sampling_percentage=0.25,
+            ),
+            name='score_registration',
+            mem_gb=config.DEFAULT_MEMORY_MIN_GB,
+        )
+
+        workflow.connect(
+            [
+                *anat_preproc_connections,
+                (anat_ref, mask_brain, [(anat_ref_output, 'in_file')]),
+                (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
+                (inputnode, identity, [('ref_pet_brain', 'reference_file')]),
+                (identity, outputnode, [
+                    ('out_xfm', 'itk_pet_to_t1'),
+                    ('out_inv', 'itk_t1_to_pet'),
+                ]),
+                (inputnode, warp_for_score, [('ref_pet_brain', 'input_image')]),
+                (anat_ref, warp_for_score, [(anat_ref_output, 'reference_image')]),
+                (identity, warp_for_score, [('out_xfm', 'transforms')]),
+                (warp_for_score, similarity, [('output_image', 'moving_image')]),
+                (mask_brain, similarity, [('out_file', 'fixed_image')]),
+                (crop_anat_mask, similarity, [('out_file', 'fixed_image_mask')]),
+                (crop_anat_mask, similarity, [('out_file', 'moving_image_mask')]),
+                (similarity, outputnode, [('similarity', 'registration_score')]),
+            ]
+        )  # fmt:skip
+
+        return workflow
 
     if pet2anat_method == 'auto':
         ants_coreg = pe.Node(

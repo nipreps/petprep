@@ -330,6 +330,7 @@ class PETSummaryInputSpec(TraitedSpec):
         'mri_robust_register',
         'ants_registration',
         'auto_select',
+        'identity',
         'Precomputed',
         mandatory=True,
         desc='PET/anatomical registration method',
@@ -398,6 +399,8 @@ class PETSummary(SummaryInterface):
             reg = f'ANTs <code>ants_registration</code> ({dof} DoF)'
         elif self.inputs.registration == 'mri_robust_register':
             reg = 'FreeSurfer <code>mri_robust_register</code> (NMI cost)'
+        elif self.inputs.registration == 'identity':
+            reg = 'Header-defined identity transformation (no registration optimization)'
         elif self.inputs.registration == 'auto_select':
             winner = self.inputs.registration_winner
             if winner == 'ants':
