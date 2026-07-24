@@ -214,6 +214,7 @@ REFERENCE_POLICY_DESCRIPTIONS = {
     't1w-pre-masked-uncropped': 'Preprocessed T1w image (brain-masked, uncropped)',
     't1w-fixed-mask-cropped': 'Preprocessed T1w image (separate fixed-image mask, cropped)',
     't1w-fixed-mask-uncropped': 'Preprocessed T1w image (separate fixed-image mask, uncropped)',
+    'nu-unmasked-cropped': 'FreeSurfer nu.mgz (unmasked, cropped)',
     'nu-unmasked-uncropped': 'FreeSurfer nu.mgz (unmasked, uncropped)',
     'nu-pre-masked-cropped': 'FreeSurfer nu.mgz (brain-masked, cropped)',
     'nu-pre-masked-uncropped': 'FreeSurfer nu.mgz (brain-masked, uncropped)',

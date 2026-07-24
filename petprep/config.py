@@ -577,7 +577,7 @@ class workflow(_Config):
     pet2anat_crop: bool = True
     """Crop the anatomical reference before PET-to-anatomical registration."""
     pet2anat_crop_fallback: bool = True
-    """Try uncropped anatomical registration when auto-mode cropped registration scores poorly."""
+    """Try uncropped registration when cropped auto-mode or mri_coreg scores poorly."""
     pet2anat_crop_fallback_threshold: float = -0.05
     """Similarity threshold for triggering uncropped anatomical registration fallback."""
     anatref: str = 'auto'

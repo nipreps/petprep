@@ -53,16 +53,16 @@ def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score
 
 
 def _select_mri_coreg_reference(anatref_strategy, masked_reference, unmasked_reference):
-    """Use the full unmasked anatomical image for FreeSurfer ``nu.mgz`` registration."""
+    """Use the unmasked anatomical image for FreeSurfer ``nu.mgz`` registration."""
     return unmasked_reference if anatref_strategy == 'nu' else masked_reference
 
 
 def _describe_registration_reference(anatref_strategy, registration_method, crop_anat):
     """Describe the extent and masking policy used by a registration backend."""
-    if registration_method in ('freesurfer', 'mri_coreg') and anatref_strategy == 'nu':
-        return 'uncropped', 'nu-unmasked-uncropped'
-
     extent = 'cropped' if crop_anat else 'uncropped'
+    if registration_method in ('freesurfer', 'mri_coreg') and anatref_strategy == 'nu':
+        return extent, f'nu-unmasked-{extent}'
+
     masking = 'fixed-mask' if registration_method == 'ants' else 'pre-masked'
     return extent, f'{anatref_strategy}-{masking}-{extent}'
 
@@ -346,7 +346,7 @@ def init_pet_reg_wf(
                 (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
                 (inputnode, select_fs_reference, [('anatref_strategy', 'anatref_strategy')]),
                 (mask_brain, select_fs_reference, [('out_file', 'masked_reference')]),
-                (convert_anat, select_fs_reference, [('out_file', 'unmasked_reference')]),
+                (anat_ref, select_fs_reference, [(anat_ref_output, 'unmasked_reference')]),
                 (select_fs_reference, fs_coreg, [('reference_file', 'reference_file')]),
                 (fs_coreg, fs_convert, [('out_lta_file', 'in_xfms')]),
                 (inputnode, fs_warp, [('ref_pet_brain', 'input_image')]),
@@ -531,7 +531,7 @@ def init_pet_reg_wf(
             coreg_reference_connections = [
                 (inputnode, coreg_reference, [('anatref_strategy', 'anatref_strategy')]),
                 (mask_brain, coreg_reference, [('out_file', 'masked_reference')]),
-                (convert_anat, coreg_reference, [('out_file', 'unmasked_reference')]),
+                (anat_ref, coreg_reference, [(anat_ref_output, 'unmasked_reference')]),
             ]
         connections = [
             *coreg_reference_connections,

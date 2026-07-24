@@ -1095,8 +1095,27 @@ def init_pet_fit_wf(
     use_crop_fallback = (
         config.workflow.pet2anat_crop
         and config.workflow.pet2anat_crop_fallback
-        and config.workflow.pet2anat_method == 'auto'
+        and config.workflow.pet2anat_method in ('auto', 'mri_coreg')
     )
+    if config.workflow.pet2anat_method == 'auto':
+        cropped_registration_connections = [
+            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
+            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
+            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
+            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
+            ('outputnode.registration_score_ants', 'cropped_ants_score'),
+            ('outputnode.registration_score_fs', 'cropped_fs_score'),
+        ]
+    else:
+        cropped_registration_connections = [
+            ('outputnode.itk_pet_to_t1', 'cropped_transform'),
+            ('outputnode.itk_t1_to_pet', 'cropped_inv_transform'),
+            ('outputnode.registration_score', 'cropped_score'),
+        ]
+    cropped_registration_connections += [
+        ('outputnode.anat_reference', 'cropped_anat_reference'),
+        ('outputnode.reference_policy', 'cropped_reference_policy'),
+    ]
     crop_fallback_output_fields = [
         'best_transform',
         'best_inv_transform',
@@ -1193,16 +1212,7 @@ def init_pet_fit_wf(
                     ])  # fmt:skip
 
                     workflow.connect([
-                        (reg_wf, select_crop_fallback, [
-                            ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
-                            ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
-                            ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
-                            ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
-                            ('outputnode.registration_score_ants', 'cropped_ants_score'),
-                            ('outputnode.registration_score_fs', 'cropped_fs_score'),
-                            ('outputnode.anat_reference', 'cropped_anat_reference'),
-                            ('outputnode.reference_policy', 'cropped_reference_policy'),
-                        ]),
+                        (reg_wf, select_crop_fallback, cropped_registration_connections),
                     ])  # fmt:skip
                     reg_source = select_crop_fallback
                     _retain_crop_fallback_outputs(
@@ -1358,16 +1368,7 @@ def init_pet_fit_wf(
                 ])  # fmt:skip
 
                 workflow.connect([
-                    (pet_reg_wf, select_crop_fallback, [
-                        ('outputnode.itk_pet_to_t1_ants', 'cropped_ants_transform'),
-                        ('outputnode.itk_pet_to_t1_fs', 'cropped_fs_transform'),
-                        ('outputnode.itk_t1_to_pet_ants', 'cropped_ants_inv_transform'),
-                        ('outputnode.itk_t1_to_pet_fs', 'cropped_fs_inv_transform'),
-                        ('outputnode.registration_score_ants', 'cropped_ants_score'),
-                        ('outputnode.registration_score_fs', 'cropped_fs_score'),
-                        ('outputnode.anat_reference', 'cropped_anat_reference'),
-                        ('outputnode.reference_policy', 'cropped_reference_policy'),
-                    ]),
+                    (pet_reg_wf, select_crop_fallback, cropped_registration_connections),
                 ])  # fmt:skip
                 pet_reg_source = select_crop_fallback
                 _retain_crop_fallback_outputs(

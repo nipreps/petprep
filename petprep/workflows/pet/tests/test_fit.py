@@ -835,6 +835,10 @@ def test_mri_coreg_reference_policy():
     assert _select_mri_coreg_reference('nu', 'masked.nii.gz', 'nu.nii.gz') == 'nu.nii.gz'
     assert _select_mri_coreg_reference('t1w', 'masked.nii.gz', 't1w.nii.gz') == 'masked.nii.gz'
     assert _describe_registration_reference('nu', 'freesurfer', True) == (
+        'cropped',
+        'nu-unmasked-cropped',
+    )
+    assert _describe_registration_reference('nu', 'freesurfer', False) == (
         'uncropped',
         'nu-unmasked-uncropped',
     )
@@ -859,6 +863,8 @@ def test_auto_registration_uses_backend_specific_anatomical_references():
     fs_edge = wf._graph.get_edge_data(selector, wf.get_node('mri_coreg'))
     assert ('reference_file', 'reference_file') in fs_edge['connect']
     assert wf.get_node('mri_coreg').inputs.reference_mask is False
+    fs_unmasked_edge = wf._graph.get_edge_data(wf.get_node('robust_fov'), selector)
+    assert ('out_roi', 'unmasked_reference') in fs_unmasked_edge['connect']
 
     ants_registration = wf.get_node('ants_registration')
     ants_ref_edge = wf._graph.get_edge_data(wf.get_node('robust_fov'), ants_registration)
@@ -968,6 +974,39 @@ def test_nu_mri_coreg_without_policy_runs_uncropped_fallback(monkeypatch, tmp_pa
 
     assert calls == [str(tmp_path)]
     assert result.outputs.fallback is True
+    assert result.outputs.reference_policy == 'nu-unmasked-uncropped'
+
+
+def test_cropped_nu_mri_coreg_runs_uncropped_fallback(monkeypatch, tmp_path):
+    """A verified cropped nu registration should fall back to the uncropped reference."""
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def _fake_fallback(self, cwd):
+        calls.append(cwd)
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            None,
+            -0.2,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        anatref_strategy='nu',
+        cropped_transform=_touch(tmp_path / 'cropped_nu_coreg.txt'),
+        cropped_inv_transform=_touch(tmp_path / 'cropped_nu_coreg_inv.txt'),
+        cropped_score=-0.01,
+        cropped_anat_reference='cropped',
+        cropped_reference_policy='nu-unmasked-cropped',
+    ).run()
+
+    assert calls == [str(tmp_path)]
+    assert result.outputs.fallback is True
+    assert result.outputs.anat_reference == 'uncropped'
     assert result.outputs.reference_policy == 'nu-unmasked-uncropped'
 
 
@@ -1463,6 +1502,7 @@ def test_pet_fit_no_crop_reruns_coreg(bids_root: Path, tmp_path: Path):
     assert not any(
         name.startswith('pet_reg_wf') and name.endswith('.robust_fov') for name in node_names
     )
+    assert not any(name.startswith('select_crop_fallback') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
@@ -1553,10 +1593,8 @@ def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path
     assert not any(name.startswith('select_crop_fallback') for name in node_names)
 
 
-def test_pet_fit_omits_uncropped_fallback_selector_for_manual_method(
-    bids_root: Path, tmp_path: Path
-):
-    """Manual PET-to-anatomical registration should keep the requested cropped method."""
+def test_pet_fit_adds_uncropped_fallback_selector_for_mri_coreg(bids_root: Path, tmp_path: Path):
+    """Manual mri_coreg should retry without robustfov after a weak cropped score."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
@@ -1572,17 +1610,24 @@ def test_pet_fit_omits_uncropped_fallback_selector_for_manual_method(
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
 
     node_names = wf.list_node_names()
-    assert 'select_crop_fallback' not in node_names
+    assert 'select_crop_fallback' in node_names
     assert 'pet_reg_wf.robust_fov' in node_names
     assert any(
         name.startswith('pet_reg_wf') and name.endswith('.mri_coreg') for name in node_names
     )
+    edge = wf._graph.get_edge_data(
+        wf.get_node('pet_reg_wf'),
+        wf.get_node('select_crop_fallback'),
+    )
+    assert ('outputnode.itk_pet_to_t1', 'cropped_transform') in edge['connect']
+    assert ('outputnode.itk_t1_to_pet', 'cropped_inv_transform') in edge['connect']
+    assert ('outputnode.registration_score', 'cropped_score') in edge['connect']
 
 
-def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method(
+def test_pet_fit_auto_petrefs_add_uncropped_fallback_selector_for_mri_coreg(
     bids_root: Path, tmp_path: Path
 ):
-    """Manual PET-to-anatomical registration should not add fallback for auto PET refs."""
+    """Every automatic PET reference should get the manual mri_coreg crop fallback."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
@@ -1598,7 +1643,7 @@ def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=2)
 
     node_names = wf.list_node_names()
-    assert not any(name.startswith('select_crop_fallback') for name in node_names)
+    assert any(name.startswith('select_crop_fallback') for name in node_names)
     select_anat_ref = wf.get_node('select_anat_ref')
     petref_candidates = wf.get_node('petref_candidates')
     anatref_pet_mask = wf.get_node('anatref_pet_mask')
@@ -1609,6 +1654,9 @@ def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method
         pet_reg_wf = wf.get_node(f'pet_reg_wf_{label}')
         edge = wf._graph.get_edge_data(select_anat_ref, pet_reg_wf)
         assert ('anat_preproc', 'inputnode.anat_preproc') in edge['connect']
+        fallback = wf.get_node(f'select_crop_fallback_{label}')
+        edge = wf._graph.get_edge_data(pet_reg_wf, fallback)
+        assert ('outputnode.itk_pet_to_t1', 'cropped_transform') in edge['connect']
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):

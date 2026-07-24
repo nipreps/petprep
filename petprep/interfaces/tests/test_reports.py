@@ -157,6 +157,23 @@ def test_functional_summary_auto_select_reports_similarity_metric():
     )
 
 
+def test_functional_summary_formats_nu_reference_policy():
+    from ..reports import PETSummary
+
+    summary = PETSummary(
+        registration='mri_coreg',
+        registration_dof=6,
+        orientation='RAS',
+        anatref_strategy='nu',
+        reference_policy='nu-unmasked-cropped',
+        petref_strategy='template',
+        metadata={},
+    )
+
+    segment = summary._generate_segment()
+    assert 'Registration reference policy: FreeSurfer nu.mgz (unmasked, cropped)' in segment
+
+
 def test_atlas_rois_report(tmp_path):
     import nibabel as nb
     import numpy as np
