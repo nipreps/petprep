@@ -723,6 +723,16 @@ def test_write_identity_transform(tmp_path: Path, monkeypatch):
     assert np.allclose(nt.linear.load(out_inv, fmt='itk').matrix, np.eye(4))
 
 
+def test_write_identity_transform_rejects_missing_reference(tmp_path: Path):
+    """Header-based alignment should reject a missing reference image."""
+    reference_file = tmp_path / 'missing_petref.nii.gz'
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        _write_identity_transform(str(reference_file))
+
+    assert exc_info.value.args == (str(reference_file),)
+
+
 def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
     """Supplying only one of petref or HMC transforms should raise an error."""
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
