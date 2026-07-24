@@ -90,6 +90,7 @@ def test_functional_summary_with_metadata(registration):
         anatref_strategy='t1w',
         requested_anatref='auto',
         volume_ratio=1.6,
+        reference_policy='t1w-pre-masked-cropped',
         petref_strategy='template',
         metadata={
             'TracerName': 'DASB',
@@ -104,6 +105,7 @@ def test_functional_summary_with_metadata(registration):
     segment = summary._generate_segment()
     assert registration in segment
     assert 'Reference image: Motion correction template' in segment
+    assert 'Registration reference policy: t1w-pre-masked-cropped' in segment
     assert (
         'Anatomical reference: Preprocessed T1w image '
         "(PET/T1w mask volume ratio: 1.60) (requested 'auto')" in segment

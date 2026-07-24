@@ -19,11 +19,14 @@ class PETCoregistrationFallbackInputSpec(BaseInterfaceInputSpec):
     ref_pet_brain = File(exists=True, mandatory=True)
     anat_preproc = File(exists=True, mandatory=True)
     anat_mask = File(exists=True, mandatory=True)
+    anatref_strategy = traits.Enum('t1w', 'nu', value='t1w', usedefault=True)
 
     cropped_transform = File(exists=True)
     cropped_inv_transform = File(exists=True)
     cropped_winner = traits.Either(None, traits.Str(), usedefault=True)
     cropped_score = traits.Either(None, traits.Float(), usedefault=True)
+    cropped_anat_reference = traits.Enum('cropped', 'uncropped')
+    cropped_reference_policy = traits.Str()
 
     cropped_ants_transform = File(exists=True)
     cropped_fs_transform = File(exists=True)
@@ -47,6 +50,7 @@ class PETCoregistrationFallbackOutputSpec(TraitedSpec):
     best_score = traits.Either(None, traits.Float())
     fallback = traits.Bool()
     anat_reference = traits.Enum('cropped', 'uncropped')
+    reference_policy = traits.Str()
     registration_winner = traits.Either(None, traits.Str())
     registration_score = traits.Either(None, traits.Float())
     fallback_scores = File(exists=True)
@@ -63,6 +67,7 @@ class PETCoregistrationFallback(SimpleInterface):
         self._score_summary = {
             'threshold': self.inputs.fallback_threshold,
             'pet2anat_method': self.inputs.pet2anat_method,
+            'anatref_strategy': self.inputs.anatref_strategy,
             'cropped': {},
             'uncropped': {},
         }
@@ -87,16 +92,49 @@ class PETCoregistrationFallback(SimpleInterface):
             }
             should_fallback = not self._score_passes_threshold(self.inputs.cropped_score)
 
+        cropped_anat_reference, cropped_reference_policy = self._reference_metadata(
+            cropped[2],
+            crop_anat=True,
+        )
+        if isdefined(self.inputs.cropped_anat_reference):
+            cropped_anat_reference = self.inputs.cropped_anat_reference
+        if isdefined(self.inputs.cropped_reference_policy):
+            cropped_reference_policy = self.inputs.cropped_reference_policy
+
+        # The strict PETSurfer-style nu.mgz route is already uncropped, so rerunning
+        # the same manual mri_coreg workflow cannot provide a different fallback.
+        if self.inputs.anatref_strategy == 'nu' and self.inputs.pet2anat_method == 'mri_coreg':
+            should_fallback = False
+
         if not should_fallback:
-            self._set_results(*cropped, fallback=False, anat_reference='cropped')
+            self._set_results(
+                *cropped,
+                fallback=False,
+                anat_reference=cropped_anat_reference,
+                reference_policy=cropped_reference_policy,
+            )
             return runtime
 
         self._require_defined('ref_pet_brain', 'anat_preproc', 'anat_mask')
         uncropped = self._run_uncropped_fallback(runtime.cwd)
+        uncropped_anat_reference, uncropped_reference_policy = self._reference_metadata(
+            uncropped[2],
+            crop_anat=False,
+        )
         if uncropped[3] is not None and (cropped[3] is None or uncropped[3] < cropped[3]):
-            self._set_results(*uncropped, fallback=True, anat_reference='uncropped')
+            self._set_results(
+                *uncropped,
+                fallback=True,
+                anat_reference=uncropped_anat_reference,
+                reference_policy=uncropped_reference_policy,
+            )
         else:
-            self._set_results(*cropped, fallback=False, anat_reference='cropped')
+            self._set_results(
+                *cropped,
+                fallback=False,
+                anat_reference=cropped_anat_reference,
+                reference_policy=cropped_reference_policy,
+            )
 
         return runtime
 
@@ -154,6 +192,7 @@ class PETCoregistrationFallback(SimpleInterface):
         fallback_wf.inputs.inputnode.ref_pet_brain = self.inputs.ref_pet_brain
         fallback_wf.inputs.inputnode.anat_preproc = self.inputs.anat_preproc
         fallback_wf.inputs.inputnode.anat_mask = self.inputs.anat_mask
+        fallback_wf.inputs.inputnode.anatref_strategy = self.inputs.anatref_strategy
 
         fallback_wf.run(plugin='Linear')
         fallback_dir = Path(fallback_wf.base_dir) / fallback_wf.name
@@ -203,6 +242,20 @@ class PETCoregistrationFallback(SimpleInterface):
         }
         return xfm_outputs.out_xfm, inv_xfm, None, score_outputs.similarity
 
+    def _reference_metadata(self, winner, *, crop_anat):
+        from petprep.workflows.pet.registration import _describe_registration_reference
+
+        registration_method = (
+            str(winner)
+            if winner is not None and isdefined(winner)
+            else self.inputs.pet2anat_method
+        )
+        return _describe_registration_reference(
+            self.inputs.anatref_strategy,
+            registration_method,
+            crop_anat,
+        )
+
     def _score_passes_threshold(self, score):
         """Return whether a rounded score is strictly better than the threshold."""
         score = self._round_score(score)
@@ -227,7 +280,17 @@ class PETCoregistrationFallback(SimpleInterface):
         (~nt.linear.load(xfm, fmt='itk')).to_filename(inv_xfm, fmt='itk')
         return str(inv_xfm)
 
-    def _set_results(self, xfm, inv_xfm, winner, score, *, fallback, anat_reference):
+    def _set_results(
+        self,
+        xfm,
+        inv_xfm,
+        winner,
+        score,
+        *,
+        fallback,
+        anat_reference,
+        reference_policy,
+    ):
         self._require_selected_outputs(xfm, inv_xfm, score)
         score = self._round_score(score)
         winner = str(winner) if winner is not None and isdefined(winner) else None
@@ -240,6 +303,7 @@ class PETCoregistrationFallback(SimpleInterface):
         self._results['best_score'] = score
         self._results['fallback'] = fallback
         self._results['anat_reference'] = anat_reference
+        self._results['reference_policy'] = reference_policy
         self._results['registration_winner'] = winner
         self._results['registration_score'] = score
         self._results['fallback_scores'] = self._write_score_summary(
@@ -247,6 +311,7 @@ class PETCoregistrationFallback(SimpleInterface):
             score=score,
             fallback=fallback,
             anat_reference=anat_reference,
+            reference_policy=reference_policy,
         )
 
     def _copy_selected_transforms(self, xfm, inv_xfm):
@@ -265,7 +330,15 @@ class PETCoregistrationFallback(SimpleInterface):
             _copy_transform(inv_xfm, 'best_inv_transform'),
         )
 
-    def _write_score_summary(self, *, winner, score, fallback, anat_reference):
+    def _write_score_summary(
+        self,
+        *,
+        winner,
+        score,
+        fallback,
+        anat_reference,
+        reference_policy,
+    ):
         import json
 
         summary_file = Path(self._runtime_cwd) / 'fallback_scores.json'
@@ -279,6 +352,7 @@ class PETCoregistrationFallback(SimpleInterface):
             'score': score,
             'fallback': fallback,
             'anat_reference': anat_reference,
+            'reference_policy': reference_policy,
         }
         summary_file.write_text(json.dumps(self._score_summary, indent=2, sort_keys=True))
         return str(summary_file)

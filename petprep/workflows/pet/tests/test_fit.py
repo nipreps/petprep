@@ -30,7 +30,11 @@ from ..fit import (
     init_pet_native_wf,
 )
 from ..outputs import init_refmask_report_wf
-from ..registration import init_pet_reg_wf
+from ..registration import (
+    _describe_registration_reference,
+    _select_mri_coreg_reference,
+    init_pet_reg_wf,
+)
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -792,7 +796,7 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 
-def test_pet_reg_no_crop_removes_robust_fov():
+def test_pet_reg_no_crop_removes_robust_fov(tmp_path):
     """Disabling anatomical cropping should bypass the robustfov node."""
 
     wf = init_pet_reg_wf(
@@ -807,6 +811,60 @@ def test_pet_reg_no_crop_removes_robust_fov():
     assert 'robust_fov' not in node_names
     assert 'convert_anat' in node_names
     assert 'crop_anat_mask' in node_names
+    edge = wf._graph.get_edge_data(wf.get_node('inputnode'), wf.get_node('convert_anat'))
+    assert ('anat_preproc', 'in_file') in edge['connect']
+    assert ('anat_mask', 'reslice_like') in edge['connect']
+    assert wf.get_node('convert_anat').inputs.out_datatype == 'float'
+    selector = wf.get_node('select_mri_coreg_reference')
+    selector_edge = wf._graph.get_edge_data(wf.get_node('convert_anat'), selector)
+    assert ('out_file', 'unmasked_reference') in selector_edge['connect']
+    selector_edge = wf._graph.get_edge_data(wf.get_node('mask_brain'), selector)
+    assert ('out_file', 'masked_reference') in selector_edge['connect']
+    coreg_edge = wf._graph.get_edge_data(selector, wf.get_node('mri_coreg'))
+    assert ('reference_file', 'reference_file') in coreg_edge['connect']
+    coreg = wf.get_node('mri_coreg')
+    assert coreg.inputs.reference_mask is False
+    coreg.inputs.source_file = _touch(tmp_path / 'petref.nii.gz')
+    coreg.inputs.reference_file = _touch(tmp_path / 'anat.nii.gz')
+    assert '--no-ref-mask' in coreg.interface.cmdline
+
+
+def test_mri_coreg_reference_policy():
+    """Only nu.mgz should bypass anatomical pre-masking and cropping."""
+
+    assert _select_mri_coreg_reference('nu', 'masked.nii.gz', 'nu.nii.gz') == 'nu.nii.gz'
+    assert _select_mri_coreg_reference('t1w', 'masked.nii.gz', 't1w.nii.gz') == 'masked.nii.gz'
+    assert _describe_registration_reference('nu', 'freesurfer', True) == (
+        'uncropped',
+        'nu-unmasked-uncropped',
+    )
+    assert _describe_registration_reference('nu', 'ants', True) == (
+        'cropped',
+        'nu-fixed-mask-cropped',
+    )
+
+
+def test_auto_registration_uses_backend_specific_anatomical_references():
+    """ANTs should keep its fixed mask while mri_coreg uses the conditional selector."""
+
+    wf = init_pet_reg_wf(
+        pet2anat_dof=6,
+        mem_gb=1,
+        omp_nthreads=1,
+        pet2anat_method='auto',
+        crop_anat=True,
+    )
+
+    selector = wf.get_node('select_mri_coreg_reference')
+    fs_edge = wf._graph.get_edge_data(selector, wf.get_node('mri_coreg'))
+    assert ('reference_file', 'reference_file') in fs_edge['connect']
+    assert wf.get_node('mri_coreg').inputs.reference_mask is False
+
+    ants_registration = wf.get_node('ants_registration')
+    ants_ref_edge = wf._graph.get_edge_data(wf.get_node('robust_fov'), ants_registration)
+    assert ('out_roi', 'fixed_image') in ants_ref_edge['connect']
+    ants_mask_edge = wf._graph.get_edge_data(wf.get_node('crop_anat_mask'), ants_registration)
+    assert ('out_file', 'fixed_image_masks') in ants_mask_edge['connect']
 
 
 def _touch(path):
@@ -819,6 +877,7 @@ def _fallback_interface(tmp_path, **inputs):
         'ref_pet_brain': _touch(tmp_path / 'petref.nii.gz'),
         'anat_preproc': _touch(tmp_path / 'anat.nii.gz'),
         'anat_mask': _touch(tmp_path / 'mask.nii.gz'),
+        'anatref_strategy': 't1w',
         'fallback_threshold': -0.05,
         'pet2anat_dof': 6,
         'pet2anat_method': 'mri_coreg',
@@ -855,6 +914,31 @@ def test_pet_coreg_fallback_keeps_good_cropped_score(monkeypatch, tmp_path):
     assert result.outputs.best_score == -0.15
     assert result.outputs.fallback is False
     assert result.outputs.anat_reference == 'cropped'
+
+
+def test_nu_mri_coreg_skips_duplicate_uncropped_fallback(monkeypatch, tmp_path):
+    """The initial nu.mgz mri_coreg run is already unmasked and uncropped."""
+
+    monkeypatch.chdir(tmp_path)
+
+    def _unexpected_fallback(*args, **kwargs):
+        raise AssertionError('nu.mgz mri_coreg should already use the uncropped reference.')
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _unexpected_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        anatref_strategy='nu',
+        cropped_transform=_touch(tmp_path / 'nu_coreg.txt'),
+        cropped_inv_transform=_touch(tmp_path / 'nu_coreg_inv.txt'),
+        cropped_score=-0.01,
+        cropped_anat_reference='uncropped',
+        cropped_reference_policy='nu-unmasked-uncropped',
+    ).run()
+
+    assert result.outputs.fallback is False
+    assert result.outputs.anat_reference == 'uncropped'
+    assert result.outputs.reference_policy == 'nu-unmasked-uncropped'
 
 
 def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
@@ -940,6 +1024,7 @@ def test_pet_coreg_fallback_rounds_scores_before_threshold_check(monkeypatch, tm
     assert scores['selected'] == {
         'anat_reference': 'uncropped',
         'fallback': True,
+        'reference_policy': 't1w-fixed-mask-uncropped',
         'score': -0.12,
         'winner': 'ants',
     }
@@ -960,6 +1045,7 @@ class _FakeFallbackWorkflow:
             self.inputs.inputnode.ref_pet_brain,
             self.inputs.inputnode.anat_preproc,
             self.inputs.inputnode.anat_mask,
+            self.inputs.inputnode.anatref_strategy,
         )
 
 
@@ -1028,6 +1114,7 @@ def test_pet_coreg_fallback_interface_runs_uncropped_workflow(monkeypatch, tmp_p
         interface.inputs.ref_pet_brain,
         interface.inputs.anat_preproc,
         interface.inputs.anat_mask,
+        't1w',
     )
     assert calls['kwargs'] == {
         'pet2anat_dof': 6,
@@ -1162,6 +1249,7 @@ def test_pet_coreg_fallback_populates_freesurfer_outputs_without_inverse(monkeyp
     assert scores['selected'] == {
         'anat_reference': 'uncropped',
         'fallback': True,
+        'reference_policy': 't1w-pre-masked-uncropped',
         'score': -0.2,
         'winner': 'freesurfer',
     }
@@ -1352,11 +1440,11 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
     """Default cropped registration should add the uncropped fallback selector."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
-    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 2)), np.eye(4))
     for path in pet_series:
         img.to_filename(path)
         Path(path).with_suffix('').with_suffix('.json').write_text(
-            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+            '{"FrameTimesStart": [0, 1], "FrameDuration": [1, 1]}'
         )
 
     with mock_config(bids_dir=bids_root):
@@ -1368,6 +1456,29 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
     )
     assert any(name.startswith('select_crop_fallback') for name in node_names)
     assert not any(name.startswith('pet_reg_wf_no_crop') for name in node_names)
+
+    select_anat_ref = wf.get_node('select_anat_ref')
+    anat_consumers = [
+        node
+        for node in wf._graph.nodes
+        if node.name.startswith(('pet_reg_wf', 'select_crop_fallback'))
+        and not node.name.endswith('_provenance')
+    ]
+    assert anat_consumers
+    for consumer in anat_consumers:
+        edge = wf._graph.get_edge_data(select_anat_ref, consumer)
+        destination = (
+            'inputnode.anat_preproc' if consumer.name.startswith('pet_reg_wf') else 'anat_preproc'
+        )
+        assert ('anat_preproc', destination) in edge['connect']
+        strategy_destination = (
+            'inputnode.anatref_strategy'
+            if consumer.name.startswith('pet_reg_wf')
+            else 'anatref_strategy'
+        )
+        assert ('anatref_used', strategy_destination) in edge['connect']
+        input_edge = wf._graph.get_edge_data(wf.get_node('inputnode'), consumer)
+        assert ('t1w_preproc', destination) not in input_edge['connect']
 
     provenance_nodes = [
         name
@@ -1387,6 +1498,7 @@ def test_pet_fit_adds_uncropped_fallback_selector_by_default(bids_root: Path, tm
         assert ('registration_winner', 'registration_winner') in edge['connect']
         assert ('registration_score', 'registration_score') in edge['connect']
         assert ('fallback_scores', 'fallback_scores') in edge['connect']
+        assert ('reference_policy', 'reference_policy') in edge['connect']
 
 
 def test_pet_fit_omits_uncropped_fallback_selector_when_disabled(bids_root: Path, tmp_path: Path):
@@ -1457,8 +1569,16 @@ def test_pet_fit_auto_petrefs_omit_uncropped_fallback_selector_for_manual_method
 
     node_names = wf.list_node_names()
     assert not any(name.startswith('select_crop_fallback') for name in node_names)
+    select_anat_ref = wf.get_node('select_anat_ref')
+    petref_candidates = wf.get_node('petref_candidates')
+    anatref_pet_mask = wf.get_node('anatref_pet_mask')
+    edge = wf._graph.get_edge_data(petref_candidates, anatref_pet_mask)
+    assert ('template', 'in_file') in edge['connect']
     for label in ('template', 'twa', 'sum', 'first5min'):
         assert f'pet_reg_wf_{label}.mri_coreg' in node_names
+        pet_reg_wf = wf.get_node(f'pet_reg_wf_{label}')
+        edge = wf._graph.get_edge_data(select_anat_ref, pet_reg_wf)
+        assert ('anat_preproc', 'inputnode.anat_preproc') in edge['connect']
 
 
 def test_pet_fit_hmc_off_disables_stage1(bids_root: Path, tmp_path: Path, monkeypatch):

@@ -197,6 +197,7 @@ PET_TEMPLATE = """\
 \t\t\t<li>Original orientation: {ornt}</li>
 \t\t\t<li>Registration: {registration}</li>
 \t\t\t<li>Anatomical reference: {anat_reference}</li>
+\t\t\t<li>Registration reference policy: {reference_policy}</li>
 \t\t\t<li>Reference image: {reference}</li>
 \t\t\t<li>Time zero: {time_zero}</li>
 \t\t\t<li>Radiotracer: {radiotracer}</li>
@@ -347,6 +348,11 @@ class PETSummaryInputSpec(TraitedSpec):
         usedefault=True,
         desc='Similarity metric from PET-to-T1w registration',
     )
+    reference_policy = traits.Str(
+        'not recorded',
+        usedefault=True,
+        desc='Anatomical image, masking, and cropping policy used for registration',
+    )
     registration_dof = traits.Enum(
         6, 9, 12, desc='Registration degrees of freedom', mandatory=True
     )
@@ -481,6 +487,7 @@ class PETSummary(SummaryInterface):
         return PET_TEMPLATE.format(
             registration=reg,
             anat_reference=anat_reference,
+            reference_policy=self.inputs.reference_policy,
             reference=petref_strategy,
             ornt=self.inputs.orientation,
             # Use the metadata dictionary to fill in the details

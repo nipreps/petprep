@@ -52,6 +52,21 @@ def _select_best_transform(xfm_ants, xfm_fs, inv_ants, inv_fs, score_ants, score
     return xfm_fs, inv_fs, 'freesurfer', score_fs
 
 
+def _select_mri_coreg_reference(anatref_strategy, masked_reference, unmasked_reference):
+    """Use the full unmasked anatomical image for FreeSurfer ``nu.mgz`` registration."""
+    return unmasked_reference if anatref_strategy == 'nu' else masked_reference
+
+
+def _describe_registration_reference(anatref_strategy, registration_method, crop_anat):
+    """Describe the extent and masking policy used by a registration backend."""
+    if registration_method in ('freesurfer', 'mri_coreg') and anatref_strategy == 'nu':
+        return 'uncropped', 'nu-unmasked-uncropped'
+
+    extent = 'cropped' if crop_anat else 'uncropped'
+    masking = 'fixed-mask' if registration_method == 'ants' else 'pre-masked'
+    return extent, f'{anatref_strategy}-{masking}-{extent}'
+
+
 def init_pet_reg_wf(
     *,
     pet2anat_dof: AffineDOF,
@@ -108,6 +123,8 @@ def init_pet_reg_wf(
         Preprocessed anatomical image
     anat_mask
         Brainmask for anatomical image
+    anatref_strategy
+        Anatomical reference strategy (``t1w`` or ``nu``)
 
     Outputs
     -------
@@ -125,6 +142,8 @@ def init_pet_reg_wf(
     anat_reference
         Anatomical reference used for registration (``cropped`` or
         ``uncropped``).
+    reference_policy
+        Anatomical reference, masking, and cropping policy used for registration.
 
     """
     from nipype.interfaces.ants import MeasureImageSimilarity, Registration
@@ -137,9 +156,12 @@ def init_pet_reg_wf(
 
     workflow = Workflow(name=name)
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['ref_pet_brain', 'anat_preproc', 'anat_mask']),
+        niu.IdentityInterface(
+            fields=['ref_pet_brain', 'anat_preproc', 'anat_mask', 'anatref_strategy']
+        ),
         name='inputnode',
     )
+    inputnode.inputs.anatref_strategy = 't1w'
 
     outputnode = pe.Node(
         niu.IdentityInterface(
@@ -150,6 +172,7 @@ def init_pet_reg_wf(
                 'registration_score',
                 'fallback',
                 'anat_reference',
+                'reference_policy',
                 'itk_pet_to_t1_ants',
                 'itk_t1_to_pet_ants',
                 'registration_score_ants',
@@ -163,15 +186,46 @@ def init_pet_reg_wf(
     outputnode.inputs.registration_winner = None
     outputnode.inputs.registration_score = None
     outputnode.inputs.fallback = False
-    outputnode.inputs.anat_reference = 'cropped' if crop_anat else 'uncropped'
 
-    convert_anat = pe.Node(MRIConvert(out_type='niigz'), name='convert_anat')
+    describe_reference = pe.Node(
+        niu.Function(
+            function=_describe_registration_reference,
+            input_names=['anatref_strategy', 'registration_method', 'crop_anat'],
+            output_names=['anat_reference', 'reference_policy'],
+        ),
+        name='describe_reference',
+    )
+    describe_reference.inputs.crop_anat = crop_anat
+    workflow.connect(
+        [
+            (inputnode, describe_reference, [('anatref_strategy', 'anatref_strategy')]),
+            (describe_reference, outputnode, [
+                ('anat_reference', 'anat_reference'),
+                ('reference_policy', 'reference_policy'),
+            ]),
+        ]
+    )  # fmt:skip
+
+    # FreeSurfer volumes can use a different voxel orientation than the preprocessed
+    # NIfTI anatomy. Reslice the selected reference to the T1w mask grid while keeping
+    # anatomical intensities in floating point.
+    convert_anat = pe.Node(
+        MRIConvert(out_type='niigz', out_datatype='float'),
+        name='convert_anat',
+    )
     mask_brain = pe.Node(ApplyMask(), name='mask_brain')
     crop_anat_mask = pe.Node(MRIConvert(out_type='niigz'), name='crop_anat_mask')
     anat_ref = convert_anat
     anat_ref_output = 'out_file'
     anat_preproc_connections = [
-        (inputnode, convert_anat, [('anat_preproc', 'in_file')]),
+        (
+            inputnode,
+            convert_anat,
+            [
+                ('anat_preproc', 'in_file'),
+                ('anat_mask', 'reslice_like'),
+            ],
+        ),
         (inputnode, crop_anat_mask, [('anat_mask', 'in_file')]),
     ]
     if crop_anat:
@@ -213,10 +267,24 @@ def init_pet_reg_wf(
             mem_gb=mem_gb * 2,
         )
         fs_coreg = pe.Node(
-            MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
+            MRICoreg(
+                dof=pet2anat_dof,
+                sep=[4],
+                ftol=0.0001,
+                linmintol=0.01,
+                reference_mask=False,
+            ),
             name='mri_coreg',
             n_procs=omp_nthreads,
             mem_gb=5,
+        )
+        select_fs_reference = pe.Node(
+            niu.Function(
+                function=_select_mri_coreg_reference,
+                input_names=['anatref_strategy', 'masked_reference', 'unmasked_reference'],
+                output_names=['reference_file'],
+            ),
+            name='select_mri_coreg_reference',
         )
 
         ants_convert = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm_ants')
@@ -276,7 +344,10 @@ def init_pet_reg_wf(
                 (crop_anat_mask, ants_score, [('out_file', 'moving_image_mask')]),
                 # FreeSurfer branch
                 (inputnode, fs_coreg, [('ref_pet_brain', 'source_file')]),
-                (mask_brain, fs_coreg, [('out_file', 'reference_file')]),
+                (inputnode, select_fs_reference, [('anatref_strategy', 'anatref_strategy')]),
+                (mask_brain, select_fs_reference, [('out_file', 'masked_reference')]),
+                (convert_anat, select_fs_reference, [('out_file', 'unmasked_reference')]),
+                (select_fs_reference, fs_coreg, [('reference_file', 'reference_file')]),
                 (fs_coreg, fs_convert, [('out_lta_file', 'in_xfms')]),
                 (inputnode, fs_warp, [('ref_pet_brain', 'input_image')]),
                 (mask_brain, fs_warp, [('out_file', 'reference_image')]),
@@ -306,6 +377,7 @@ def init_pet_reg_wf(
                     ('out_inv', 'itk_t1_to_pet_fs'),
                 ]),
                 (fs_score, outputnode, [('similarity', 'registration_score_fs')]),
+                (select_best, describe_reference, [('winner', 'registration_method')]),
             ]
         )  # fmt:skip
 
@@ -365,10 +437,17 @@ def init_pet_reg_wf(
         coreg_moving = 'source_file'
         coreg_output = 'out_reg_file'
         coreg_output_is_list = False
+        describe_reference.inputs.registration_method = 'robust'
 
     else:  # mri_coreg (default)
         coreg = pe.Node(
-            MRICoreg(dof=pet2anat_dof, sep=[4], ftol=0.0001, linmintol=0.01),
+            MRICoreg(
+                dof=pet2anat_dof,
+                sep=[4],
+                ftol=0.0001,
+                linmintol=0.01,
+                reference_mask=False,
+            ),
             name='mri_coreg',
             n_procs=omp_nthreads,
             mem_gb=5,
@@ -377,6 +456,10 @@ def init_pet_reg_wf(
         coreg_moving = 'source_file'
         coreg_output = 'out_lta_file'
         coreg_output_is_list = False
+        describe_reference.inputs.registration_method = 'mri_coreg'
+
+    if pet2anat_method == 'ants':
+        describe_reference.inputs.registration_method = 'ants'
 
     convert_xfm = pe.Node(ConcatenateXFMs(inverse=True), name='convert_xfm')
     warp_for_score = pe.Node(ApplyTransforms(float=True), name='warp_for_score')
@@ -428,11 +511,34 @@ def init_pet_reg_wf(
         ]
     else:
         # mri_coreg and mri_robust_register output single transform file
+        coreg_reference = mask_brain
+        coreg_reference_output = 'out_file'
+        coreg_reference_connections = []
+        if pet2anat_method == 'mri_coreg':
+            coreg_reference = pe.Node(
+                niu.Function(
+                    function=_select_mri_coreg_reference,
+                    input_names=[
+                        'anatref_strategy',
+                        'masked_reference',
+                        'unmasked_reference',
+                    ],
+                    output_names=['reference_file'],
+                ),
+                name='select_mri_coreg_reference',
+            )
+            coreg_reference_output = 'reference_file'
+            coreg_reference_connections = [
+                (inputnode, coreg_reference, [('anatref_strategy', 'anatref_strategy')]),
+                (mask_brain, coreg_reference, [('out_file', 'masked_reference')]),
+                (convert_anat, coreg_reference, [('out_file', 'unmasked_reference')]),
+            ]
         connections = [
+            *coreg_reference_connections,
             (anat_ref, mask_brain, [(anat_ref_output, 'in_file')]),
             (crop_anat_mask, mask_brain, [('out_file', 'in_mask')]),
             (inputnode, coreg, [('ref_pet_brain', coreg_moving)]),
-            (mask_brain, coreg, [('out_file', coreg_target)]),
+            (coreg_reference, coreg, [(coreg_reference_output, coreg_target)]),
             (coreg, convert_xfm, [(coreg_output, 'in_xfms')]),
             (
                 convert_xfm,
