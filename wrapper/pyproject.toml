@@ -101,6 +101,7 @@ inline-quotes = "single"
 
 [tool.ruff.lint.extend-per-file-ignores]
 "*/test_*.py" = ["S101"]
+"src/petprep_docker/__main__.py" = ["UP032"]  # Wrapper supports Python 2.7.
 "petprep/utils/debug.py" = ["A002", "T100"]
 "docs/conf.py" = ["A001"]
 
