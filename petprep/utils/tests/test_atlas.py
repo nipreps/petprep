@@ -78,6 +78,6 @@ def test_get_atlas_files_missing_entries(monkeypatch):
 
 
 def test_get_atlas_files_unknown_atlas(monkeypatch):
-    monkeypatch.setattr(atlas, 'load_atlas_config', lambda: {})
+    monkeypatch.setattr(atlas, 'load_atlas_config', dict)
     with pytest.raises(ValueError, match='is not defined'):
         atlas.get_atlas_files('Missing')
