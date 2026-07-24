@@ -101,9 +101,17 @@ class PETCoregistrationFallback(SimpleInterface):
         if isdefined(self.inputs.cropped_reference_policy):
             cropped_reference_policy = self.inputs.cropped_reference_policy
 
-        # The strict PETSurfer-style nu.mgz route is already uncropped, so rerunning
-        # the same manual mri_coreg workflow cannot provide a different fallback.
-        if self.inputs.anatref_strategy == 'nu' and self.inputs.pet2anat_method == 'mri_coreg':
+        # Only suppress a duplicate fallback when the incoming result explicitly
+        # records that it already used the strict unmasked, uncropped nu.mgz route.
+        already_unmasked_uncropped_nu = (
+            self.inputs.anatref_strategy == 'nu'
+            and self.inputs.pet2anat_method == 'mri_coreg'
+            and isdefined(self.inputs.cropped_anat_reference)
+            and self.inputs.cropped_anat_reference == 'uncropped'
+            and isdefined(self.inputs.cropped_reference_policy)
+            and self.inputs.cropped_reference_policy == 'nu-unmasked-uncropped'
+        )
+        if already_unmasked_uncropped_nu:
             should_fallback = False
 
         if not should_fallback:

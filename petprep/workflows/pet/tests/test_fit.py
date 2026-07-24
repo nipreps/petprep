@@ -941,6 +941,36 @@ def test_nu_mri_coreg_skips_duplicate_uncropped_fallback(monkeypatch, tmp_path):
     assert result.outputs.reference_policy == 'nu-unmasked-uncropped'
 
 
+def test_nu_mri_coreg_without_policy_runs_uncropped_fallback(monkeypatch, tmp_path):
+    """A nu label alone must not suppress fallback for an unverified registration."""
+
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def _fake_fallback(self, cwd):
+        calls.append(cwd)
+        return (
+            _touch(tmp_path / 'uncropped.txt'),
+            _touch(tmp_path / 'uncropped_inv.txt'),
+            None,
+            -0.2,
+        )
+
+    monkeypatch.setattr(PETCoregistrationFallback, '_run_uncropped_fallback', _fake_fallback)
+
+    result = _fallback_interface(
+        tmp_path,
+        anatref_strategy='nu',
+        cropped_transform=_touch(tmp_path / 'unverified_nu_coreg.txt'),
+        cropped_inv_transform=_touch(tmp_path / 'unverified_nu_coreg_inv.txt'),
+        cropped_score=-0.01,
+    ).run()
+
+    assert calls == [str(tmp_path)]
+    assert result.outputs.fallback is True
+    assert result.outputs.reference_policy == 'nu-unmasked-uncropped'
+
+
 def test_pet_coreg_fallback_runs_when_cropped_score_is_weak(monkeypatch, tmp_path):
     """Weak cropped registration should run uncropped fallback and keep better score."""
 

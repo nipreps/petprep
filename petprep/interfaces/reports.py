@@ -196,8 +196,7 @@ PET_TEMPLATE = """\
 \t\t<ul class="elem-desc">
 \t\t\t<li>Original orientation: {ornt}</li>
 \t\t\t<li>Registration: {registration}</li>
-\t\t\t<li>Anatomical reference: {anat_reference}</li>
-\t\t\t<li>Registration reference policy: {reference_policy}</li>
+\t\t\t<li>Anatomical reference: {anat_reference}</li>{reference_policy}
 \t\t\t<li>Reference image: {reference}</li>
 \t\t\t<li>Time zero: {time_zero}</li>
 \t\t\t<li>Radiotracer: {radiotracer}</li>
@@ -209,6 +208,18 @@ PET_TEMPLATE = """\
 \t\t</ul>
 \t\t</details>
 """
+
+REFERENCE_POLICY_DESCRIPTIONS = {
+    't1w-pre-masked-cropped': 'Preprocessed T1w image (brain-masked, cropped)',
+    't1w-pre-masked-uncropped': 'Preprocessed T1w image (brain-masked, uncropped)',
+    't1w-fixed-mask-cropped': 'Preprocessed T1w image (separate fixed-image mask, cropped)',
+    't1w-fixed-mask-uncropped': 'Preprocessed T1w image (separate fixed-image mask, uncropped)',
+    'nu-unmasked-uncropped': 'FreeSurfer nu.mgz (unmasked, uncropped)',
+    'nu-pre-masked-cropped': 'FreeSurfer nu.mgz (brain-masked, cropped)',
+    'nu-pre-masked-uncropped': 'FreeSurfer nu.mgz (brain-masked, uncropped)',
+    'nu-fixed-mask-cropped': 'FreeSurfer nu.mgz (separate fixed-image mask, cropped)',
+    'nu-fixed-mask-uncropped': 'FreeSurfer nu.mgz (separate fixed-image mask, uncropped)',
+}
 
 ABOUT_TEMPLATE = """\t<ul>
 \t\t<li>PETPrep version: {version}</li>
@@ -348,8 +359,9 @@ class PETSummaryInputSpec(TraitedSpec):
         usedefault=True,
         desc='Similarity metric from PET-to-T1w registration',
     )
-    reference_policy = traits.Str(
-        'not recorded',
+    reference_policy = traits.Either(
+        None,
+        traits.Str(),
         usedefault=True,
         desc='Anatomical image, masking, and cropping policy used for registration',
     )
@@ -436,6 +448,17 @@ class PETSummary(SummaryInterface):
         if requested_anat and requested_anat != self.inputs.anatref_strategy:
             anat_reference += f" (requested '{requested_anat}')"
 
+        reference_policy = getattr(self.inputs, 'reference_policy', None)
+        reference_policy_html = ''
+        if reference_policy is not None and isdefined(reference_policy):
+            reference_policy_description = REFERENCE_POLICY_DESCRIPTIONS.get(
+                reference_policy,
+                str(reference_policy).replace('-', ' '),
+            )
+            reference_policy_html = (
+                f'\n\t\t\t<li>Registration reference policy: {reference_policy_description}</li>'
+            )
+
         reference_map = {
             'template': 'Motion correction template',
             'twa': 'Time-weighted average of motion-corrected series',
@@ -487,7 +510,7 @@ class PETSummary(SummaryInterface):
         return PET_TEMPLATE.format(
             registration=reg,
             anat_reference=anat_reference,
-            reference_policy=self.inputs.reference_policy,
+            reference_policy=reference_policy_html,
             reference=petref_strategy,
             ornt=self.inputs.orientation,
             # Use the metadata dictionary to fill in the details

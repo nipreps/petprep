@@ -105,7 +105,9 @@ def test_functional_summary_with_metadata(registration):
     segment = summary._generate_segment()
     assert registration in segment
     assert 'Reference image: Motion correction template' in segment
-    assert 'Registration reference policy: t1w-pre-masked-cropped' in segment
+    assert (
+        'Registration reference policy: Preprocessed T1w image (brain-masked, cropped)' in segment
+    )
     assert (
         'Anatomical reference: Preprocessed T1w image '
         "(PET/T1w mask volume ratio: 1.60) (requested 'auto')" in segment
@@ -131,6 +133,7 @@ def test_functional_summary_auto_select(winner, expected):
 
     segment = summary._generate_segment()
     assert f'Automatic selection between FreeSurfer and ANTs (best score: {expected})' in segment
+    assert 'Registration reference policy:' not in segment
 
 
 def test_functional_summary_auto_select_reports_similarity_metric():
