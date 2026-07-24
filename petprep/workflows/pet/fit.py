@@ -721,6 +721,7 @@ def init_pet_fit_wf(
             'robust': 'mri_robust_register',
             'ants': 'ants_registration',
             'auto': 'auto_select',
+            'identity': 'identity',
         }[config.workflow.pet2anat_method]
     )
 

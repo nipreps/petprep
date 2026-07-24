@@ -48,6 +48,23 @@ processing carefully and inspect the PET-to-anatomical registration, segmentatio
 and derived TACs before including those subjects in group analyses.
 
 
+What if my PET and anatomical images are already co-registered?
+---------------------------------------------------------------
+If the PET and anatomical images are known to be aligned in the physical
+coordinate system encoded by their NIfTI headers, use
+``--pet2anat-method identity``. This mode does not estimate a registration;
+it writes an identity transform for the downstream resampling and masking
+steps. The images may have different voxel sizes, matrix dimensions, or
+sampling grids as long as their world-coordinate headers describe the same
+space.
+
+Do not select this mode from the registration similarity score alone. A weak
+score can reflect low or atypical intracranial tracer uptake as well as genuine
+misalignment. Confirm the header-based alignment visually, and avoid identity
+mode if defacing or another preprocessing step changed an image affine rather
+than intensities alone.
+
+
 My *PETPrep* run is hanging...
 -------------------------------
 When running on Linux platforms (or containerized environments, because they are built around

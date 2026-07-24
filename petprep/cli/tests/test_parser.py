@@ -88,6 +88,17 @@ def test_submm_recon_flags(tmp_path):
         parser.parse_args(base_args + ['--submm-recon', '--no-submm-recon'])
 
 
+def test_pet2anat_identity_method(tmp_path):
+    datapath = tmp_path / 'data'
+    datapath.mkdir()
+
+    opts = _build_parser().parse_args(
+        [str(datapath)] + MIN_ARGS[1:] + ['--pet2anat-method', 'identity']
+    )
+
+    assert opts.pet2anat_method == 'identity'
+
+
 @pytest.mark.parametrize(
     ('argval', 'gb'),
     [

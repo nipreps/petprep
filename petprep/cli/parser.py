@@ -415,12 +415,14 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         '--pet2anat-method',
         action='store',
         default='auto',
-        choices=['mri_coreg', 'robust', 'ants', 'auto'],
+        choices=['mri_coreg', 'robust', 'ants', 'auto', 'identity'],
         help='Method for PET-to-anatomical registration. '
         '"auto" runs both FreeSurfer and ANTs and selects the best. '
         '"mri_coreg" uses FreeSurfer mri_coreg. '
         '"robust" uses FreeSurfer mri_robust_register (6 DoF only). '
-        '"ants" uses ANTs rigid registration (6 DoF only).',
+        '"ants" uses ANTs rigid registration (6 DoF only). '
+        '"identity" trusts the PET and anatomical image headers and performs no '
+        'registration optimization.',
     )
     g_conf.add_argument(
         '--pet2anat-no-anat-crop',

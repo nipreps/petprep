@@ -479,9 +479,12 @@ the T1w brain mask, and selects the best-performing transform. Alternative
 manual modes include FreeSurfer's ``mri_coreg``
 (``--pet2anat-method mri_coreg``), FreeSurfer's ``mri_robust_register``
 (``--pet2anat-method robust``), and ANTs rigid registration
-(``--pet2anat-method ants``). The ``robust`` and ``ants`` options are limited
-to rigid-body alignment (6 DoF). The resulting affine is converted to ITK format for downstream
-application, along with its inverse.
+(``--pet2anat-method ants``). For PET and anatomical images that are already
+aligned in the physical coordinate system encoded by their image headers,
+``--pet2anat-method identity`` skips registration optimization and emits an
+identity ITK transform for downstream resampling. The ``robust`` and ``ants``
+options are limited to rigid-body alignment (6 DoF). The resulting affine is
+converted to ITK format for downstream application, along with its inverse.
 
 Resampling PET runs onto standard spaces
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -30,7 +30,7 @@ from ..fit import (
     init_pet_native_wf,
 )
 from ..outputs import init_refmask_report_wf
-from ..registration import init_pet_reg_wf
+from ..registration import _write_identity_transform, init_pet_reg_wf
 
 
 @pytest.fixture(scope='module', autouse=True)
@@ -683,6 +683,44 @@ def test_init_pet_fit_wf_auto_registration(bids_root: Path, tmp_path: Path):
     assert any(name.endswith('.score_fs') for name in node_names)
     assert any(name.endswith('.warp_pet_ants') for name in node_names)
     assert any(name.endswith('.warp_pet_fs') for name in node_names)
+
+
+def test_init_pet_fit_wf_identity_registration(bids_root: Path, tmp_path: Path):
+    """Identity PET-to-anatomical mode should not add an optimization backend."""
+    pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
+    img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
+    for path in pet_series:
+        img.to_filename(path)
+        Path(path).with_suffix('').with_suffix('.json').write_text(
+            '{"FrameTimesStart": [0], "FrameDuration": [1]}'
+        )
+
+    with mock_config(bids_dir=bids_root):
+        config.workflow.pet2anat_method = 'identity'
+        config.workflow.pet2anat_dof = 6
+        wf = init_pet_fit_wf(pet_series=pet_series, precomputed={}, omp_nthreads=1)
+
+    node_names = wf.list_node_names()
+    assert any(name.endswith('.identity_transform') for name in node_names)
+    assert any(name.endswith('.score_registration') for name in node_names)
+    assert not any(name.endswith('.robust_fov') for name in node_names)
+    assert not any(name.endswith('.ants_registration') for name in node_names)
+    assert not any(name.endswith('.mri_coreg') for name in node_names)
+    assert not any(name.endswith('.mri_robust_register') for name in node_names)
+
+
+def test_write_identity_transform(tmp_path: Path, monkeypatch):
+    """Header-based alignment should emit valid identity transforms."""
+    reference_file = tmp_path / 'petref.nii.gz'
+    nb.Nifti1Image(np.zeros((2, 2, 2)), np.eye(4)).to_filename(reference_file)
+    monkeypatch.chdir(tmp_path)
+
+    out_xfm, out_inv = _write_identity_transform(str(reference_file))
+
+    assert Path(out_xfm).name == 'pet2anat_identity.tfm'
+    assert Path(out_inv).name == 'anat2pet_identity.tfm'
+    assert np.allclose(nt.linear.load(out_xfm, fmt='itk').matrix, np.eye(4))
+    assert np.allclose(nt.linear.load(out_inv, fmt='itk').matrix, np.eye(4))
 
 
 def test_pet_fit_requires_both_derivatives(bids_root: Path, tmp_path: Path):
