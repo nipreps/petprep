@@ -34,9 +34,7 @@ class PETCoregistrationFallbackInputSpec(BaseInterfaceInputSpec):
 
     fallback_threshold = traits.Float(-0.05, usedefault=True)
     pet2anat_dof = traits.Enum(6, 9, 12, mandatory=True)
-    pet2anat_method = traits.Enum(
-        'mri_coreg', 'robust', 'ants', 'auto', 'identity', mandatory=True
-    )
+    pet2anat_method = traits.Enum('mri_coreg', 'robust', 'ants', 'auto', mandatory=True)
     mem_gb = traits.Float(mandatory=True)
     omp_nthreads = traits.Int(mandatory=True)
     sloppy = traits.Bool(False, usedefault=True)

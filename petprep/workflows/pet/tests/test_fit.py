@@ -786,8 +786,17 @@ def test_pet_fit_stage1_with_cached_baseline(bids_root: Path, tmp_path: Path):
     assert not any(name.startswith('pet_hmc_wf') for name in wf.list_node_names())
 
 
-def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tmp_path: Path):
-    """Explicit default CLI flags should also ignore cached transforms."""
+@pytest.mark.parametrize(
+    ('method', 'expected_node'),
+    [('mri_coreg', 'mri_coreg'), ('identity', 'identity_transform')],
+)
+def test_pet_fit_reruns_coreg_when_options_specified(
+    bids_root: Path,
+    tmp_path: Path,
+    method: str,
+    expected_node: str,
+):
+    """Explicit registration choices should ignore cached transforms."""
 
     pet_series = [str(bids_root / 'sub-01' / 'pet' / 'sub-01_task-rest_run-1_pet.nii.gz')]
     img = nb.Nifti1Image(np.zeros((2, 2, 2, 1)), np.eye(4))
@@ -822,13 +831,13 @@ def test_pet_fit_reruns_coreg_when_default_options_specified(bids_root: Path, tm
 
     with mock_config(bids_dir=bids_root):
         config.workflow.petref = 'auto'
-        config.workflow.pet2anat_method = 'mri_coreg'
+        config.workflow.pet2anat_method = method
         config.workflow.petref_specified = True
         config.workflow.pet2anat_method_specified = True
         wf = init_pet_fit_wf(pet_series=pet_series, precomputed=precomputed, omp_nthreads=1)
 
     node_names = wf.list_node_names()
-    assert any(name.endswith('.mri_coreg') for name in node_names)
+    assert any(name.endswith(f'.{expected_node}') for name in node_names)
     assert wf.get_node('outputnode').inputs.petref2anat_xfm is Undefined
 
 

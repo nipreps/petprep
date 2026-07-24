@@ -907,8 +907,11 @@ def parse_args(args=None, namespace=None):
     config.from_dict(vars(opts), init=['nipype'])
     config.workflow.longitudinal = config.workflow.subject_anatomical_reference == 'unbiased'
 
-    config.workflow.petref_specified = '--petref' in argv
-    config.workflow.pet2anat_method_specified = '--pet2anat-method' in argv
+    def _option_was_specified(option):
+        return any(arg == option or arg.startswith(f'{option}=') for arg in argv)
+
+    config.workflow.petref_specified = _option_was_specified('--petref')
+    config.workflow.pet2anat_method_specified = _option_was_specified('--pet2anat-method')
 
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}
