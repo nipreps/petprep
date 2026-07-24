@@ -387,14 +387,19 @@ Anatomical co-registration
 --------------------------
 *PETPrep* aligns the PET reference volume to the T1-weighted anatomy before
 deriving downstream outputs. The anatomical image is first trimmed with
-FSL's ``robustfov`` to remove the shoulder/neck and masked to limit registration
-to brain voxels. In ``auto`` mode, if all cropped registration scores are weak
-for a PET reference, PETPrep evaluates an uncropped anatomical fallback and keeps
-it if the score improves. Use :option:`--pet2anat-no-anat-crop` to disable both
-the anatomical ``robustfov`` trim and the uncropped fallback when testing
-datasets where non-brain uptake may help guide co-registration. Choose the
-registration backend with
-:option:`--pet2anat-method`: ``auto``
+FSL's ``robustfov`` to remove the shoulder/neck. Masking then depends on the
+registration backend and anatomical reference: ANTs receives the unmasked
+anatomical image with a separate fixed-image mask, while FreeSurfer
+``mri_coreg`` receives a pre-masked T1w image or an unmasked ``nu.mgz``-derived
+image with ``--no-ref-mask``. If the cropped registration score is weak,
+``auto`` and ``mri_coreg`` evaluate an uncropped anatomical fallback and keep it
+when its score improves. In ``auto`` mode, the fallback is triggered only when
+both cropped backend scores are weak.
+
+Use :option:`--pet2anat-no-anat-crop` to disable both the anatomical
+``robustfov`` trim and this score-triggered fallback, registering against the
+full anatomical field of view from the outset. Choose the registration backend
+with :option:`--pet2anat-method`: ``auto``
 (default; runs both FreeSurfer and ANTs and selects the better result),
 ``mri_coreg`` (FreeSurfer co-registration), ``robust`` (FreeSurfer
 ``mri_robust_register`` with an NMI cost function), or ``ants`` (ANTs rigid

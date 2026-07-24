@@ -462,16 +462,20 @@ PET to T1w registration
         pet2anat_method='auto',
     )
 
-The PET reference volume is aligned to the skull-stripped anatomical image
-using the method selected via :option:`--pet2anat-method`. The anatomical image
-is first cropped with FSL's ``robustfov`` and masked to focus the alignment on
-brain tissue (ANTs receives the unmasked cropped image together with its mask).
-Use :option:`--pet2anat-no-anat-crop` to bypass anatomical ``robustfov`` and
-register against the full anatomical field of view. In ``auto`` mode, when
-cropping is enabled and all cropped registration scores are weak for a PET
-reference, PETPrep evaluates an uncropped anatomical fallback and keeps it if the
-score improves; disabling anatomical cropping also disables this crop-triggered
-fallback.
+The PET reference volume is aligned to the selected anatomical reference using
+the method chosen via :option:`--pet2anat-method`. The anatomical image is first
+cropped with FSL's ``robustfov``. ANTs receives the unmasked cropped image
+together with a separate fixed-image mask. FreeSurfer ``mri_coreg`` receives a
+pre-masked T1w image, but uses the unmasked ``nu.mgz``-derived image with
+``--no-ref-mask`` when ``nu`` is selected.
+
+When cropping is enabled, ``auto`` and ``mri_coreg`` evaluate an uncropped
+fallback after a weak cropped score and keep the uncropped result only when its
+score improves. In ``auto`` mode, both cropped backend scores must be weak before
+the fallback runs. Use :option:`--pet2anat-no-anat-crop` to bypass anatomical
+``robustfov``, register against the full anatomical field of view from the
+outset, and disable this score-triggered fallback.
+
 By default, the workflow runs ``auto`` mode (``--pet2anat-method auto``),
 which executes both FreeSurfer and ANTs registrations in parallel, applies the
 resulting transforms to the PET reference, computes a similarity score within
