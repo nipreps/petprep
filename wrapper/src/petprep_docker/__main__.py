@@ -296,7 +296,7 @@ def get_parser():
         '--image',
         metavar='IMG',
         type=str,
-        default=f'nipreps/petprep:{__version__}',
+        default='nipreps/petprep:{}'.format(__version__),
         help='image name',
     )
 
@@ -423,7 +423,7 @@ def main():
     check = check_docker()
     if check < 1:
         if opts.version:
-            print(f'petprep wrapper {__version__!s}')
+            print('petprep wrapper {!s}'.format(__version__))
         if opts.help:
             parser.print_help()
         if check == -1:
@@ -436,7 +436,7 @@ def main():
     if not check_image(opts.image):
         resp = 'Y'
         if opts.version:
-            print(f'petprep wrapper {__version__!s}')
+            print('petprep wrapper {!s}'.format(__version__))
         if opts.help:
             parser.print_help()
         if opts.version or opts.help:
@@ -489,7 +489,7 @@ def main():
     # Patch working repositories into installed package directories
     if opts.patch:
         for pkg, repo_path in opts.patch.items():
-            command.extend(['-v', f'{repo_path}:{PKG_PATH}/{pkg}:ro'])
+            command.extend(['-v', '{}:{}/{}:ro'.format(repo_path, PKG_PATH, pkg)])
 
     if opts.env:
         for envvar in opts.env:
@@ -499,7 +499,7 @@ def main():
         command.extend(['-u', opts.user])
 
     if opts.fs_license_file:
-        command.extend(['-v', f'{opts.fs_license_file}:/opt/freesurfer/license.txt:ro'])
+        command.extend(['-v', '{}:/opt/freesurfer/license.txt:ro'.format(opts.fs_license_file)])
 
     main_args = []
     if opts.bids_dir:
@@ -514,19 +514,19 @@ def main():
     main_args.append(opts.analysis_level)
 
     if opts.fs_subjects_dir:
-        command.extend(['-v', f'{opts.fs_subjects_dir}:/opt/subjects'])
+        command.extend(['-v', '{}:/opt/subjects'.format(opts.fs_subjects_dir)])
         unknown_args.extend(['--fs-subjects-dir', '/opt/subjects'])
 
     if opts.config_file:
-        command.extend(['-v', f'{opts.config_file}:/tmp/config.toml'])
+        command.extend(['-v', '{}:/tmp/config.toml'.format(opts.config_file)])
         unknown_args.extend(['--config-file', '/tmp/config.toml'])
 
     # Patch derivatives for searching
     if opts.derivatives:
         unknown_args.append('--derivatives')
         for deriv, deriv_path in opts.derivatives.items():
-            command.extend(['-v', f'{deriv_path}:/deriv/{deriv}:ro'])
-            unknown_args.append(f'/deriv/{deriv}')
+            command.extend(['-v', '{}:/deriv/{}:ro'.format(deriv_path, deriv)])
+            unknown_args.append('/deriv/{}'.format(deriv))
 
     if opts.work_dir:
         command.extend(['-v', ':'.join((opts.work_dir, '/scratch'))])
@@ -598,7 +598,7 @@ def main():
     print('RUNNING: ' + ' '.join(command))
     ret = subprocess.run(command)
     if ret.returncode:
-        print(f'PETPrep: Please report errors to {__bugreports__}')
+        print('PETPrep: Please report errors to {}'.format(__bugreports__))
     return ret.returncode
 
 
