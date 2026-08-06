@@ -1,0 +1,74 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+references:
+- type: conference-paper
+    authors:
+      - family-names: Norgaard
+        given-names: Martin
+      - family-names: Esteban
+        given-names: Oscar
+      - family-names: Matheson
+        given-names: Granville J.
+      - family-names: Markiewicz
+        given-names: Christopher J.
+      - family-names: Parcon
+        given-names: Paul
+      - family-names: Yan
+        given-names: Xuefeng
+      - family-names: Goncalves
+        given-names: Mathias
+      - family-names: Legarreta
+        given-names: Jon Haitz
+      - family-names: Galassi
+        given-names: Anthony
+      - family-names: Ceballos
+        given-names: Eric G.
+      - family-names: Schiavone
+        given-names: Alice
+      - family-names: D\"{o}rfel
+        given-names: Ruben P.
+      - family-names: Hamati
+        given-names: Rami
+      - family-names: Bae
+        given-names: Jonghyun
+      - family-names: Tuominen
+        given-names: Lauri
+      - family-names: Veronese
+        given-names: Mattia
+      - family-names: Marin
+        given-names: Benedetta
+      - family-names: Maccioni
+        given-names: Lucia
+      - family-names: Roumimper
+        given-names: Noa L.
+      - family-names: MacNicol
+        given-names: Eilidh
+      - family-names: Greve
+        given-names: Douglas N.
+      - family-names: Wighton
+        given-names: Paul
+      - family-names: Pernet 
+        given-names: Cyril
+      - family-names: Bilgel 
+        given-names: Murat
+      - family-names: Thomas 
+        given-names: Adam G.
+      - family-names: Ganz
+        given-names: Melanie
+      - family-names: Liow
+        given-names: Jeih-San
+      - family-names: Poldrack
+        given-names: Russell A.
+      - family-names: Knudsen
+        given-names: Gitte M.
+      - family-names: Innis
+        given-names: Robert B.
+    title: "PETPrep: a robust preprocessing pipeline for positron emission tomography (PET) neuroimaging"
+	year: 2026
+	conference:
+	  - name: "15th International Symposium on Functional Neuroreceptor Mapping of the Living Brain (NRM)"
+	    city: Uppsala
+	    country: Sweden
+	    date-start: 2026-06-27
+	    date-end: 2026-06-30
+    notes: "Abstract #98822"

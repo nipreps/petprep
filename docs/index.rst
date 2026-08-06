@@ -21,3 +21,4 @@ Contents
    faq
    api
    changes
+   citation

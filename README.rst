@@ -120,11 +120,6 @@ Therefore, if reviewers and/or editors raise concerns because the text is flagge
 plagiarism detection, please refer them to the *NiPreps* community and/or the note to this
 effect in the `boilerplate documentation page <https://www.nipreps.org/intro/transparency/#citation-boilerplates>`__.
 
-**Papers**.
-*PETPrep* contributors have published the relevant papers:
-
-**Other**.
-
 License information
 -------------------
 *PETPrep* adheres to the
