@@ -1,3 +1,18 @@
+0.0.9 (August 11, 2026)
+=======================
+
+  * ENH: Add identity PET-to-anatomical registration for pre-aligned PET/MRI (#338)
+  * STY: Apply Ruff-suggested cleanups (#339)
+  * FIX: Validate required PET timing metadata when combining runs (#336)
+  * DOCS: add section on filtering anat input by BIDS entities (#335)
+  * ENH: Reconcile PET timing and decay correction when combining runs (#326)
+  * ENH: Improve FAQ for PETPrep workflow and add downstream kinetic modeling (#311)
+  * FIX: adapt memory usage for MotionPlot to PET data (#333)
+  * FIX: solve HMC-off identity transform collisions across PET series (#331)
+  * Add codespell support with configuration and fixes (#329)
+  * ENH: Add data-driven memory safeguards for PET head motion correction (#324)
+
+
 0.0.8 (June 04, 2026)
 =====================
 Bug-fix release in the 0.0.x series.
