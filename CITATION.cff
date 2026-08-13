@@ -5,7 +5,7 @@ type: software
 authors:
   - name: "The NiPreps Developers"
 repository-code: "https://github.com/nipreps/petprep"
-url: "https://petprep.org"
+url: "https://petprep.readthedocs.io/en/latest/"
 license: Apache-2.0
 preferred-citation:
   type: conference-paper
