@@ -12,8 +12,11 @@ from petprep.utils import bids as bids_utils
 from petprep.utils.bids import combine_pet_runs
 
 
-def _write_nifti(path: Path, data: np.ndarray) -> None:
-    img = nb.Nifti1Image(data.astype(np.float32), affine=np.eye(4))
+def _write_nifti(path: Path, data: np.ndarray, affine: np.ndarray | None = None) -> None:
+    img = nb.Nifti1Image(
+        data.astype(np.float32),
+        affine=np.eye(4) if affine is None else affine,
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     img.to_filename(path)
 
@@ -46,6 +49,46 @@ def _write_dataset_description(path: Path) -> None:
 )
 def test_parse_timezero(value, expected) -> None:
     assert bids_utils._parse_timezero(value) == expected
+
+
+def test_validate_combined_run_geometry_allows_affine_translation() -> None:
+    reference_affine = np.diag([-0.825, 0.825, 1.5, 1.0])
+    translated_affine = reference_affine.copy()
+    translated_affine[:3, 3] = [0.0, 30.0, 27.0]
+    imgs = [
+        nb.Nifti1Image(np.zeros((2, 2, 2)), reference_affine),
+        nb.Nifti1Image(np.zeros((2, 2, 2)), translated_affine),
+    ]
+
+    translations = bids_utils._validate_combined_run_geometry(imgs)
+
+    assert translations == [(0.0, 0.0, 0.0), (0.0, 30.0, 27.0)]
+
+
+@pytest.mark.parametrize(
+    'incompatible_affine',
+    [
+        np.diag([2.0, 1.0, 1.0, 1.0]),
+        np.array(
+            [
+                [0.0, -1.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ),
+    ],
+)
+def test_validate_combined_run_geometry_rejects_incompatible_lattices(
+    incompatible_affine,
+) -> None:
+    imgs = [
+        nb.Nifti1Image(np.zeros((2, 2, 2)), np.eye(4)),
+        nb.Nifti1Image(np.zeros((2, 2, 2)), incompatible_affine),
+    ]
+
+    with pytest.raises(ValueError, match='affine orientation and voxel sizes'):
+        bids_utils._validate_combined_run_geometry(imgs)
 
 
 @pytest.mark.parametrize(
@@ -680,7 +723,9 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
     run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
 
     _write_nifti(run1_img, np.ones((2, 2, 2, 2)))
-    _write_nifti(run2_img, np.full((2, 2, 2, 1), 2))
+    run2_affine = np.eye(4)
+    run2_affine[:3, 3] = [1.0, 2.0, 3.0]
+    _write_nifti(run2_img, np.full((2, 2, 2, 1), 2), affine=run2_affine)
 
     _write_metadata(
         run1_img.with_suffix('').with_suffix('.json'),
@@ -704,6 +749,8 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
     layout = BIDSLayout(bids_dir, validate=False)
 
     monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+    warnings = []
+    monkeypatch.setattr(bids_utils.config.loggers.cli, 'warning', warnings.append)
 
     combined_dir, combined_files = combine_pet_runs(
         bids_dir=bids_dir,
@@ -722,9 +769,14 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
 
     combined_img = nb.load(expected_img)
     assert combined_img.shape == (2, 2, 2, 3)
+    assert np.array_equal(combined_img.affine, np.eye(4))
     data = combined_img.get_fdata()
     assert np.all(data[..., 0:2] == 1)
     assert np.all(data[..., 2] == 2)
+    assert len(warnings) == 1
+    assert str(run1_img) in warnings[0]
+    assert str(run2_img) in warnings[0]
+    assert '[1.000, 2.000, 3.000] mm' in warnings[0]
 
     combined_meta = json.loads(expected_json.read_text())
     assert combined_meta['FrameTimesStart'] == [0.0, 1.0, 2.0]
@@ -980,7 +1032,9 @@ def test_combine_pet_runs_rescales_runs_corrected_to_each_scan_start(
     run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
 
     _write_nifti(run1_img, np.ones((2, 2, 2, 1)))
-    _write_nifti(run2_img, np.full((2, 2, 2, 1), 2))
+    run2_affine = np.eye(4)
+    run2_affine[:3, 3] = [0.0, 30.0, 27.0]
+    _write_nifti(run2_img, np.full((2, 2, 2, 1), 2), affine=run2_affine)
 
     common_metadata = {
         'ImageDecayCorrected': True,
@@ -1011,6 +1065,8 @@ def test_combine_pet_runs_rescales_runs_corrected_to_each_scan_start(
     layout = BIDSLayout(bids_dir, validate=False)
 
     monkeypatch.setattr('petprep.utils.bids.which', lambda _: None)
+    warnings = []
+    monkeypatch.setattr(bids_utils.config.loggers.cli, 'warning', warnings.append)
 
     combined_dir, _ = combine_pet_runs(
         bids_dir=bids_dir,
@@ -1025,8 +1081,11 @@ def test_combine_pet_runs_rescales_runs_corrected_to_each_scan_start(
 
     combined_img = nb.load(expected_img)
     data = combined_img.get_fdata()
+    assert np.array_equal(combined_img.affine, np.eye(4))
     assert np.all(data[..., 0] == 1)
     assert np.allclose(data[..., 1], 4)
+    assert len(warnings) == 1
+    assert '[0.000, 30.000, 27.000] mm' in warnings[0]
 
     combined_meta = json.loads(expected_json.read_text())
     assert combined_meta['FrameTimesStart'] == [0.0, 10.0]

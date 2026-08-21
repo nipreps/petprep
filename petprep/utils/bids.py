@@ -260,6 +260,49 @@ _RADIONUCLIDE_ALIASES = {
 }
 _SECONDS_PER_DAY = 24 * 3600
 _TIMING_TOLERANCE_SECONDS = 1.0
+_AFFINE_RTOL = 1e-5
+_AFFINE_ATOL = 1e-5
+
+
+def _validate_combined_run_geometry(imgs) -> list[tuple[float, float, float]]:
+    """Validate a shared PET voxel lattice and return affine-origin offsets."""
+    if not imgs:
+        return []
+
+    shapes = [img.shape for img in imgs]
+    if any(len(shape) < 3 or len(shape) > 4 for shape in shapes):
+        raise ValueError('PET images must be 3D or 4D when combining runs')
+
+    spatial_shape = shapes[0][:3]
+    if any(shape[:3] != spatial_shape for shape in shapes[1:]):
+        raise ValueError('PET images must match in spatial dimensions when combining runs')
+
+    reference_affine = np.asarray(imgs[0].affine, dtype=float)
+    if reference_affine.shape != (4, 4) or not np.all(np.isfinite(reference_affine)):
+        raise ValueError('Cannot safely combine PET run 1: affine must be a finite 4 x 4 matrix')
+
+    translations = []
+    for run_index, img in enumerate(imgs, start=1):
+        affine = np.asarray(img.affine, dtype=float)
+        if affine.shape != (4, 4) or not np.all(np.isfinite(affine)):
+            raise ValueError(
+                f'Cannot safely combine PET run {run_index}: affine must be a finite 4 x 4 matrix'
+            )
+        if not np.allclose(
+            affine[:3, :3],
+            reference_affine[:3, :3],
+            rtol=_AFFINE_RTOL,
+            atol=_AFFINE_ATOL,
+        ):
+            raise ValueError(
+                f'Cannot safely combine PET run {run_index}: affine orientation and voxel sizes '
+                'must match PET run 1'
+            )
+
+        translation = affine[:3, 3] - reference_affine[:3, 3]
+        translations.append(tuple(float(value) for value in translation))
+
+    return translations
 
 
 def _parse_timezero(value) -> float | None:
@@ -712,16 +755,25 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             metas = [layout.get_metadata(file) for file in files]
 
             if imgs:
-                shapes = [img.shape for img in imgs]
-
-                if any(len(shape) < 3 or len(shape) > 4 for shape in shapes):
-                    raise ValueError('PET images must be 3D or 4D when combining runs')
-
-                spatial_shape = shapes[0][:3]
-                if any(shape[:3] != spatial_shape for shape in shapes):
-                    raise ValueError(
-                        'PET images must match in spatial dimensions when combining runs'
+                affine_translations = _validate_combined_run_geometry(imgs)
+                translated_runs = [
+                    (file, translation)
+                    for file, translation in zip(files, affine_translations, strict=True)
+                    if not np.allclose(translation, 0.0, rtol=0.0, atol=_AFFINE_ATOL)
+                ]
+                if translated_runs:
+                    translation_details = '; '.join(
+                        f'{file}: [{", ".join(f"{value:.3f}" for value in translation)}] mm'
+                        for file, translation in translated_runs
                     )
+                    config.loggers.cli.warning(
+                        'Combining PET runs with matching voxel lattices but differing affine '
+                        f'origins. Using the affine from {files[0]} without resampling; relative '
+                        f'origin offsets: {translation_details}. Downstream head-motion '
+                        'correction will estimate the anatomical alignment.'
+                    )
+
+                shapes = [img.shape for img in imgs]
                 frame_counts = [shape[3] if len(shape) == 4 else 1 for shape in shapes]
                 _validate_combined_run_metadata(metas, frame_counts)
 
@@ -736,7 +788,11 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
             output_img.parent.mkdir(exist_ok=True, parents=True)
             needs_rescaling = not np.allclose(decay_rescale_factors, 1.0)
             if which('mri_concat') and not needs_rescaling:
-                concat = Concatenate(in_files=files, concatenated_file=str(output_img))
+                concat = Concatenate(
+                    in_files=files,
+                    concatenated_file=str(output_img),
+                    args='--no-check',
+                )
                 concat.run()
             else:
                 normalized_imgs = []
@@ -756,7 +812,11 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
                         normalized_imgs.append(nb.Nifti1Image(data, img.affine, header))
                     else:
                         normalized_imgs.append(img)
-                combined_img = nb.concat_images(normalized_imgs, axis=3)
+                combined_img = nb.concat_images(
+                    normalized_imgs,
+                    axis=3,
+                    check_affines=False,
+                )
                 nb.save(combined_img, str(output_img))
 
             combined_meta = _merge_frame_metadata(

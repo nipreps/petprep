@@ -55,6 +55,14 @@ files is merged with adjusted offsets, and the combined image and metadata are
 written without the ``run`` entity in their filenames. Subsequent preprocessing
 then operates on these merged series rather than the original per-run inputs.
 
+Runs must have matching spatial dimensions and affine linear components
+(voxel sizes and orientation). Differences limited to affine translation are
+allowed because repositioning may change the image origin between acquisitions.
+In that case, *PETPrep* warns, assigns the first run's affine to the combined
+series without resampling, and leaves estimation of the anatomical displacement
+to the subsequent head-motion correction workflow. Differences in voxel size
+or orientation remain an error.
+
 The combined sidecar is written on the first run's time scale:
 
 * Every run must provide a valid ``TimeZero`` and finite ``ScanStart``,
