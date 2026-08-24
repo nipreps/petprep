@@ -857,9 +857,7 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
     assert run_sources == []
 
 
-def test_combine_pet_runs_disables_mri_concat_affine_check(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_combine_pet_runs_disables_mri_concat_affine_check(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     _write_dataset_description(bids_dir / 'dataset_description.json')
 
