@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import nibabel as nb
 import numpy as np
@@ -63,6 +64,73 @@ def test_validate_combined_run_geometry_allows_affine_translation() -> None:
     translations = bids_utils._validate_combined_run_geometry(imgs)
 
     assert translations == [(0.0, 0.0, 0.0), (0.0, 30.0, 27.0)]
+
+
+def test_validate_combined_run_geometry_allows_no_images() -> None:
+    assert bids_utils._validate_combined_run_geometry([]) == []
+
+
+@pytest.mark.parametrize('shape', [(2, 2), (2, 2, 2, 1, 1)])
+def test_validate_combined_run_geometry_rejects_invalid_dimensions(shape) -> None:
+    img = SimpleNamespace(shape=shape, affine=np.eye(4))
+
+    with pytest.raises(ValueError, match='PET images must be 3D or 4D'):
+        bids_utils._validate_combined_run_geometry([img])
+
+
+def test_validate_combined_run_geometry_rejects_different_spatial_shapes() -> None:
+    imgs = [
+        SimpleNamespace(shape=(2, 2, 2), affine=np.eye(4)),
+        SimpleNamespace(shape=(2, 3, 2, 1), affine=np.eye(4)),
+    ]
+
+    with pytest.raises(ValueError, match='PET images must match in spatial dimensions'):
+        bids_utils._validate_combined_run_geometry(imgs)
+
+
+@pytest.mark.parametrize(
+    'affine',
+    [
+        np.eye(3),
+        np.array(
+            [
+                [1.0, 0.0, 0.0, np.nan],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ),
+    ],
+)
+def test_validate_combined_run_geometry_rejects_invalid_reference_affine(affine) -> None:
+    img = SimpleNamespace(shape=(2, 2, 2), affine=affine)
+
+    with pytest.raises(ValueError, match='PET run 1: affine must be a finite 4 x 4 matrix'):
+        bids_utils._validate_combined_run_geometry([img])
+
+
+@pytest.mark.parametrize(
+    'affine',
+    [
+        np.eye(3),
+        np.array(
+            [
+                [1.0, 0.0, 0.0, np.inf],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        ),
+    ],
+)
+def test_validate_combined_run_geometry_rejects_invalid_later_affine(affine) -> None:
+    imgs = [
+        SimpleNamespace(shape=(2, 2, 2), affine=np.eye(4)),
+        SimpleNamespace(shape=(2, 2, 2), affine=affine),
+    ]
+
+    with pytest.raises(ValueError, match='PET run 2: affine must be a finite 4 x 4 matrix'):
+        bids_utils._validate_combined_run_geometry(imgs)
 
 
 @pytest.mark.parametrize(
@@ -787,6 +855,66 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
 
     run_sources = list(combined_dir.glob('**/*run-*'))
     assert run_sources == []
+
+
+def test_combine_pet_runs_disables_mri_concat_affine_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    bids_dir = tmp_path / 'bids'
+    _write_dataset_description(bids_dir / 'dataset_description.json')
+
+    pet_dir = bids_dir / 'sub-01' / 'pet'
+    run1_img = pet_dir / 'sub-01_task-rest_run-01_pet.nii.gz'
+    run2_img = pet_dir / 'sub-01_task-rest_run-02_pet.nii.gz'
+    _write_nifti(run1_img, np.ones((2, 2, 2)))
+    _write_nifti(run2_img, np.full((2, 2, 2), 2))
+
+    common_metadata = {
+        'TimeZero': '00:00:00',
+        'InjectionStart': 0.0,
+        'FrameDuration': [1.0],
+    }
+    _write_metadata(
+        run1_img.with_suffix('').with_suffix('.json'),
+        {**common_metadata, 'FrameTimesStart': [0.0]},
+    )
+    _write_metadata(
+        run2_img.with_suffix('').with_suffix('.json'),
+        {**common_metadata, 'FrameTimesStart': [1.0]},
+    )
+
+    concat_instances = []
+
+    class MockConcatenate:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.ran = False
+            concat_instances.append(self)
+
+        def run(self):
+            self.ran = True
+
+    monkeypatch.setattr(bids_utils, 'which', lambda _: '/opt/freesurfer/bin/mri_concat')
+    monkeypatch.setattr('nipype.interfaces.freesurfer.model.Concatenate', MockConcatenate)
+
+    layout = BIDSLayout(bids_dir, validate=False)
+    combined_dir, combined_files = combine_pet_runs(
+        bids_dir=bids_dir,
+        layout=layout,
+        work_dir=tmp_path / 'work',
+        subjects=['01'],
+        bids_filters={},
+    )
+
+    expected_img = combined_dir / 'sub-01' / 'pet' / 'sub-01_task-rest_pet.nii.gz'
+    assert combined_files == [str(expected_img)]
+    assert len(concat_instances) == 1
+    assert concat_instances[0].kwargs == {
+        'in_files': [str(run1_img), str(run2_img)],
+        'concatenated_file': str(expected_img),
+        'args': '--no-check',
+    }
+    assert concat_instances[0].ran
 
 
 def test_combine_pet_runs_handles_3d_inputs(tmp_path: Path, monkeypatch) -> None:
