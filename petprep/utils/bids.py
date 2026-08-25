@@ -230,9 +230,23 @@ def _ignore_run_pet_files(_, names):
     for name in names:
         if '_run-' not in name:
             continue
-        if name.endswith('_pet.nii.gz') or name.endswith('_pet.nii') or name.endswith('_pet.json'):
+        if name.endswith(('_pet.nii.gz', '_pet.nii', '_pet.json')):
             run_pet.append(name)
     return run_pet
+
+
+def _ignore_combined_bids_copy(path, names, excluded_dirs):
+    """Ignore run-specific PET files and copy destinations visible through the input tree."""
+    ignored = set(_ignore_run_pet_files(path, names))
+    for name in names:
+        candidate = Path(path) / name
+        try:
+            if any(candidate.samefile(excluded_dir) for excluded_dir in excluded_dirs):
+                ignored.add(name)
+        except OSError:
+            # A concurrently removed or inaccessible entry will be handled by copytree.
+            continue
+    return ignored
 
 
 _FRAMEWISE_METADATA = (
@@ -711,7 +725,13 @@ def combine_pet_runs(bids_dir: Path, layout: BIDSLayout, work_dir: Path, subject
     combined_root.mkdir(exist_ok=True, parents=True)
 
     copytree(
-        bids_dir, combined_root, symlinks=True, dirs_exist_ok=True, ignore=_ignore_run_pet_files
+        bids_dir,
+        combined_root,
+        symlinks=True,
+        dirs_exist_ok=True,
+        ignore=lambda path, names: _ignore_combined_bids_copy(
+            path, names, (Path(work_dir), combined_root)
+        ),
     )
 
     pet_filters = (bids_filters or {}).get('pet', {})

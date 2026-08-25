@@ -857,6 +857,29 @@ def test_combine_pet_runs_concatenates_runs(tmp_path: Path, monkeypatch) -> None
     assert run_sources == []
 
 
+def test_combine_pet_runs_ignores_work_dir_inside_bids_dir(tmp_path: Path) -> None:
+    bids_dir = tmp_path / 'bids'
+    _write_dataset_description(bids_dir / 'dataset_description.json')
+    derivatives_dir = bids_dir / 'derivatives'
+    derivatives_dir.mkdir()
+    (derivatives_dir / 'existing.txt').write_text('existing derivative')
+
+    work_dir = derivatives_dir / 'work' / 'run-uuid'
+    layout = BIDSLayout(bids_dir, validate=False)
+
+    combined_dir, combined_files = combine_pet_runs(
+        bids_dir=bids_dir,
+        layout=layout,
+        work_dir=work_dir,
+        subjects=['01'],
+        bids_filters={},
+    )
+
+    assert combined_files == []
+    assert (combined_dir / 'derivatives' / 'existing.txt').read_text() == 'existing derivative'
+    assert not (combined_dir / 'derivatives' / 'work' / 'run-uuid').exists()
+
+
 def test_combine_pet_runs_disables_mri_concat_affine_check(tmp_path: Path, monkeypatch) -> None:
     bids_dir = tmp_path / 'bids'
     _write_dataset_description(bids_dir / 'dataset_description.json')
