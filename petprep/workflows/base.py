@@ -44,24 +44,6 @@ from ..interfaces import DerivativesDataSink
 from ..interfaces.reports import AboutSummary, SubjectSummary
 
 
-def _get_anat_standard_template_connections(ds_std_volumes_wf):
-    """Connect template outputs supported by the installed sMRIPrep workflow."""
-    connections = [
-        ('outputnode.std_t1w', 'inputnode.ref_file'),
-        ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
-        ('outputnode.space', 'inputnode.space'),
-        ('outputnode.resolution', 'inputnode.resolution'),
-    ]
-
-    # sMRIPrep < 0.20 exposed cohort as a separate datasink input. In 0.20,
-    # cohort is encoded in the template iterator's full ``space`` value instead.
-    input_traits = ds_std_volumes_wf.get_node('inputnode').inputs.traits()
-    if 'cohort' in input_traits:
-        connections.insert(3, ('outputnode.cohort', 'inputnode.cohort'))
-
-    return connections
-
-
 def _build_segmentation_boilerplate(seg: str) -> str:
     """Compose segmentation boilerplate text for the selected workflow."""
     from ..utils.atlas import load_atlas_config
@@ -515,11 +497,12 @@ It is released under the [CC0]\
                     ('outputnode.t1w_dseg', 'inputnode.anat_dseg'),
                     ('outputnode.t1w_tpms', 'inputnode.anat_tpms'),
                 ]),
-                (
-                    template_iterator_wf,
-                    ds_std_volumes_wf,
-                    _get_anat_standard_template_connections(ds_std_volumes_wf),
-                ),
+                (template_iterator_wf, ds_std_volumes_wf, [
+                    ('outputnode.std_t1w', 'inputnode.ref_file'),
+                    ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+                    ('outputnode.space', 'inputnode.space'),
+                    ('outputnode.resolution', 'inputnode.resolution'),
+                ]),
             ])  # fmt:skip
 
         if 'MNI152NLin2009cAsym' in spaces.get_spaces():
@@ -759,7 +742,6 @@ anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
                         ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
                         ('outputnode.space', 'inputnode.std_space'),
                         ('outputnode.resolution', 'inputnode.std_resolution'),
-                        ('outputnode.cohort', 'inputnode.std_cohort'),
                         ('outputnode.std_t1w', 'inputnode.std_t1w'),
                         ('outputnode.std_mask', 'inputnode.std_mask'),
                     ]),
