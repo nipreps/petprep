@@ -7,6 +7,8 @@ from unittest.mock import patch
 import nibabel as nb
 import numpy as np
 import pytest
+from nipype.interfaces import utility as niu
+from nipype.pipeline import engine as pe
 from nipype.pipeline.engine.utils import evaluate_connect_function, generate_expanded_graph
 from niworkflows.utils.bids import DEFAULT_BIDS_QUERIES
 from niworkflows.utils.bids import collect_data as original_collect_data
@@ -49,6 +51,39 @@ BASE_LAYOUT = {
         ],
     },
 }
+
+
+@pytest.mark.parametrize(
+    ('fields', 'expected'),
+    [
+        (
+            ['space', 'cohort'],
+            [
+                ('outputnode.std_t1w', 'inputnode.ref_file'),
+                ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+                ('outputnode.space', 'inputnode.space'),
+                ('outputnode.cohort', 'inputnode.cohort'),
+                ('outputnode.resolution', 'inputnode.resolution'),
+            ],
+        ),
+        (
+            ['space'],
+            [
+                ('outputnode.std_t1w', 'inputnode.ref_file'),
+                ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
+                ('outputnode.space', 'inputnode.space'),
+                ('outputnode.resolution', 'inputnode.resolution'),
+            ],
+        ),
+    ],
+    ids=['smriprep-pre-0.20', 'smriprep-0.20'],
+)
+def test_get_anat_standard_template_connections(fields, expected) -> None:
+    workflow = pe.Workflow(name='ds_std_volumes_wf')
+    workflow.add_nodes([pe.Node(niu.IdentityInterface(fields=fields), name='inputnode')])
+
+    assert base_module._get_anat_standard_template_connections(workflow) == expected
+
 
 MIXED_LAYOUT = {
     '01': {
