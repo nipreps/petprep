@@ -501,7 +501,6 @@ It is released under the [CC0]\
                     ('outputnode.std_t1w', 'inputnode.ref_file'),
                     ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
                     ('outputnode.space', 'inputnode.space'),
-                    ('outputnode.cohort', 'inputnode.cohort'),
                     ('outputnode.resolution', 'inputnode.resolution'),
                 ]),
             ])  # fmt:skip
@@ -743,7 +742,6 @@ anatomical image. {_build_segmentation_boilerplate(config.workflow.seg)}"""
                         ('outputnode.anat2std_xfm', 'inputnode.anat2std_xfm'),
                         ('outputnode.space', 'inputnode.std_space'),
                         ('outputnode.resolution', 'inputnode.std_resolution'),
-                        ('outputnode.cohort', 'inputnode.std_cohort'),
                         ('outputnode.std_t1w', 'inputnode.std_t1w'),
                         ('outputnode.std_mask', 'inputnode.std_mask'),
                     ]),
