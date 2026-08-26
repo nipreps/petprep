@@ -131,8 +131,6 @@ def init_pet_wf(
         Value of space entity to be used in standard space output filenames
     std_resolution
         Value of resolution entity to be used in standard space output filenames
-    std_cohort
-        Value of cohort entity to be used in standard space output filenames
     anat2mni6_xfm
         Transform from anatomical space to MNI152NLin6Asym space
     mni6_mask
@@ -141,7 +139,7 @@ def init_pet_wf(
         Transform from MNI152NLin2009cAsym to anatomical space
 
     Note that ``anat2std_xfm``, ``std_space``, ``std_resolution``,
-    ``std_cohort``, ``std_t1w`` and ``std_mask`` are treated as single
+    ``std_t1w`` and ``std_mask`` are treated as single
     inputs. In order to resample to multiple target spaces, connect
     these fields to an iterable.
 
@@ -214,7 +212,6 @@ configured with cubic B-spline interpolation.
                 'std_mask',
                 'std_space',
                 'std_resolution',
-                'std_cohort',
                 # MNI152NLin6Asym warp, for CIFTI use
                 'anat2mni6_xfm',
                 'mni6_mask',
@@ -564,7 +561,6 @@ configured with cubic B-spline interpolation.
                 ('std_t1w', 'inputnode.template'),
                 ('std_space', 'inputnode.space'),
                 ('std_resolution', 'inputnode.resolution'),
-                ('std_cohort', 'inputnode.cohort'),
             ]),
             (pet_fit_wf, ds_pet_std_wf, [
                 ('outputnode.pet_mask', 'inputnode.pet_mask'),
