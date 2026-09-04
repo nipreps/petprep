@@ -639,6 +639,7 @@ def init_pet_fit_wf(
                 output_names=['out_file'],
             ),
             name='report_petref',
+            mem_gb=mem_gb['reference'],
         )
         report_pet_reference.inputs.output_dir = config.execution.work_dir
         report_pet_reference.inputs.frame_start_times = frame_start_times
@@ -658,6 +659,7 @@ def init_pet_fit_wf(
                 output_names=['out_file'],
             ),
             name=reference_node_name,
+            mem_gb=mem_gb['reference'],
         )
         corrected_reference.inputs.output_dir = config.execution.work_dir
         if petref_strategy in {'twa', 'first5min'}:
@@ -673,6 +675,7 @@ def init_pet_fit_wf(
                 output_names=['out_file'],
             ),
             name='auto_twa_reference',
+            mem_gb=mem_gb['reference'],
         )
         reference_nodes['twa'].inputs.output_dir = config.execution.work_dir
         reference_nodes['twa'].inputs.frame_start_times = frame_start_times
@@ -685,6 +688,7 @@ def init_pet_fit_wf(
                 output_names=['out_file'],
             ),
             name='auto_sum_reference',
+            mem_gb=mem_gb['reference'],
         )
         reference_nodes['sum'].inputs.output_dir = config.execution.work_dir
 
@@ -695,6 +699,7 @@ def init_pet_fit_wf(
                 output_names=['out_file'],
             ),
             name='auto_first5min_reference',
+            mem_gb=mem_gb['reference'],
         )
         reference_nodes['first5min'].inputs.output_dir = config.execution.work_dir
         reference_nodes['first5min'].inputs.frame_start_times = frame_start_times
@@ -844,6 +849,7 @@ def init_pet_fit_wf(
         elif config.workflow.hmc_memory_policy == 'off':
             hmc_policy = {
                 'planned_memory_gb': mem_gb['filesize'],
+                'source_frame_memory_gb': mem_gb['frame'],
                 'fixed_frame': config.workflow.hmc_fix_frame,
                 'subsample_threshold': None,
             }
@@ -867,6 +873,8 @@ def init_pet_fit_wf(
             initial_frame=config.workflow.hmc_init_frame,
             fixed_frame=hmc_policy['fixed_frame'],
             subsample_threshold=hmc_policy['subsample_threshold'],
+            source_file_mem_gb=mem_gb['filesize'],
+            frame_mem_gb=hmc_policy.get('source_frame_memory_gb', mem_gb['frame']),
             memory_policy=config.workflow.hmc_memory_policy,
         )
 

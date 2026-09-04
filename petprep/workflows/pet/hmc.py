@@ -234,6 +234,7 @@ def plan_hmc_resource_policy(
         'estimated_memory_gb': estimate['estimate'],
         'planned_memory_gb': planned_estimate['estimate'],
         'frame_memory_gb': planned_estimate['frame'],
+        'source_frame_memory_gb': estimate['frame'],
         'selected_frames': estimate['selected_frames'],
         'start_frame': estimate['start_frame'],
         'total_frames': estimate['total_frames'],
@@ -286,6 +287,8 @@ def init_pet_hmc_wf(
     initial_frame: int | str | None = 'auto',
     fixed_frame: bool = False,
     subsample_threshold: int | None = None,
+    source_file_mem_gb: float | None = None,
+    frame_mem_gb: float | None = None,
     memory_policy: str = 'auto',
     name: str = 'pet_hmc_wf',
 ):
@@ -337,6 +340,15 @@ def init_pet_hmc_wf(
     subsample_threshold : :obj:`int` or ``None``
         FreeSurfer ``mri_robust_template --subsample`` threshold. If ``None``,
         robust-template subsampling is not requested.
+    source_file_mem_gb : :obj:`float` or ``None``
+        Estimated memory required to load the full PET series. Used to reserve
+        memory for frame splitting before robust-template subsampling applies.
+        If omitted, ``mem_gb`` is used for frame splitting.
+    frame_mem_gb : :obj:`float` or ``None``
+        Estimated memory required to load one full-resolution PET frame. Used
+        to reserve memory for smoothing and thresholding each selected frame.
+        If omitted, per-frame preprocessing nodes use Nipype's default memory
+        accounting to preserve compatibility with direct workflow callers.
     memory_policy : {'auto', 'off'}
         Whether automatic HMC memory safeguards were enabled for this workflow.
     name : :obj:`str`
@@ -360,6 +372,17 @@ def init_pet_hmc_wf(
 
     """
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
+
+    source_file_mem_gb = max(
+        float(source_file_mem_gb if source_file_mem_gb is not None else mem_gb),
+        0.01,
+    )
+    frame_mem_gb = max(float(frame_mem_gb), 0.01) if frame_mem_gb is not None else None
+
+    def _frame_mem_kwargs(scale: float) -> dict[str, float]:
+        if frame_mem_gb is None:
+            return {}
+        return {'mem_gb': max(frame_mem_gb * scale, 0.1)}
 
     workflow = Workflow(name=name)
     workflow.__desc__ = """\
@@ -397,7 +420,11 @@ disabling robust-template iterations.
     outputnode = pe.Node(niu.IdentityInterface(fields=['xforms', 'petref']), name='outputnode')
 
     # Split frames
-    split = pe.Node(fs.MRIConvert(out_type='niigz', split=True), name='split_frames')
+    split = pe.Node(
+        fs.MRIConvert(out_type='niigz', split=True),
+        name='split_frames',
+        mem_gb=source_file_mem_gb,
+    )
 
     # After splitting, explicitly select frames
     select_frames = pe.Node(Select(), name='select_frames')
@@ -429,9 +456,13 @@ disabling robust-template iterations.
         fsl.Smooth(fwhm=fwhm),
         name='smooth',
         iterfield=['in_file'],
+        **_frame_mem_kwargs(4),
     )
     thresh = pe.MapNode(
-        fsl.maths.Threshold(thresh=20, use_robust_range=True), name='thresh', iterfield=['in_file']
+        fsl.maths.Threshold(thresh=20, use_robust_range=True),
+        name='thresh',
+        iterfield=['in_file'],
+        **_frame_mem_kwargs(2),
     )
 
     # Select reference frame
@@ -463,6 +494,7 @@ disabling robust-template iterations.
                 function=_find_highest_uptake_frame,
             ),
             name='find_highest_uptake_frame',
+            **_frame_mem_kwargs(2),
         )
 
     # Motion estimation
@@ -497,7 +529,11 @@ disabling robust-template iterations.
     # Convert to ITK
     lta2itk = pe.Node(LTAList2ITK(), name='convert_lta2itk', mem_gb=0.05, n_procs=omp_nthreads)
 
-    ref_to_nii = pe.Node(fs.MRIConvert(out_type='niigz'), name='convert_ref')
+    ref_to_nii = pe.Node(
+        fs.MRIConvert(out_type='niigz'),
+        name='convert_ref',
+        **_frame_mem_kwargs(2),
+    )
 
     workflow.connect([
         (inputnode, split, [('pet_file', 'in_file')]),

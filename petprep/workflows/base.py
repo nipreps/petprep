@@ -636,9 +636,18 @@ It is released under the [CC0]\
     if config.workflow.seg in {'brainstem', 'hippocampusAmygdala', 'thalamicNuclei'}:
         ensure_mcr2019b_available()
 
+    gtm_mem_gb = None
+    if config.workflow.seg == 'gtm':
+        gtm_mem_gb = _estimate_gtmseg_memory(
+            subject_id=subject_id,
+            session_id=session_id,
+            t1w_files=subject_data['t1w'],
+        )
+
     segmentation_wf = init_segmentation_wf(
         seg=config.workflow.seg,
         name=f'pet_{config.workflow.seg}_seg_wf',
+        gtm_mem_gb=gtm_mem_gb,
     )
     workflow.connect(
         [
@@ -885,6 +894,29 @@ def _detect_existing_highres_freesurfer(subject_id):
                 return gtmseg, shape, zooms
 
     return None
+
+
+def _estimate_gtmseg_memory(*, subject_id, session_id, t1w_files):
+    """Estimate GTM segmentation memory from available anatomical geometry."""
+    from petprep.workflows.pet.segmentation import estimate_gtmseg_mem_usage
+
+    fs_subject_id = _subject_fs_id(subject_id, session_id)
+    existing_highres = _detect_existing_highres_freesurfer(fs_subject_id)
+    if existing_highres is not None:
+        _, shape, _ = existing_highres
+        return estimate_gtmseg_mem_usage(spatial_shape=shape)
+
+    if config.workflow.hires and t1w_files:
+        try:
+            shape, _ = _image_geometry(t1w_files[0])
+        except Exception as exc:  # noqa: BLE001
+            config.loggers.workflow.warning(
+                f'Could not inspect T1w geometry for GTM memory estimation: {exc}'
+            )
+        else:
+            return estimate_gtmseg_mem_usage(spatial_shape=shape)
+
+    return estimate_gtmseg_mem_usage()
 
 
 def _warn_about_submillimeter_recon(*, subject_id, session_id, t1w_files, pet_runs):

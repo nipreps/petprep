@@ -25,6 +25,8 @@
 from functools import cache
 from pathlib import Path
 
+PET_RESAMPLE_MEMORY_SCALE = 8.0
+
 
 def check_deps(workflow):
     """Make sure dependencies are present in this system."""
@@ -69,8 +71,10 @@ def _estimate_pet_mem_usage_cached(
 
     img = nb.load(pet_fname)
     nvox = int(np.prod(img.shape, dtype='u8'))
+    spatial_nvox = int(np.prod(img.shape[:3], dtype='u8'))
     # Assume tools will coerce to 8-byte floats to be safe
     pet_size_gb = 8 * nvox / (1024**3)
+    frame_size_gb = 8 * spatial_nvox / (1024**3)
 
     if img.ndim == 4:
         pet_tlen = img.shape[3]
@@ -81,7 +85,13 @@ def _estimate_pet_mem_usage_cached(
 
     mem_gb = {
         'filesize': pet_size_gb,
-        'resampled': pet_size_gb * 4,
+        'frame': frame_size_gb,
+        'reference': max(pet_size_gb * 1.5, pet_size_gb + frame_size_gb * 4),
+        # Volumetric resampling keeps the source series, target/output series,
+        # dense coordinate grids and interpolation work arrays resident. The
+        # estimate is deliberately conservative so densely sampled runs do not
+        # get scheduled several-at-a-time by Nipype's MultiProc plugin.
+        'resampled': pet_size_gb * PET_RESAMPLE_MEMORY_SCALE,
         'largemem': pet_size_gb * (max(pet_tlen / 100, 1.0) + 4),
         'motion_report': _estimate_motion_report_mem_gb(pet_size_gb, pet_tlen),
     }

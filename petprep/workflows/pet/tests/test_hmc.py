@@ -81,6 +81,32 @@ def test_init_pet_hmc_wf_subsample_threshold():
     assert '--subsample 200' in wf.__desc__
 
 
+def test_init_pet_hmc_wf_preprocessing_memory():
+    wf = init_pet_hmc_wf(
+        mem_gb=5,
+        omp_nthreads=1,
+        source_file_mem_gb=2,
+        frame_mem_gb=0.25,
+    )
+
+    assert wf.get_node('split_frames').mem_gb == 2
+    assert wf.get_node('smooth').mem_gb == 1
+    assert wf.get_node('thresh').mem_gb == 0.5
+    assert wf.get_node('find_highest_uptake_frame').mem_gb == 0.5
+    assert wf.get_node('convert_ref').mem_gb == 0.5
+
+
+def test_init_pet_hmc_wf_preserves_default_preprocessing_memory():
+    wf = init_pet_hmc_wf(mem_gb=5, omp_nthreads=1)
+
+    default_mem_gb = wf.get_node('smooth').mem_gb
+    assert wf.get_node('split_frames').mem_gb == 5
+    assert default_mem_gb < wf.get_node('split_frames').mem_gb
+    assert wf.get_node('thresh').mem_gb == default_mem_gb
+    assert wf.get_node('find_highest_uptake_frame').mem_gb == default_mem_gb
+    assert wf.get_node('convert_ref').mem_gb == default_mem_gb
+
+
 def test_init_pet_hmc_wf_without_subsample_threshold():
     wf = init_pet_hmc_wf(mem_gb=1, omp_nthreads=1)
     node = wf.get_node('est_robust_hmc')
@@ -280,6 +306,7 @@ def test_plan_hmc_resource_policy_limits_high_resolution_pet(monkeypatch):
     assert policy['fixed_frame'] is True
     assert policy['subsample_threshold'] == 200
     assert policy['planned_memory_gb'] < policy['estimated_memory_gb']
+    assert policy['source_frame_memory_gb'] > policy['frame_memory_gb']
 
 
 def test_plan_hmc_resource_policy_limits_more_than_forty_frames(tmp_path):

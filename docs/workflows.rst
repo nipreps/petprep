@@ -262,6 +262,9 @@ memory intensive on submillimeter anatomical grids. Use ``--submm-recon`` to opt
 in for T1w images with voxel sizes less than 1mm in all dimensions (rounding to
 nearest .1mm). The ``--no-submm-recon`` flag may be used to explicitly keep this
 default behavior.
+For GTM segmentation, *PETPrep* reserves scheduler memory from the available
+FreeSurfer or T1w grid size so high-resolution ``gtmseg`` runs are scheduled
+conservatively.
 
 If T2w or FLAIR images are available, and you do not want them included in
 FreeSurfer reconstruction, use ``--ignore t2w`` or ``--ignore flair``,
@@ -417,8 +420,11 @@ threshold of at most 200. The threshold is lowered below the smallest spatial
 dimension when needed so FreeSurfer's all-axis subsampling condition can take
 effect, but is not lowered below 150 voxels. This decision is data-driven and is
 recorded in the workflow log; the selected HMC settings are reflected in the
-workflow boilerplate. Use :option:`--hmc-memory-policy` ``off`` to disable these
-automatic memory safeguards.
+workflow boilerplate. Independently of this policy, PET geometry estimates are
+also used to reserve scheduler memory for frame splitting, HMC preprocessing,
+PET reference image generation and volumetric resampling. Use
+:option:`--hmc-memory-policy` ``off`` to disable the robust-template memory
+safeguards.
 
 Pre-processed PET in native space
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

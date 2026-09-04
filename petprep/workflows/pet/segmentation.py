@@ -1,6 +1,8 @@
 # emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-
 """Segmentation workflows."""
 
+from math import prod
+
 from nipype import Function
 from nipype.interfaces import utility as niu
 from nipype.interfaces.freesurfer import MRIConvert
@@ -40,6 +42,25 @@ except Exception:  # pragma: no cover - Py<3.9 fallback
 
 SEG_DATA = ir_files('petprep.data.segmentation')
 ATLAS_CONFIG = load_atlas_config()
+# ``gtmseg`` can keep several label, tissue and working volumes resident.
+# Reserve a conservative floor for ordinary 1 mm FreeSurfer grids and scale
+# high-resolution grids by an approximate stack of double-precision volumes
+# plus process overhead.
+GTMSEG_MEMORY_FLOOR_GB = 16.0
+GTMSEG_MEMORY_SCALE = 12.0
+
+
+def estimate_gtmseg_mem_usage(spatial_shape: tuple[int, int, int] | None = None) -> float:
+    """Estimate memory required by FreeSurfer's ``gtmseg`` command.
+
+    The estimate is intentionally conservative for Nipype scheduling and is not
+    intended to predict exact resident set size.
+    """
+    if spatial_shape is None:
+        return GTMSEG_MEMORY_FLOOR_GB
+
+    frame_gb = 8 * prod(spatial_shape[:3]) / (1024**3)
+    return max(GTMSEG_MEMORY_FLOOR_GB, 4.0 + frame_gb * GTMSEG_MEMORY_SCALE)
 
 
 def _merge_ha_labels(lh_file: str, rh_file: str) -> str:
@@ -326,7 +347,12 @@ def _build_template_atlas_nodes(seg: str):
     return nodes
 
 
-def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
+def init_segmentation_wf(
+    seg: str = 'gtm',
+    name: str | None = None,
+    *,
+    gtm_mem_gb: float | None = None,
+) -> Workflow:
     """Return a minimal segmentation workflow selecting a FreeSurfer command."""
     name = name or f'pet_{seg}_seg_wf'
     workflow = Workflow(name=name)
@@ -451,7 +477,16 @@ def init_segmentation_wf(seg: str = 'gtm', name: str | None = None) -> Workflow:
         return workflow
 
     interface = spec['interface']
-    seg_node = pe.Node(interface(**spec.get('interface_kwargs', {})), name=f'run_{seg}')
+    node_kwargs = {}
+    if seg == 'gtm':
+        node_kwargs['mem_gb'] = (
+            float(gtm_mem_gb) if gtm_mem_gb is not None else estimate_gtmseg_mem_usage()
+        )
+    seg_node = pe.Node(
+        interface(**spec.get('interface_kwargs', {})),
+        name=f'run_{seg}',
+        **node_kwargs,
+    )
 
     for in_field, out_field in spec.get('inputs', []):
         workflow.connect([(inputnode, seg_node, [(in_field, out_field)])])
