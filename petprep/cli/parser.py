@@ -1012,6 +1012,7 @@ def parse_args(args=None, namespace=None):
             [
                 Reference('MNI152NLin2009cAsym', {'res': 'native'}),
                 Reference('T1w'),
+                Reference('fsaverage'),
             ],
         )
 
