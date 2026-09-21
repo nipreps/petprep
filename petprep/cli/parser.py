@@ -25,7 +25,7 @@
 import sys
 
 from .. import config
-from ..utils.atlas import load_atlas_config
+from ..utils.atlas import load_atlas_config, segmentation_choices
 from ..utils.bids import get_sessions
 
 
@@ -335,6 +335,11 @@ def _build_parser(**kwargs):
 
     g_subset = parser.add_argument_group('Options for performing only a subset of the workflow')
     g_subset.add_argument('--anat-only', action='store_true', help='Run anatomical workflows only')
+    g_subset.add_argument(
+        '--pet-only',
+        action='store_true',
+        help='Experimental: normalize PET directly to --output-spaces without subject anatomy.',
+    )
     g_subset.add_argument(
         '--level',
         action='store',
@@ -693,26 +698,14 @@ https://petprep.readthedocs.io/en/{currentv.base_version if is_release else 'lat
         ),
     )
 
-    atlas_config = load_atlas_config()
-    seg_choices = [
-        'gtm',
-        'brainstem',
-        'thalamicNuclei',
-        'hippocampusAmygdala',
-        'wm',
-        'aparcaseg',
-        'raphe',
-        'limbic',
-        *sorted(atlas_config.keys()),
-    ]
-
     g_seg = parser.add_argument_group('Segmentation options')
     g_seg.add_argument(
         '--seg',
         action='store',
         default='gtm',
-        choices=seg_choices,
-        help='Segmentation method to use.',
+        choices=segmentation_choices(),
+        help='Segmentation to use. With --pet-only, fetch the atlas image and label table '
+        'from TemplateFlow; otherwise use subject-specific segmentation or the configured atlas.',
     )
 
     g_refmask = parser.add_argument_group('Options for reference mask generation')
@@ -913,6 +906,19 @@ def parse_args(args=None, namespace=None):
     config.workflow.petref_specified = _option_was_specified('--petref')
     config.workflow.pet2anat_method_specified = _option_was_specified('--pet2anat-method')
 
+    if config.workflow.pet_only:
+        if config.workflow.anat_only:
+            parser.error('--pet-only cannot be combined with --anat-only.')
+        if config.workflow.cifti_output or opts.pvc_tool or opts.ref_mask_name:
+            parser.error('--pet-only does not yet support CIFTI, PVC, or reference masks.')
+        if config.workflow.level != 'full':
+            parser.error('--pet-only currently requires --level full.')
+        config.workflow.run_reconall = False
+        if not config.workflow.petref_specified:
+            config.workflow.petref = 'twa'
+        elif config.workflow.petref == 'auto':
+            parser.error('--pet-only requires an explicit --petref strategy; auto uses anatomy.')
+
     if config.execution.session_label:
         config.execution.bids_filters = config.execution.bids_filters or {}
         config.execution.bids_filters['pet'] = {
@@ -1010,13 +1016,21 @@ def parse_args(args=None, namespace=None):
     if config.execution.output_spaces is None:
         config.execution.output_spaces = SpatialReferences(
             [
-                Reference('MNI152NLin2009cAsym', {'res': 'native'}),
-                Reference('T1w'),
+                Reference(
+                    'MNI152NLin2009cAsym', {'res': 1 if config.workflow.pet_only else 'native'}
+                ),
+                *([] if config.workflow.pet_only else [Reference('T1w')]),
             ],
         )
 
     atlas_config = load_atlas_config()
-    if config.workflow.seg in atlas_config:
+    if config.workflow.pet_only:
+        refs = config.execution.output_spaces.references
+        if not refs or any(not ref.standard or ref.dim != 3 for ref in refs):
+            parser.error(
+                '--pet-only requires volumetric standard --output-spaces (no T1w/surfaces).'
+            )
+    elif config.workflow.seg in atlas_config:
         atlas_spec = atlas_config[config.workflow.seg]
         atlas_reference = atlas_spec.get('reference') or {'res': 'native'}
         spaces = config.execution.output_spaces or SpatialReferences()
@@ -1124,7 +1138,7 @@ applied."""
             config.environment.exec_env,
             opts.bids_dir,
             opts.participant_label,
-            need_T1w=not config.execution.derivatives,
+            need_T1w=not (config.workflow.pet_only or config.execution.derivatives),
         )
 
     # Setup directories
@@ -1233,7 +1247,7 @@ applied."""
         missing = [
             modality
             for modality, present in (('PET', status['pet']), ('T1w', status['t1w']))
-            if not present
+            if not present and not (modality == 'T1w' and config.workflow.pet_only)
         ]
         if missing:
             build_log.warning(

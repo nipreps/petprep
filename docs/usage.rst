@@ -423,6 +423,19 @@ Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 
+With ``--pet-only``, the same segmentation names are accepted, but **all atlas
+images and label tables must come from TemplateFlow**, including choices such
+as ``gtm`` and ``brainstem``. These choices require their corresponding resources
+to be published or installed in TemplateFlow for the requested output template.
+PET-only processing uses the spaces in ``--output-spaces``, without adding an
+atlas's anatomical-workflow template. It samples atlas labels onto the output
+PET grid and extracts TACs there.
+With no explicit ``--output-spaces``, the PET-only default is
+``MNI152NLin2009cAsym:res-1``: PET, atlas labels, morphometry and TAC extraction
+use the template's 1 mm isotropic grid. The subject-specific segmentation methods
+described above apply to the anatomical workflow. See :doc:`pet_only` for the
+resource requirements and shared label-table configuration.
+
 To run the segmentation with the default ``gtm`` method, use: ::
 
     $ petprep /data/bids_root /out participant --seg gtm 
@@ -450,7 +463,11 @@ Where ``<N>`` is one of ``100``, ``200``, ``300``, ``400``, ``500``, ``600``,
 
 .. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
-``MASSP20`` : the MASSP20 subcortical atlas. When an atlas is selected with ``--seg``, PETPrep automatically adds the corresponding template to the ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about these atlases, see their respective publications:
+``MASSP20`` : the MASSP20 subcortical atlas. In the anatomical workflow, selecting
+an atlas with ``--seg`` automatically adds its template to ``--output-spaces``
+and warps the atlas image into anatomical space. PET-only processing instead
+fetches the atlas image in each requested output space. For more information
+about these atlases, see their respective publications:
 
 .. figure:: _static/atlas_MASSP20.svg
 

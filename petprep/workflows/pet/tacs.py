@@ -21,13 +21,17 @@ def resample_pet_to_segmentation(pet_file, segmentation_file):
     return out_file
 
 
-def init_pet_tacs_wf(*, name: str = 'pet_tacs_wf') -> pe.Workflow:
+def init_pet_tacs_wf(
+    *, name: str = 'pet_tacs_wf', resample_to_segmentation: bool = True
+) -> pe.Workflow:
     """Extract time activity curves from a segmentation."""
 
     workflow = pe.Workflow(name=name)
 
     inputnode = pe.Node(
-        niu.IdentityInterface(fields=['pet_anat', 'segmentation', 'dseg_tsv', 'metadata']),
+        niu.IdentityInterface(
+            fields=['pet_anat', 'pet_file', 'segmentation', 'dseg_tsv', 'metadata', 'support']
+        ),
         name='inputnode',
     )
     outputnode = pe.Node(niu.IdentityInterface(fields=['timeseries']), name='outputnode')
@@ -46,6 +50,25 @@ def init_pet_tacs_wf(*, name: str = 'pet_tacs_wf') -> pe.Workflow:
         ExtractTACs(),
         name='tac',
     )
+
+    if not resample_to_segmentation:
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    tac,
+                    [
+                        ('pet_file', 'in_file'),
+                        ('segmentation', 'segmentation'),
+                        ('dseg_tsv', 'dseg_tsv'),
+                        ('metadata', 'metadata'),
+                        ('support', 'support'),
+                    ],
+                ),
+                (tac, outputnode, [('out_file', 'timeseries')]),
+            ]
+        )
+        return workflow
 
     workflow.connect(
         [

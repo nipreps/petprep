@@ -128,7 +128,11 @@ def build_workflow(config_file, retval):
     retval['workflow'] = init_petprep_wf()
 
     # Check for FS license after building the workflow
-    if not check_valid_fs_license():
+    needs_freesurfer = not config.workflow.pet_only or any(
+        node.interface.__class__.__module__.startswith('nipype.interfaces.freesurfer')
+        for node in retval['workflow']._get_all_nodes()
+    )
+    if needs_freesurfer and not check_valid_fs_license():
         from ..utils.misc import fips_enabled
 
         if fips_enabled():

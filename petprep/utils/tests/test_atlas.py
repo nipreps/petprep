@@ -81,3 +81,82 @@ def test_get_atlas_files_unknown_atlas(monkeypatch):
     monkeypatch.setattr(atlas, 'load_atlas_config', dict)
     with pytest.raises(ValueError, match='is not defined'):
         atlas.get_atlas_files('Missing')
+
+
+@pytest.mark.parametrize('name', atlas.segmentation_choices())
+def test_pet_only_templateflow_sources_for_all_segmentations(name):
+    """Every CLI segmentation has a TemplateFlow-only route in PET-only mode."""
+    template = 'MNI152NLin2009cAsym'
+    resources = atlas.templateflow_atlas_resources(name, template, {'res': 'native'})
+    assert resources['segmentation']['template'] == template
+    for resource in resources.values():
+        assert resource['source'] == 'templateflow'
+        assert resource['query']['suffix'] == 'dseg'
+    assert resources['labels']['query']['extension'] == '.tsv'
+    if name in atlas.SUBJECT_SEGMENTATIONS:
+        assert resources['segmentation']['query']['atlas'] == name
+        assert resources['labels']['query']['atlas'] == name
+        assert name not in atlas.load_atlas_config()
+
+
+def test_segmentation_names_match_anatomical_workflow():
+    from petprep.workflows.pet.segmentation import SEGMENTATIONS
+
+    assert set(atlas.segmentation_choices()) == set(SEGMENTATIONS)
+    for name in atlas.SUBJECT_SEGMENTATIONS:
+        assert 'interface' in SEGMENTATIONS[name]
+        assert 'template_atlas' not in SEGMENTATIONS[name]
+
+
+def test_shared_templateflow_label_table(monkeypatch, tmp_path):
+    queries = []
+
+    def get(**query):
+        queries.append(query)
+        return str(tmp_path / 'labels.tsv')
+
+    tf_api = types.SimpleNamespace(get=get)
+    monkeypatch.setitem(sys.modules, 'templateflow', types.SimpleNamespace(api=tf_api))
+    monkeypatch.setitem(sys.modules, 'templateflow.api', tf_api)
+    resources = atlas.templateflow_atlas_resources('HOCPA', 'MNI152NLin2009cAsym', {'res': 2})
+    assert resources['segmentation']['template'] == 'MNI152NLin2009cAsym'
+    assert resources['segmentation']['query']['desc'] == 'th25'
+    assert resources['labels']['template'] == 'MNI152NLin6Asym'
+    atlas._resolve_resource('MNI152NLin2009cAsym', resources['labels'])
+    assert queries == [
+        {
+            'template': 'MNI152NLin6Asym',
+            'atlas': 'HOCPA',
+            'suffix': 'dseg',
+            'extension': '.tsv',
+        }
+    ]
+    # Query generation must not alter the cached anatomical atlas configuration.
+    assert 'space' not in atlas.load_atlas_config()['HOCPA']['segmentation']['query']
+
+
+@pytest.mark.parametrize('resource_name', ['segmentation', 'labels'])
+@pytest.mark.parametrize('source', ['package', 'file'])
+def test_pet_only_rejects_non_templateflow_resources(monkeypatch, tmp_path, resource_name, source):
+    specification = {
+        'segmentation': {'source': 'templateflow', 'query': {'atlas': 'Example'}},
+        'labels': {'source': 'templateflow', 'query': {'atlas': 'Example'}},
+    }
+    specification[resource_name] = {'source': source, 'path': str(tmp_path / 'substitute')}
+    monkeypatch.setattr(atlas, 'load_atlas_config', lambda: {'Example': specification})
+    with pytest.raises(ValueError, match=f'requires TemplateFlow {resource_name}'):
+        atlas.templateflow_atlas_resources('Example', 'MNI152NLin2009cAsym', {})
+
+
+def test_pet_only_rejects_image_from_another_template(monkeypatch):
+    specification = {
+        'segmentation': {
+            'source': 'templateflow',
+            'template': 'MNI152NLin6Asym',
+            'query': {'atlas': 'Example'},
+        },
+        'labels': {'source': 'templateflow', 'query': {'atlas': 'Example'}},
+    }
+    monkeypatch.setattr(atlas, 'load_atlas_config', lambda: {'Example': specification})
+    with pytest.raises(ValueError, match='must use the requested output space'):
+        atlas.templateflow_atlas_resources('Example', 'MNI152NLin2009cAsym', {})

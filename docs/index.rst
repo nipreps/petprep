@@ -15,6 +15,7 @@ Contents
    installation
    usage
    workflows
+   pet_only
    outputs
    benchmarks
    spaces

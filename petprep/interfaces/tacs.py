@@ -8,16 +8,18 @@ from nipype.interfaces.base import (
     File,
     SimpleInterface,
     TraitedSpec,
+    isdefined,
     traits,
 )
 from nipype.utils.filemanip import fname_presuffix
 
 
 class _ExtractTACsInputSpec(BaseInterfaceInputSpec):
-    in_file = File(exists=True, mandatory=True, desc='PET file in anatomical space')
-    segmentation = File(exists=True, mandatory=True, desc='Segmentation in anatomical space')
+    in_file = File(exists=True, mandatory=True, desc='PET file on the extraction grid')
+    segmentation = File(exists=True, mandatory=True, desc='Segmentation on the same PET grid')
     dseg_tsv = File(exists=True, mandatory=True, desc='Lookup table for segmentation')
     metadata = File(exists=True, mandatory=True, desc='PET JSON metadata file')
+    support = File(exists=True, desc='Optional per-frame measured support on the PET grid')
 
 
 class _ExtractTACsOutputSpec(TraitedSpec):
@@ -49,7 +51,12 @@ class ExtractTACs(SimpleInterface):
         if len(frame_times) != len(frame_durations):
             raise ValueError('FrameTimesStart and FrameDuration must have equal length')
 
-        segmentation_data = np.rint(nb.load(self.inputs.segmentation).get_fdata()).astype(int)
+        segmentation_img = nb.load(self.inputs.segmentation)
+        if segmentation_img.shape != pet_img.shape[:3] or not np.allclose(
+            segmentation_img.affine, pet_img.affine
+        ):
+            raise ValueError('PET and segmentation must share the same spatial grid')
+        segmentation_data = np.rint(segmentation_img.get_fdata()).astype(int)
         pet_data = pet_img.get_fdata()
 
         unique_labels = np.unique(segmentation_data)
@@ -60,6 +67,18 @@ class ExtractTACs(SimpleInterface):
             )
 
         curves = {}
+        support = None
+        if isdefined(self.inputs.support):
+            support_img = nb.load(self.inputs.support)
+            support = support_img.get_fdata()
+            if support.ndim == 3:
+                support = support[..., np.newaxis]
+            if support.shape != pet_data.shape or not np.allclose(
+                support_img.affine, pet_img.affine
+            ):
+                raise ValueError('PET and support must share the same grid and frame count')
+            # Keep stable columns, including atlas regions absent on this output grid.
+            unique_labels = [int(label) for label in label_mapping]
 
         for label_num in unique_labels:
             if label_num == 0:
@@ -69,6 +88,9 @@ class ExtractTACs(SimpleInterface):
             mask = segmentation_data == label_num
             if mask.any():
                 region_timeseries = pet_data[mask, :].mean(axis=0)
+                if support is not None:
+                    valid = np.all(support[mask, :] > 0.999, axis=0)
+                    region_timeseries[~valid] = np.nan
                 curves[label_name] = region_timeseries
             else:
                 curves[label_name] = np.full(n_tp, np.nan)

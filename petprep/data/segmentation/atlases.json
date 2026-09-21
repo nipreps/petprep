@@ -20,6 +20,7 @@
     },
     "labels": {
       "source": "templateflow",
+      "template": "MNI152NLin6Asym",
       "query": {
         "atlas": "HOCPA",
         "suffix": "dseg",

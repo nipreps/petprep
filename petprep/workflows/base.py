@@ -135,7 +135,7 @@ def init_petprep_wf():
     petprep_wf = Workflow(name=f'petprep_{ver.major}_{ver.minor}_wf')
     petprep_wf.base_dir = config.execution.work_dir
 
-    freesurfer = config.workflow.run_reconall
+    freesurfer = config.workflow.run_reconall and not config.workflow.pet_only
     if freesurfer:
         fsdir = pe.Node(
             BIDSFreeSurferDir(
@@ -167,7 +167,7 @@ def init_petprep_wf():
         missing = [
             modality
             for modality, present in (('PET', status['pet']), ('T1w', status['t1w']))
-            if not present
+            if not present and not (modality == 'T1w' and config.workflow.pet_only)
         ]
         if missing:
             config.loggers.workflow.warning(
@@ -241,6 +241,11 @@ def init_single_subject_wf(subject_id: str, session_id: str | list[str] | None =
         FreeSurfer's ``$SUBJECTS_DIR``.
 
     """
+    if config.workflow.pet_only:
+        from .pet.pet_only import init_pet_only_subject_wf
+
+        return init_pet_only_subject_wf(subject_id=subject_id, session_id=session_id)
+
     from niworkflows.engine.workflows import LiterateWorkflow as Workflow
     from niworkflows.interfaces.bids import BIDSDataGrabber, BIDSInfo
     from niworkflows.interfaces.nilearn import NILEARN_VERSION

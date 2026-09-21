@@ -12,6 +12,22 @@ from uuid import uuid4
 
 from petprep.data import load as load_data
 
+SUBJECT_SEGMENTATIONS = (
+    'gtm',
+    'brainstem',
+    'thalamicNuclei',
+    'hippocampusAmygdala',
+    'wm',
+    'aparcaseg',
+    'raphe',
+    'limbic',
+)
+
+
+def segmentation_choices() -> list[str]:
+    """The common --seg vocabulary, independent of the processing mode."""
+    return [*SUBJECT_SEGMENTATIONS, *sorted(load_atlas_config())]
+
 
 @lru_cache
 def load_atlas_config() -> dict[str, Any]:
@@ -20,10 +36,76 @@ def load_atlas_config() -> dict[str, Any]:
     The configuration maps atlas names to metadata describing the template,
     segmentation image and corresponding label table. Both files can be
     referenced as package data or retrieved from TemplateFlow.
+    A resource-level ``template`` selects an explicitly shared label table.
     """
 
     config_file = ir_files('petprep.data.segmentation') / 'atlases.json'
     return json.loads(config_file.read_text())
+
+
+def templateflow_atlas_resources(
+    atlas_name: str, template: str, specification: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """Describe PET-only resources for any supported segmentation name.
+
+    Subject-derived segmentations use the corresponding ``atlas-<name>``
+    TemplateFlow resources in this mode. They remain subject-derived in the
+    anatomical workflow; do not add them to ``load_atlas_config`` merely to
+    advertise their PET-only queries.
+
+    Atlas images must belong to the requested space. A label resource may name
+    an explicit template that hosts the atlas's shared index/name table.
+    """
+    from copy import deepcopy
+
+    atlas = load_atlas_config().get(atlas_name)
+    resolution = specification.get('res', 1)
+    resolution = 1 if resolution == 'native' else int(resolution)
+    if atlas is None:
+        if atlas_name not in SUBJECT_SEGMENTATIONS:
+            raise ValueError(f'Unknown segmentation: {atlas_name}')
+        atlas = {
+            'segmentation': {
+                'source': 'templateflow',
+                'query': {
+                    'atlas': atlas_name,
+                    'resolution': resolution,
+                    'suffix': 'dseg',
+                    'extension': '.nii.gz',
+                },
+            },
+            'labels': {
+                'source': 'templateflow',
+                'query': {'atlas': atlas_name, 'suffix': 'dseg', 'extension': '.tsv'},
+            },
+        }
+
+    resources = {}
+    for name in ('segmentation', 'labels'):
+        resource = deepcopy(atlas.get(name))
+        if (
+            not isinstance(resource, dict)
+            or resource.get('source', 'templateflow') != 'templateflow'
+        ):
+            raise ValueError(
+                f'PET-only --seg {atlas_name} requires TemplateFlow {name}; '
+                'subject-specific, packaged, and external file resources are not used.'
+            )
+        query = resource.get('query')
+        if not isinstance(query, dict):
+            raise TypeError(
+                f'PET-only --seg {atlas_name} is missing a TemplateFlow {name} query.'
+            )
+        resource_template = resource.get('template', template)
+        if name == 'segmentation':
+            if resource_template != template or query.get('template', template) != template:
+                raise ValueError('PET-only atlas images must use the requested output space.')
+            query.update(space=None, cohort=specification.get('cohort'))
+        elif 'template' not in resource:
+            query['cohort'] = specification.get('cohort')
+        resource.update(source='templateflow', template=resource_template)
+        resources[name] = resource
+    return resources
 
 
 def _resolve_resource(template: str, resource: dict[str, Any]) -> str:
@@ -33,12 +115,16 @@ def _resolve_resource(template: str, resource: dict[str, Any]) -> str:
     if source == 'templateflow':
         import templateflow.api as tf
 
-        query = {**resource.get('query', {}), 'template': template}
+        query = {**resource.get('query', {}), 'template': resource.get('template', template)}
         result = tf.get(**query)
         if isinstance(result, (list, tuple)):
             if not result:
                 raise ValueError(f'No files found for atlas resource: {resource}')
+            if len(result) != 1:
+                raise ValueError(f'Ambiguous atlas resource ({len(result)} matches): {resource}')
             result = result[0]
+        if not result:
+            raise ValueError(f'No files found for atlas resource: {resource}')
         return str(result)
 
     if source == 'package':

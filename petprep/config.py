@@ -566,6 +566,8 @@ class workflow(_Config):
 
     anat_only = False
     """Execute the anatomical preprocessing only."""
+    pet_only = False
+    """Normalize PET directly to output templates without subject anatomy."""
     pet2anat_dof = None
     """Degrees of freedom of the PET-to-anatomical registration steps."""
     pet2anat_init = 'auto'
@@ -853,7 +855,9 @@ def init_spaces(checkpoint=True):
         spaces.checkpoint()
 
     # Add the default standard space if not already present (required by several sub-workflows)
-    if 'MNI152NLin2009cAsym' not in spaces.get_spaces(nonstandard=False, dim=(3,)):
+    if not workflow.pet_only and 'MNI152NLin2009cAsym' not in spaces.get_spaces(
+        nonstandard=False, dim=(3,)
+    ):
         spaces.add(Reference('MNI152NLin2009cAsym', {}))
 
     # Ensure user-defined spatial references for outputs are correctly parsed.

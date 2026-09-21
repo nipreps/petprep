@@ -14,6 +14,38 @@ data_dir = data.load('tests')
 pet_source = data_dir / 'work' / 'reportlets' / 'petprep' / 'sub-01' / 'pet'
 
 
+@pytest.mark.parametrize('bootstrap_file', ['reports-spec.yml', 'reports-spec-pet.yml'])
+def test_pet_normalization_report_ignores_sidecar(tmp_path, bootstrap_file):
+    """Render the normalization SVG without treating its JSON sidecar as a figure."""
+    figures = tmp_path / 'sub-01' / 'figures'
+    figures.mkdir(parents=True)
+    stem = 'sub-01_ses-01_space-MNI152NLin2009cAsym_res-1_desc-petnorm_pet'
+    (figures / f'{stem}.svg').write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
+        '<rect width="10" height="10" /></svg>'
+    )
+    sidecar = figures / f'{stem}.json'
+    metadata = '{"Description": "registration-sidecar"}'
+    sidecar.write_text(metadata)
+
+    error = core.run_reports(
+        tmp_path,
+        '01',
+        'fake_uuid',
+        bootstrap_file=data.load(bootstrap_file),
+        out_filename='test-report.html',
+        subject='01',
+        session='01',
+    )
+
+    assert error is None
+    report = (tmp_path / 'test-report.html').read_text()
+    assert f'{stem}.svg' in report
+    assert 'PET to template normalization' in report
+    assert 'registration-sidecar' not in report
+    assert sidecar.read_text() == metadata
+
+
 # Test with and without sessions' aggregation
 @pytest.mark.parametrize(
     ('aggr_ses_reports', 'expected_files'),

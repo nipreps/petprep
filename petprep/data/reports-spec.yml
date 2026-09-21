@@ -64,6 +64,10 @@ sections:
     caption: PET to anatomical visualization
     static: false
     subtitle: PET to anatomical visualization
+  - bids: {datatype: figures, desc: petnorm, suffix: pet, extension: [.svg]}
+    caption: Experimental direct PET-to-template normalization. Compare regional alignment in both images.
+    static: false
+    subtitle: PET to template normalization
   - bids: {datatype: figures, desc: atlasrois, suffix: pet}
     caption: Atlas regions used for time-activity curves overlaid on the anatomical and PET reference images. The legend lists each atlas region with the corresponding color.
     static: false
@@ -76,6 +80,7 @@ sections:
   nested: true
   reportlets:
   - bids: {datatype: figures, desc: about, suffix: T1w}
+  - bids: {datatype: figures, desc: about, suffix: pet}
   - custom: boilerplate
     path: '{out_dir}/logs'
     bibfile: ['petprep', 'data/boilerplate.bib']

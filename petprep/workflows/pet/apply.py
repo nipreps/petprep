@@ -11,12 +11,17 @@ def init_pet_volumetric_resample_wf(
     *,
     mem_gb: dict[str, float],
     omp_nthreads: int = 1,
+    direct: bool = False,
     name: str = 'pet_volumetric_resample_wf',
 ) -> pe.Workflow:
     """Resample a PET series to a volumetric target space.
 
     This workflow collates a sequence of transforms to resample a PET series
     in a single shot, including motion correction.
+
+    With ``direct=True``, supply ``petref2target_xfm`` instead of anatomical
+    transforms. The PET-only route uses constant zero padding beyond image
+    boundaries; its caller tracks measured support separately for TACs.
 
     .. workflow::
 
@@ -78,6 +83,7 @@ def init_pet_volumetric_resample_wf(
                 'petref2anat_xfm',
                 # Template
                 'anat2std_xfm',
+                'petref2target_xfm',
                 # Entity for selecting target resolution
                 'resolution',
             ],
@@ -95,7 +101,7 @@ def init_pet_volumetric_resample_wf(
     petref2target = pe.Node(niu.Merge(2), name='petref2target', run_without_submitting=True)
     pet2target = pe.Node(niu.Merge(2), name='pet2target', run_without_submitting=True)
     resample = pe.Node(
-        ResampleSeries(),
+        ResampleSeries(**({'mode': 'constant'} if direct else {})),
         name='resample',
         n_procs=omp_nthreads,
         mem_gb=mem_gb['resampled'],
@@ -108,18 +114,30 @@ def init_pet_volumetric_resample_wf(
             ('target_mask', 'fov_mask'),
             (('resolution', _is_native), 'keep_native'),
         ]),
-        (inputnode, petref2target, [
-            ('petref2anat_xfm', 'in1'),
-            ('anat2std_xfm', 'in2'),
-        ]),
         (inputnode, pet2target, [('motion_xfm', 'in1')]),
         (inputnode, resample, [('pet_file', 'in_file')]),
         (gen_ref, resample, [('out_file', 'ref_file')]),
-        (petref2target, pet2target, [('out', 'in2')]),
         (pet2target, resample, [('out', 'transforms')]),
         (gen_ref, outputnode, [('out_file', 'resampling_reference')]),
         (resample, outputnode, [('out_file', 'pet_file')]),
     ])  # fmt:skip
+
+    if direct:
+        workflow.connect(inputnode, 'petref2target_xfm', pet2target, 'in2')
+    else:
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    petref2target,
+                    [
+                        ('petref2anat_xfm', 'in1'),
+                        ('anat2std_xfm', 'in2'),
+                    ],
+                ),
+                (petref2target, pet2target, [('out', 'in2')]),
+            ]
+        )
 
     return workflow
 
