@@ -95,6 +95,30 @@ def test_template_atlas_masking():
         assert ('out_file', 'segmentation') in edge_seg['connect']
 
 
+@pytest.mark.parametrize('seg', ['Buckner20117Networks', 'Buckner201117Networks'])
+def test_buckner_atlas_workflow(seg):
+    """Cerebellar labels use the MNI6 transform and the full brain mask."""
+    with mock_config():
+        wf = init_segmentation_wf(seg)
+
+        atlas_files = wf.get_node(f'load_{seg}_atlas')
+        select_xfm = wf.get_node(f'select_{seg}_xfm')
+        apply_node = wf.get_node(f'warp_{seg}_atlas')
+        mask_node = wf.get_node(f'mask_{seg}_atlas')
+        seg_source = wf.get_node(f'{seg}_seg_source')
+        label_sink = wf.get_node(f'ds_{seg}dsegtsv')
+        inputnode = wf.get_node('inputnode')
+
+        assert atlas_files.inputs.atlas_name == seg
+        assert select_xfm.inputs.key == 'MNI152NLin6Asym'
+        assert apply_node.inputs.interpolation == 'NearestNeighbor'
+        assert ('std2anat_xfm', 'transforms') in wf._graph[select_xfm][apply_node]['connect']
+        assert ('output_image', 'in_file') in wf._graph[apply_node][mask_node]['connect']
+        assert wf._graph[inputnode][mask_node]['connect'] == [('t1w_mask', 'in_mask')]
+        assert ('out_file', 'segmentation') in wf._graph[mask_node][seg_source]['connect']
+        assert ('label_file', 'in_file') in wf._graph[atlas_files][label_sink]['connect']
+
+
 def test_template_atlas_masking_unsupported_option():
     """Atlas masking should only allow brain or ribbon choices."""
     from copy import deepcopy

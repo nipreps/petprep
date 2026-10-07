@@ -190,11 +190,23 @@ def test_segmentation_shared_across_runs(multisession_bids_root):
         assert all('_seg_wf' not in n for n in pet_node.list_node_names())
 
 
-def test_segmentation_boilerplate_mentions_atlas_reference():
-    desc = _build_segmentation_boilerplate('MASSP20')
+@pytest.mark.parametrize(
+    ('seg', 'citation'),
+    [
+        ('MASSP20', 'massp20'),
+        ('HOCPA', 'hocpa'),
+        ('Schaefer2018100Parcels7Networks', 'schaefer2018'),
+        ('Buckner20117Networks', 'buckner2011'),
+        ('Buckner201117Networks', 'buckner2011'),
+    ],
+)
+def test_segmentation_boilerplate_mentions_atlas_reference(seg, citation):
+    desc = _build_segmentation_boilerplate(seg)
     assert 'atlas' in desc
+    assert f'``{seg}``' in desc
     assert 'warped into anatomical space' in desc
-    assert '[@massp20]' in desc
+    assert f'[@{citation}]' in desc
+    assert ('[@buckner2011]' in desc) == seg.startswith('Buckner2011')
 
 
 def test_pvc_boilerplate_includes_tool_reference():

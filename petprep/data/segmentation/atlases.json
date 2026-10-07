@@ -27,6 +27,66 @@
       }
     }
   },
+  "Buckner20117Networks": {
+    "template": "MNI152NLin6Asym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Buckner 2011 cerebellar atlas with 7 networks.",
+    "mask": "brain",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Buckner2011",
+        "segmentation": "7n",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Buckner2011",
+        "segmentation": "7n",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
+  "Buckner201117Networks": {
+    "template": "MNI152NLin6Asym",
+    "reference": {
+      "res": 1
+    },
+    "description": "Buckner 2011 cerebellar atlas with 17 networks.",
+    "mask": "brain",
+    "segmentation": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Buckner2011",
+        "segmentation": "17n",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": [
+          ".nii.gz"
+        ]
+      }
+    },
+    "labels": {
+      "source": "templateflow",
+      "query": {
+        "atlas": "Buckner2011",
+        "segmentation": "17n",
+        "resolution": 1,
+        "suffix": "dseg",
+        "extension": ".tsv"
+      }
+    }
+  },
   "Schaefer2018100Parcels7Networks": {
     "template": "MNI152NLin2009cAsym",
     "reference": {

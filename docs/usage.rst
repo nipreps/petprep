@@ -419,7 +419,7 @@ Segmentation
 ------------
 *PETPrep* can segment the brain into different brain regions and extract time activity curves from these regions.
 The ``--seg`` flag selects the segmentation method to use.
-Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``aparcaseg`` (FreeSurfer ``aparc+aseg.mgz``), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
+Available options are ``gtm`` (default) whole-brain segmentation from FreeSurfer, ``brainstem``, ``wm`` (white matter), ``aparcaseg`` (FreeSurfer ``aparc+aseg.mgz``), ``thalamicNuclei``, ``hippocampusAmygdala``, ``raphe``, and ``limbic``. Atlas-based segmentations can also be selected with ``--seg``; the atlas choices are ``HOCPA`` (harvard-oxford atlas), the Schaefer 2018 cortical and Buckner 2011 cerebellar atlas variants listed in `Atlas Segmentation`_, and ``MASSP20`` (subcortical atlas). When an atlas is selected, *PETPrep* automatically adds the atlas template to ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about the atlas choices, see the section `Atlas Segmentation`_.
 The ``gtm`` segmentation is a whole-brain segmentation that includes the
 cerebral cortex, subcortical structures, and cerebellum.
 
@@ -430,7 +430,7 @@ To run the segmentation with the default ``gtm`` method, use: ::
 Atlas Segmentation
 ------------------
 
-PETPrep currently supports three atlas variants for segmentation:
+PETPrep supports the following atlas families for segmentation:
 
 ``HOCPA`` : the Harvard-Oxford cortical and subcortical atlas (HOCPA)
 
@@ -450,12 +450,31 @@ Where ``<N>`` is one of ``100``, ``200``, ``300``, ``400``, ``500``, ``600``,
 
 .. figure:: _static/atlas_Schaefer2018100Parcels17Networks.svg
 
+``Buckner20117Networks`` and ``Buckner201117Networks`` : the Buckner 2011
+cerebellar parcellations with **7 or 17 networks**, respectively. Both are
+retrieved from TemplateFlow in ``MNI152NLin6Asym`` space at **1 mm** resolution,
+using the ``seg-7n`` or ``seg-17n`` segmentation and its matching label table.
+The warped atlas is constrained by the anatomical brain mask to preserve
+cerebellar coverage. Selecting either variant adds the Buckner et al. (2011)
+reference to the methods boilerplate.
+
+For example, to extract cerebellar time-activity curves with the 17-network atlas: ::
+
+    $ petprep /data/bids_root /out participant --seg Buckner201117Networks
+
 ``MASSP20`` : the MASSP20 subcortical atlas. When an atlas is selected with ``--seg``, PETPrep automatically adds the corresponding template to the ``--output-spaces`` and warps the atlas and its label file into anatomical space. For more information about these atlases, see their respective publications:
 
 .. figure:: _static/atlas_MASSP20.svg
 
 References
 ~~~~~~~~~~
+
+**Buckner2011 cerebellar atlas variants**
+
+Buckner, R. L., Krienen, F. M., Castellanos, A., Diaz, J. C. & Yeo, B. T.
+(2011). The organization of the human cerebellum estimated by intrinsic
+functional connectivity. *J Neurophysiol* 106, 2322–2345.
+doi: `10.1152/jn.00339.2011 <https://doi.org/10.1152/jn.00339.2011>`_.
 
 **MASSP20**
 
