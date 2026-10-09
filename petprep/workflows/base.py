@@ -52,6 +52,8 @@ def _build_segmentation_boilerplate(seg: str) -> str:
     atlas_citations = {
         'MASSP20': ' [@massp20].',
         'HOCPA': ' [@hocpa].',
+        'Buckner20117Networks': ' [@buckner2011].',
+        'Buckner201117Networks': ' [@buckner2011].',
     }
 
     if seg in atlas_config:

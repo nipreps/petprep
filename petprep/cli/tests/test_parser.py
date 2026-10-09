@@ -88,6 +88,37 @@ def test_submm_recon_flags(tmp_path):
         parser.parse_args(base_args + ['--submm-recon', '--no-submm-recon'])
 
 
+@pytest.mark.parametrize('seg', ['Buckner20117Networks', 'Buckner201117Networks'])
+def test_buckner_atlas_adds_template_space(tmp_path, minimal_bids, monkeypatch, seg):
+    """Selecting either cerebellar atlas requests its registration template."""
+    _reset_config()
+    monkeypatch.setattr(_version, 'check_latest', lambda: None)
+    monkeypatch.setattr(_version, 'is_flagged', lambda: (False, None))
+    try:
+        parse_args(
+            args=[
+                str(minimal_bids),
+                str(tmp_path / 'out'),
+                'participant',
+                '--seg',
+                seg,
+                '--output-spaces',
+                'T1w',
+                '--skip-bids-validation',
+                '--notrack',
+                '-w',
+                str(tmp_path / 'work'),
+            ]
+        )
+
+        assert config.workflow.seg == seg
+        refs = config.execution.output_spaces.references
+        assert any(ref.space == 'T1w' for ref in refs)
+        assert any(ref.space == 'MNI152NLin6Asym' and ref.spec['res'] == 1 for ref in refs)
+    finally:
+        _reset_config()
+
+
 def test_pet2anat_identity_method(tmp_path):
     datapath = tmp_path / 'data'
     datapath.mkdir()
