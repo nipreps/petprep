@@ -348,6 +348,9 @@ def init_func_fit_reports_wf(
             before_label='T1w',
             after_label='PET',
             dismiss_affine=True,
+            # SimpleBeforeAfter treats ``after`` as the fixed image, so these
+            # parameters apply only to PET and leave the T1w view grayscale.
+            fixed_params={'cmap': 'hot'},
         ),
         name='pet_t1_report',
         mem_gb=0.1,
@@ -369,6 +372,7 @@ def init_func_fit_reports_wf(
                 before_label='T1w',
                 after_label='PET',
                 dismiss_affine=True,
+                fixed_params={'cmap': 'hot'},
             ),
             name='pet_t1_refmask_report',
             mem_gb=0.1,

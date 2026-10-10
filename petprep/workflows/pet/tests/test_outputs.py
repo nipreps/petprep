@@ -183,6 +183,13 @@ def test_init_func_fit_reports_wf_with_atlas_and_refmask(tmp_path: Path):
     ds_refmask = wf.get_node('ds_pet_t1_refmask_report')
     assert ds_refmask.inputs.label == 'cerebellum'
 
+    pet_t1_report = wf.get_node('pet_t1_report')
+    pet_t1_refmask_report = wf.get_node('pet_t1_refmask_report')
+    assert pet_t1_report.inputs.fixed_params == {'cmap': 'hot'}
+    assert pet_t1_refmask_report.inputs.fixed_params == {'cmap': 'hot'}
+    assert pet_t1_report.inputs.moving_params == {}
+    assert pet_t1_refmask_report.inputs.moving_params == {}
+
 
 def test_init_func_fit_reports_wf_without_optional_reports(tmp_path: Path):
     from ..outputs import init_func_fit_reports_wf
@@ -197,3 +204,4 @@ def test_init_func_fit_reports_wf_without_optional_reports(tmp_path: Path):
     node_names = wf.list_node_names()
     assert 'ds_report_refmask' not in node_names
     assert 'atlas_overlay_report' not in node_names
+    assert wf.get_node('pet_t1_report').inputs.fixed_params == {'cmap': 'hot'}
