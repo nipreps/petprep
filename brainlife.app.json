@@ -1,0 +1,21 @@
+{
+  "spec": "brainlife-app/2.0",
+  "name": "petprep",
+  "version": "0.0.3",
+  "summary": "PETPrep: A Robust Preprocessing Pipeline for PET Data",
+  "description": "unknown",
+  "kind": "native",
+  "topics": [],
+  "registry": {
+    "id": "68ee37f336eef15688d26a97",
+    "github": "nipreps/petprep",
+    "branch": "0.0.3"
+  },
+  "inputs": [],
+  "outputs": [],
+  "parameters": [],
+  "runtime": {
+    "container": "unknown"
+  },
+  "doi": "10.25663/brainlife.app.878"
+}
